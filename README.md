@@ -13,7 +13,7 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 
 ## Decisions
 
-- **View:** top-down 2D, with stacked layers later.
+- **View:** top-down 2D and a 3D view of the same grid, with stacked layers later.
 - **Multiplayer:** small co-op (2-8 players). The server orders commands and every
   client runs the same simulation. Federation between worlds comes later.
 - **Priority:** programmable platform first (data packs, external API, WASM mods),
@@ -47,4 +47,6 @@ builds the WebAssembly client and publishes both to GitHub Pages.
 The code is licensed under the GNU General Public License, version 2 or later.
 See [COPYING](COPYING).
 
-Sandbox art is [Tiny Factory](https://kenney.nl/assets/tiny-factory) by Kenney (CC0).
+Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory) and
+[Factory Kit](https://kenney.nl/assets/factory-kit) by Kenney (CC0). The 3D view uses
+[three.js](https://threejs.org) (MIT), vendored in `site/play/vendor`.

@@ -326,6 +326,8 @@ impl Builder {
             name: id.to_string(),
             speed: DEFAULT_BELT_SPEED,
             style: 0,
+            model: None,
+            corner_model: None,
             cost: Vec::new(),
             locked_by: None,
         };
@@ -337,6 +339,8 @@ impl Builder {
                 ["name", value] => belt.name = value.to_string(),
                 ["speed", value] => belt.speed = line.positive(value)?,
                 ["style", value] => belt.style = line.whole(value)?,
+                ["model", value] => belt.model = Some(value.to_string()),
+                ["corner", value] => belt.corner_model = Some(value.to_string()),
                 _ => return line.fail(format!("belt does not understand '{}'", pair[0])),
             }
         }
@@ -365,6 +369,7 @@ impl Builder {
             sprite: 0,
             tint: None,
             group: "Buildings".to_string(),
+            model: None,
             place_on: Vec::new(),
             stores_any: false,
             delivers: false,
@@ -382,6 +387,7 @@ impl Builder {
                 ["sprite", value] => unit.sprite = line.whole(value)?,
                 ["tint", value] => unit.tint = Some(line.color(value)?),
                 ["group", value] => unit.group = value.to_string(),
+                ["model", value] => unit.model = Some(value.to_string()),
                 ["placeOn", value] => unit.place_on.push(self.layer(line, value)?),
                 ["stores", "any"] => unit.stores_any = true,
                 ["stores", "shared"] => unit.delivers = true,
@@ -833,6 +839,8 @@ impl Pack {
             name: "Belt".to_string(),
             speed: DEFAULT_BELT_SPEED,
             style: 0,
+            model: None,
+            corner_model: None,
             cost: Vec::new(),
             locked_by: None,
         });

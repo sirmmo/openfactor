@@ -189,6 +189,10 @@ fn json_lock(locked_by: Option<TechId>) -> String {
     locked_by.map_or("null".to_string(), |tech| tech.0.to_string())
 }
 
+fn json_name(name: &Option<String>) -> String {
+    name.as_deref().map_or("null".to_string(), json_string)
+}
+
 fn json_tint(tint: Option<u32>) -> String {
     tint.map_or("null".to_string(), |value| value.to_string())
 }
@@ -236,12 +240,14 @@ fn pack_json(pack: &Pack) -> String {
         .iter()
         .map(|b| {
             format!(
-                r#"{{"name":{},"speed":{},"style":{},"cost":{},"lock":{}}}"#,
+                r#"{{"name":{},"speed":{},"style":{},"cost":{},"lock":{},"model":{},"corner":{}}}"#,
                 json_string(&b.name),
                 b.speed,
                 b.style,
                 json_cost(&b.cost),
-                json_lock(b.locked_by)
+                json_lock(b.locked_by),
+                json_name(&b.model),
+                json_name(&b.corner_model)
             )
         })
         .collect();
@@ -265,7 +271,7 @@ fn pack_json(pack: &Pack) -> String {
             ports.sort_unstable();
             ports.dedup();
             format!(
-                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{}}}"#,
+                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{},"model":{}}}"#,
                 json_string(&unit.id),
                 json_string(&unit.name),
                 unit.sprite,
@@ -280,7 +286,8 @@ fn pack_json(pack: &Pack) -> String {
                 ports,
                 json_cost(&unit.cost),
                 json_lock(unit.locked_by),
-                unit.delivers
+                unit.delivers,
+                json_name(&unit.model)
             )
         })
         .collect();

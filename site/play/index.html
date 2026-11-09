@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Play OpenFactor</title>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 <style>
   :root {
     --ink: #e8e6df; --dim: #9a9c9e; --ground: #15181c; --panel: #1f2329;
@@ -11,9 +12,11 @@
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; background: var(--ground); color: var(--ink);
     font: 14px/1.4 system-ui, sans-serif; overflow: hidden; }
   #view { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+  #view3d { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .bar { position: fixed; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 6px;
     align-items: center; pointer-events: none; }
   .bar > * { pointer-events: auto; }
@@ -42,7 +45,6 @@
   .amount.short { color: #ff8a80; }
   #research { position: fixed; inset: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
     background: var(--ground); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; z-index: 5; }
-  #research[hidden] { display: none; }
   #research header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   #research h2 { font-size: 16px; margin: 0; }
   #research header .close { margin-left: auto; min-height: 32px; padding: 2px 10px; }
@@ -99,6 +101,7 @@
 </head>
 <body>
 <canvas id="view" aria-label="Factory map"></canvas>
+<canvas id="view3d" aria-label="Factory in 3D" hidden></canvas>
 
 <div class="bar" id="hud">
   <a class="chip" href="../">&larr; Docs</a>
@@ -255,6 +258,8 @@
   let ground = new Map(), haze = [], buildings = new Map(), items = [];
   let hover = null, drag = null, pan = null;
   let selected = null;
+  // The 3D view is loaded the first time it is opened.
+  let view3d = null, use3d = false, loading3d = false;
 
   // Toolbar: one row for the open section's tools, one for sections and actions.
   const toolbar = $('tools'), groupbar = $('groups');
@@ -314,6 +319,10 @@
     groupbar.append(b);
     actionButtons.set(action, b);
   }
+  const viewButton = document.createElement('button');
+  viewButton.innerHTML = '3D view<kbd>V</kbd>';
+  viewButton.addEventListener('click', () => toggle3d());
+  groupbar.append(viewButton);
   const rotateButton = document.createElement('button');
   rotateButton.addEventListener('click', () => rotate());
   groupbar.append(rotateButton);
@@ -724,11 +733,34 @@
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    if (use3d) view3d.resize(width, height);
   }
   window.addEventListener('resize', resize);
   resize();
 
-  const cellAt = (e) => ({
+  async function toggle3d() {
+    if (loading3d) return;
+    if (!view3d) {
+      loading3d = true;
+      say('Loading the 3D view…', 0);
+      try {
+        const { createView3d } = await import('./view3d.js?v=1');
+        view3d = await createView3d({ pack, canvas: $('view3d'), spriteSource, isBelt, DIRS, PORT_TURNS, beltCount });
+        statusEl.hidden = true;
+      } catch (error) {
+        say('The 3D view could not start (' + error.message + ').', 6000);
+        return;
+      } finally {
+        loading3d = false;
+      }
+    }
+    use3d = !use3d;
+    $('view3d').hidden = !use3d;
+    viewButton.innerHTML = (use3d ? '2D view' : '3D view') + '<kbd>V</kbd>';
+    if (use3d) view3d.resize(width, height);
+  }
+
+  const cellAt = (e) => (use3d ? view3d.cellAt(e.clientX, e.clientY) : {
     x: Math.floor(cam.x + (e.clientX - width / 2) / cam.cell),
     y: Math.floor(cam.y + (e.clientY - height / 2) / cam.cell),
   });
@@ -766,7 +798,7 @@
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     if (e.button !== 0 || tool.id === 'move') {
-      pan = { x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y };
+      pan = { x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y, ground: use3d ? view3d.groundAt(e.clientX, e.clientY, cam) : null };
       return;
     }
     const cell = cellAt(e);
@@ -777,7 +809,12 @@
   });
   canvas.addEventListener('pointermove', (e) => {
     hover = cellAt(e);
-    if (pan) {
+    if (pan && use3d) {
+      // Keep the ground point that was grabbed under the pointer.
+      const point = view3d.groundAt(e.clientX, e.clientY, cam);
+      cam.x += pan.ground.x - point.x;
+      cam.y += pan.ground.y - point.y;
+    } else if (pan) {
       cam.x = pan.camX - (e.clientX - pan.x) / cam.cell;
       cam.y = pan.camY - (e.clientY - pan.y) / cam.cell;
     } else if (drag && (hover.x !== drag.last.x || hover.y !== drag.last.y)) {
@@ -805,6 +842,8 @@
   window.addEventListener('keydown', (e) => {
     const lower = e.key.toLowerCase();
     if (lower === 'r') return rotate();
+    if (lower === 'v') return toggle3d();
+    if (use3d && (lower === 'q' || lower === 'e')) return view3d.rotateView(lower === 'q' ? -1 : 1);
     if (lower === 'p') return toggleStats();
     if (lower === 't') return toggleResearch();
     if (lower === 'escape') {
@@ -827,8 +866,9 @@
     const moves = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1], arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] };
     if (moves[lower]) {
       e.preventDefault();
-      cam.x += moves[lower][0] * panStep;
-      cam.y += moves[lower][1] * panStep;
+      const [moveX, moveY] = use3d ? view3d.panVector(...moves[lower]) : moves[lower];
+      cam.x += moveX * panStep;
+      cam.y += moveY * panStep;
     }
   });
 
@@ -1083,11 +1123,13 @@
       if (of.of_step(steps) > 0) say(REJECT_TEXT[of.of_last_reject()]);
     }
     readSnapshot();
-    draw();
+    if (use3d) view3d.render({ ground, haze, buildings, items, cam, hover: pan ? null : hover, tool, rotation, selected });
+    else draw();
     if (now >= nextHud) { updateHud(); nextHud = now + 250; }
     requestAnimationFrame(frame);
   }
   say('Deliver items to a depot to pay for buildings and research.', 7000);
+  if (new URLSearchParams(location.search).get('view') === '3d') toggle3d();
   requestAnimationFrame(frame);
 })();
 </script>

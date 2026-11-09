@@ -63,6 +63,7 @@
     <tr><td>Click a building, or <kbd>I</kbd></td><td>Inspect it: status, recipe or filter choice, contents and networks</td></tr>
     <tr><td><kbd>P</kbd></td><td>Production totals and stock</td></tr>
     <tr><td><kbd>T</kbd></td><td>Research tree</td></tr>
+    <tr><td><kbd>V</kbd></td><td>Switch between the 2D and 3D views. <kbd>Q</kbd> and <kbd>E</kbd> turn the 3D camera</td></tr>
     <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
     <tr><td><kbd>X</kbd></td><td>Erase. Whatever the building held is destroyed</td></tr>
     <tr><td><kbd>M</kbd>, right-drag, WASD or arrows</td><td>Move the view</td></tr>
@@ -119,10 +120,10 @@ place miner 2 2 east</code></pre>
   <h3>Declarations</h3>
   <div class="scroll"><table>
     <tr><th>Statement</th><th>Meaning</th></tr>
-    <tr><td><code>belt &lt;id&gt; [name "…"] [speed &lt;n&gt;] [style &lt;n&gt;]</code></td><td>A belt tier. Belts of different tiers join up, and the slower one sets the pace. The built-in <code>belt</code> can be adjusted the same way.</td></tr>
+    <tr><td><code>belt &lt;id&gt; [name "…"] [speed &lt;n&gt;] [style &lt;n&gt;] [model &lt;file&gt;] [corner &lt;file&gt;]</code></td><td>A belt tier. Belts of different tiers join up, and the slower one sets the pace. The built-in <code>belt</code> can be adjusted the same way.</td></tr>
     <tr><td><code>resource &lt;id&gt; [name "…"] [sprite &lt;n&gt;] [tint &lt;rrggbb&gt;]</code></td><td>Something units make, carry or share over a network.</td></tr>
     <tr><td><code>layer &lt;id&gt; [name "…"] [sprites &lt;n&gt;…] [tint &lt;rrggbb&gt;] [haze &lt;rrggbb&gt; full &lt;n&gt;]</code></td><td>A map layer. <code>sprites</code> and <code>tint</code> draw ground; <code>haze</code> draws a colour that thickens up to the value <code>full</code>.</td></tr>
-    <tr><td><code>unit &lt;id&gt; [name "…"] [sprite &lt;n&gt;] [tint &lt;rrggbb&gt;] [group "…"]</code></td><td>A building. <code>group</code> is its toolbar section.</td></tr>
+    <tr><td><code>unit &lt;id&gt; [name "…"] [sprite &lt;n&gt;] [tint &lt;rrggbb&gt;] [group "…"] [model &lt;file&gt;]</code></td><td>A building. <code>group</code> is its toolbar section and <code>model</code> the name of its 3D model.</td></tr>
     <tr><td><code>… placeOn &lt;layer&gt;</code></td><td>It can only be built where that layer has a value. Repeat for alternatives.</td></tr>
     <tr><td><code>… stores any</code></td><td>Accepts any resource without limit.</td></tr>
     <tr><td><code>… routes split</code></td><td>Passes items to its front and sides in turn. Routing units can't have rules.</td></tr>
@@ -210,7 +211,7 @@ python3 -m http.server --directory site</code></pre>
 
   <h2>Licence and credits</h2>
   <p>OpenFactor's code is free software under the <a href="https://github.com/sirmmo/openfactor/blob/main/COPYING">GNU General Public License, version 2 or later</a>.</p>
-  <p>Sandbox art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> by Kenney, released under <a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>.</p>
+  <p>Art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> (<a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>) and <a href="https://kenney.nl/assets/factory-kit">Factory Kit</a> (<a href="play/assets/models/factory-kit-LICENSE.txt">CC0</a>) by Kenney. The 3D view uses <a href="https://threejs.org">three.js</a> (<a href="play/vendor/three-LICENSE.txt">MIT</a>).</p>
 </main>
 </body>
 </html>

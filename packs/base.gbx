@@ -5,8 +5,8 @@
 # faster, and need a steam or tar plant, water and oil over pipes, and poles.
 # Everything delivered to a depot joins the stock that pays for buildings and research.
 
-belt belt name "Belt" speed 16
-belt express name "Express belt" speed 32 style 1
+belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
+belt express name "Express belt" speed 32 style 1 model conveyor-stripe corner conveyor-stripe-corner
 
 # Raw materials
 resource ironOre     name "Iron ore"     sprite 96
@@ -50,31 +50,27 @@ metric energy    name "Energy used"
 metric automata  name "Automata built"
 
 # Logistics
-unit splitter name "Splitter"  sprite 72  group "Logistics" routes split
-unit sorter   name "Sorter"    sprite 79  group "Logistics" routes filter
-unit tunnel   name "Tunnel"    sprite 68  group "Logistics" routes tunnel range 5
-unit depot    name "Depot"     sprite 58  group "Logistics" stores shared
-
+unit splitter name "Splitter"  sprite 72  group "Logistics" routes split model conveyor-cross
+unit sorter   name "Sorter"    sprite 79  group "Logistics" routes filter model scanner-low
+unit tunnel   name "Tunnel"    sprite 68  group "Logistics" routes tunnel range 5 model machine-connection-hole
+unit depot    name "Depot"     sprite 58  group "Logistics" stores shared model box-wide
 # Extraction
-unit drill      name "Drill"       sprite 110 group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField
-unit powerDrill name "Power drill" sprite 98  group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField placeOn tungstenField
-unit pump       name "Pump"        sprite 90  group "Extraction" placeOn waterField
-unit derrick    name "Derrick"     sprite 128 group "Extraction" placeOn oilField
-
+unit drill      name "Drill"       sprite 110 group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField model piston-round
+unit powerDrill name "Power drill" sprite 98  group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField placeOn tungstenField model piston-square
+unit pump       name "Pump"        sprite 90  group "Extraction" placeOn waterField model pipe-large-valve
+unit derrick    name "Derrick"     sprite 128 group "Extraction" placeOn oilField model robot-arm-b
 # Production
-unit furnace   name "Coal furnace"  sprite 92  group "Production"
-unit arc       name "Arc furnace"   sprite 75  group "Production"
-unit workshop  name "Workshop"      sprite 87  group "Production"
-unit assembly  name "Assembly line" sprite 99  group "Production"
-unit refinery  name "Refinery"      sprite 111 group "Production"
-
+unit furnace   name "Coal furnace"  sprite 92  group "Production" model hopper-round
+unit arc       name "Arc furnace"   sprite 75  group "Production" model machine-fortified
+unit workshop  name "Workshop"      sprite 87  group "Production" model machine
+unit assembly  name "Assembly line" sprite 99  group "Production" model machine-window-bar
+unit refinery  name "Refinery"      sprite 111 group "Production" model machine-connection-pipe
 # Utilities
-unit steam  name "Steam plant"  sprite 109 group "Utilities"
-unit burner name "Tar burner"   sprite 108 group "Utilities"
-unit solar  name "Solar panel"  sprite 22  group "Utilities"
-unit pole   name "Power pole"   sprite 116 group "Utilities" links power reach 5
-unit pipe   name "Pipe"         sprite 91  group "Utilities" links water reach 1 links crude reach 1
-
+unit steam  name "Steam plant"  sprite 109 group "Utilities" model hopper-high-round
+unit burner name "Tar burner"   sprite 108 group "Utilities" model hopper-high-square
+unit solar  name "Solar panel"  sprite 22  group "Utilities" model screen-flat
+unit pole   name "Power pole"   sprite 116 group "Utilities" links power reach 5 model structure-tall
+unit pipe   name "Pipe"         sprite 91  group "Utilities" links water reach 1 links crude reach 1 model button-floor-round
 # --- Drills. Whichever rule's ground is under the drill is the one that runs.
 
 unitRule drillIron

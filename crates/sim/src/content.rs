@@ -43,6 +43,9 @@ pub struct BeltDef {
     pub speed: u32,
     /// Which set of belt art to draw.
     pub style: u32,
+    /// 3D models for a straight piece and a corner. Cosmetic.
+    pub model: Option<String>,
+    pub corner_model: Option<String>,
     pub cost: Cost,
     /// The research that makes it available, if any.
     pub locked_by: Option<TechId>,
@@ -102,6 +105,8 @@ pub struct UnitDef {
     pub tint: Option<u32>,
     /// Toolbar section. Cosmetic.
     pub group: String,
+    /// 3D model. Cosmetic.
+    pub model: Option<String>,
     /// If not empty, the unit can only be placed where one of these layers is above zero.
     pub place_on: Vec<LayerId>,
     /// Accepts any resource without limit.
