@@ -1,7 +1,7 @@
 use crate::belt::{BeltItem, Line, Target, TILE};
 use crate::content::{Amount, Content, Pack, Rule, Scope};
 use crate::hash::Hasher;
-use crate::{Dir, EntityId, ItemId, LayerId, Pos, Tick, UnitId};
+use crate::{Dir, EntityId, ItemId, LayerId, MetricId, Pos, Tick, UnitId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,6 +36,13 @@ pub struct ItemStats {
     pub produced: u64,
     pub consumed: u64,
     pub destroyed: u64,
+}
+
+/// A metric's running total and the tick of its latest change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MetricValue {
+    pub total: u64,
+    pub last_tick: Tick,
 }
 
 #[derive(Clone, Debug)]
@@ -90,6 +97,7 @@ pub struct World {
     next_id: u32,
     layers: Vec<Layer>,
     globals: BTreeMap<ItemId, u64>,
+    metrics: BTreeMap<MetricId, MetricValue>,
     tiles: BTreeMap<Pos, EntityId>,
     /// Everything that isn't a belt. Kept apart so a tick never visits belts.
     machines: BTreeMap<EntityId, Entity>,
@@ -136,6 +144,40 @@ fn subtract(map: &mut BTreeMap<ItemId, u64>, item: ItemId, amount: u64) {
     }
 }
 
+fn take_from_tile(layers: &mut [Layer], layer: LayerId, pos: Pos, amount: u64) {
+    let tiles = &mut layers[usize::from(layer.0)];
+    let value = tiles.get_mut(&pos).expect("checked before taking");
+    *value -= amount;
+    if *value == 0 {
+        tiles.remove(&pos);
+    }
+}
+
+fn map_rule_applies(rule: &Rule, layers: &[Layer], pos: Pos) -> bool {
+    let conditions_hold = rule
+        .conditions
+        .iter()
+        .all(|c| c.test.holds(layer_at(layers, c.layer, pos), c.value));
+    conditions_hold
+        && rule.takes.iter().all(|take| match take.scope {
+            Scope::Map { layer, .. } => layer_at(layers, layer, pos) >= u64::from(take.amount),
+            _ => unreachable!("the parser only allows map statements in a map rule"),
+        })
+}
+
+fn apply_map_rule(rule: &Rule, layers: &mut [Layer], pos: Pos) {
+    for take in &rule.takes {
+        if let Scope::Map { layer, .. } = take.scope {
+            take_from_tile(layers, layer, pos, u64::from(take.amount));
+        }
+    }
+    for give in &rule.gives {
+        if let Scope::Map { layer, .. } = give.scope {
+            *layers[usize::from(layer.0)].entry(pos).or_default() += u64::from(give.amount);
+        }
+    }
+}
+
 fn apply_takes(rule: &Rule, machine: &mut Machine, layers: &mut [Layer], globals: &mut BTreeMap<ItemId, u64>, stats: &mut Stats, pos: Pos) {
     for &Amount { scope, amount } in &rule.takes {
         let amount_wide = u64::from(amount);
@@ -145,14 +187,7 @@ fn apply_takes(rule: &Rule, machine: &mut Machine, layers: &mut [Layer], globals
                 stat(stats, item).consumed += amount_wide;
             }
             Scope::Global(item) => subtract(globals, item, amount_wide),
-            Scope::Map { layer, .. } => {
-                let tiles = &mut layers[usize::from(layer.0)];
-                let value = tiles.get_mut(&pos).expect("checked by can_start");
-                *value -= amount_wide;
-                if *value == 0 {
-                    tiles.remove(&pos);
-                }
-            }
+            Scope::Map { layer, .. } => take_from_tile(layers, layer, pos, amount_wide),
         }
     }
 }
@@ -199,6 +234,7 @@ impl World {
             next_id: 0,
             layers,
             globals: BTreeMap::new(),
+            metrics: BTreeMap::new(),
             tiles: BTreeMap::new(),
             machines: BTreeMap::new(),
             belts: BTreeMap::new(),
@@ -234,6 +270,7 @@ impl World {
         }
         self.transfer_items();
         self.run_machines();
+        self.run_map_rules();
         self.tick += 1;
         rejected
     }
@@ -524,6 +561,8 @@ impl World {
         let layers = &mut self.layers;
         let globals = &mut self.globals;
         let stats = &mut self.stats;
+        let metrics = &mut self.metrics;
+        let tick = self.tick;
         for entity in self.machines.values_mut() {
             let pos = entity.pos;
             let machine = match &mut entity.kind {
@@ -537,6 +576,11 @@ impl World {
                     let rule = &rules[job.rule];
                     machine.job = None;
                     apply_gives(rule, machine, layers, globals, stats, pos);
+                    for &(metric, amount) in &rule.logs {
+                        let value = metrics.entry(metric).or_default();
+                        value.total += u64::from(amount);
+                        value.last_tick = tick;
+                    }
                 }
                 continue;
             }
@@ -547,6 +591,28 @@ impl World {
                 machine.job = Some(Job { rule: index, remaining: rules[index].rate });
             }
         }
+    }
+
+    /// Applies each map rule that is due, tile by tile in position order.
+    fn run_map_rules(&mut self) {
+        let finished_ticks = self.tick + 1;
+        let layers = &mut self.layers;
+        for map_rule in &self.content.map_rules {
+            let rule = &map_rule.rule;
+            if finished_ticks % u64::from(rule.rate) != 0 {
+                continue;
+            }
+            let tiles: Vec<Pos> = layers[usize::from(map_rule.anchor.0)].keys().copied().collect();
+            for pos in tiles {
+                if map_rule_applies(rule, layers, pos) {
+                    apply_map_rule(rule, layers, pos);
+                }
+            }
+        }
+    }
+
+    pub fn metric(&self, metric: MetricId) -> MetricValue {
+        self.metrics.get(&metric).copied().unwrap_or_default()
     }
 
     /// Every building, for rendering. Machines come first, then belts.
@@ -644,6 +710,12 @@ impl World {
             h.write(u64::from(item.0));
             h.write(*value);
         }
+        h.write(self.metrics.len() as u64);
+        for (metric, value) in &self.metrics {
+            h.write(u64::from(metric.0));
+            h.write(value.total);
+            h.write(value.last_tick);
+        }
         for entities in [&self.machines, &self.belts] {
             h.write(entities.len() as u64);
             for (id, entity) in entities {
@@ -689,6 +761,15 @@ impl World {
                 hash_rule(h, rule);
             }
         }
+        h.write(self.content.metrics.len() as u64);
+        for metric in &self.content.metrics {
+            h.write_str(&metric.id);
+        }
+        h.write(self.content.map_rules.len() as u64);
+        for map_rule in &self.content.map_rules {
+            h.write(u64::from(map_rule.anchor.0));
+            hash_rule(h, &map_rule.rule);
+        }
     }
 }
 
@@ -720,6 +801,11 @@ fn hash_rule(h: &mut Hasher, rule: &Rule) {
             }
             h.write(u64::from(entry.amount));
         }
+    }
+    h.write(rule.logs.len() as u64);
+    for (metric, amount) in &rule.logs {
+        h.write(u64::from(metric.0));
+        h.write(u64::from(*amount));
     }
 }
 

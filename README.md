@@ -24,8 +24,8 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 1. Headless sim with replay tests (done).
 2. **Browser client with a build and render loop (first version in `site/play`).**
 3. Two browsers in one world, with late join and desync detection.
-4. GlassBox-style rule packs (first version in `packs/`), then map rules, an
-   in-game inspector and editor, and the external API.
+4. GlassBox-style rule packs (first version in `packs/`), then an in-game
+   inspector and editor, and the external API.
 5. WASM mods, then federation.
 
 ## Rule packs
@@ -41,6 +41,9 @@ Everything except belts is data: see [`packs/base.gbx`](packs/base.gbx) and the
 The docs and play pages live in `site/`. Every push to `main` tests the code,
 builds the WebAssembly client and publishes both to GitHub Pages.
 
-## Credits
+## Licence and credits
+
+The code is licensed under the GNU General Public License, version 2 or later.
+See [COPYING](COPYING).
 
 Sandbox art is [Tiny Factory](https://kenney.nl/assets/tiny-factory) by Kenney (CC0).

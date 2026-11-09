@@ -105,8 +105,24 @@ place miner 2 2 east</code></pre>
     <tr><td><code>map &lt;M&gt; in &lt;n&gt;</code></td><td>Taken from the layer at the unit's tile.</td></tr>
     <tr><td><code>map &lt;M&gt; out &lt;n&gt; [radius &lt;r&gt;]</code></td><td>Added to the layer around the unit.</td></tr>
     <tr><td><code>map &lt;M&gt; atLeast|atMost|greater|less|is &lt;n&gt;</code></td><td>The rule starts only when this holds at the unit's tile. <code>test map …</code> also works.</td></tr>
+    <tr><td><code>log [-timestamp=Time] &lt;metric&gt; &lt;n&gt;</code></td><td>Adds to a metric each time the rule finishes. Declare it first with <code>metric &lt;id&gt; [name "…"]</code>. Metrics appear as counters in the sandbox.</td></tr>
   </table></div>
-  <p>Where it differs from GlassBox and citysim: numbers are whole, rules fire at the end of their <code>rate</code> instead of being averaged per tick, and every resource, layer and unit must be declared, so a typo is reported with its line number. Declarations are on one line in the pack itself. <code>mapRule</code>, <code>zoneRule</code>, <code>agentRule</code>, <code>agent</code>, <code>log</code> and <code>options</code> are not supported yet and are reported as errors.</p>
+  <h3>Map rules</h3>
+  <p>A <code>mapRule</code> changes map layers by itself, tile by tile, every <code>rate</code> ticks.</p>
+<pre><code>mapRule growGrass
+    rate 200
+    map soil atLeast 20
+    map water in 10
+    map grass out 5
+end
+
+mapRule clearSmog
+    rate 20
+    map smog in 1
+end</code></pre>
+  <p>On a given tile, the rule applies only if all its conditions hold and every <code>in</code> amount is available; otherwise that tile is unchanged. Because the map has no edge, each map rule needs a <code>map … in</code>, or a condition that only non-empty tiles can meet (<code>atLeast</code> or <code>is</code> above zero, or <code>greater</code>). A map rule can only use <code>rate</code> and <code>map</code> statements, and it changes only the tile it is on, so <code>radius</code> isn't allowed. The sandbox doesn't draw layers without sprites yet, so a change like the smog above isn't visible there.</p>
+  <h3>Differences from GlassBox and citysim</h3>
+  <p>Numbers are whole, rules fire at the end of their <code>rate</code> instead of being averaged per tick, and every resource, layer, metric and unit must be declared, so a typo is reported with its line number. Declarations are on one line in the pack itself. <code>log</code> adds its amount when a rule finishes, not every tick. <code>zoneRule</code>, <code>agentRule</code>, <code>agent</code> and <code>options</code> are not supported yet and are reported as errors.</p>
   <p>Rule changes alter the state hash, so players on different rules are detected as out of sync. Names and sprites don't.</p>
 
   <h2>Embedding the simulation</h2>
@@ -131,11 +147,12 @@ python3 -m http.server --directory site</code></pre>
     <li>Headless simulation with replay tests (done).</li>
     <li>Browser client with a build and render loop (first version live).</li>
     <li>Two browsers in one world, with late join and desync detection.</li>
-    <li>GlassBox-style rule packs (first version live), map rules, an in-game inspector and editor, and the external API.</li>
+    <li>GlassBox-style rule packs (first version live), an in-game inspector and editor, and the external API.</li>
     <li>WASM mods, then federation between worlds.</li>
   </ol>
 
-  <h2>Credits</h2>
+  <h2>Licence and credits</h2>
+  <p>OpenFactor's code is free software under the <a href="https://github.com/sirmmo/openfactor/blob/main/COPYING">GNU General Public License, version 2 or later</a>.</p>
   <p>Sandbox art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> by Kenney, released under <a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>.</p>
 </main>
 </body>

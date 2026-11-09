@@ -3,7 +3,7 @@
 //! Edits are queued and applied on the next `of_step`. A returned pointer is
 //! only valid until the next call, because wasm memory can move when it grows.
 
-use openfactor_sim::{Building, Command, Dir, ItemId, Pack, Pos, UnitId, World};
+use openfactor_sim::{Building, Command, Dir, ItemId, MetricId, Pack, Pos, UnitId, World};
 use std::cell::RefCell;
 
 const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
@@ -127,11 +127,14 @@ fn pack_json(pack: &Pack) -> String {
         .iter()
         .map(|layer| format!(r#"{{"sprites":{:?}}}"#, layer.sprites))
         .collect();
+    let metrics: Vec<String> =
+        content.metrics().iter().map(|m| format!(r#"{{"name":{}}}"#, json_string(&m.name))).collect();
     format!(
-        r#"{{"units":[{}],"resources":[{}],"layers":[{}]}}"#,
+        r#"{{"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}]}}"#,
         units.join(","),
         resources.join(","),
-        layers.join(",")
+        layers.join(","),
+        metrics.join(",")
     )
 }
 
@@ -215,6 +218,11 @@ pub extern "C" fn of_produced(item: u32) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn of_metric(metric: u32) -> u32 {
+    with_game(|game| game.world.metric(MetricId(metric as u16)).total as u32)
+}
+
+#[no_mangle]
 pub extern "C" fn of_hash_hi() -> u32 {
     with_game(|game| (game.world.state_hash() >> 32) as u32)
 }
@@ -233,6 +241,7 @@ mod tests {
         of_reset();
         assert_eq!(of_step(3600), 0);
         assert!(of_produced(2) > 0);
+        assert!(of_metric(0) > 0);
         assert!(!of_snapshot().is_null() && of_snapshot_len() > 0);
         println!("starter hash {:08x}{:08x}", of_hash_hi(), of_hash_lo());
     }

@@ -1,4 +1,4 @@
-use crate::{Command, ItemId, LayerId, Pos, UnitId};
+use crate::{Command, ItemId, LayerId, MetricId, Pos, UnitId};
 
 /// A parsed rule pack: the definitions plus the map they start on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,6 +14,8 @@ pub struct Content {
     pub(crate) resources: Vec<ResourceDef>,
     pub(crate) layers: Vec<LayerDef>,
     pub(crate) units: Vec<UnitDef>,
+    pub(crate) metrics: Vec<MetricDef>,
+    pub(crate) map_rules: Vec<MapRule>,
     /// Distance a belt item moves per tick, in 1/`TILE` of a tile.
     pub(crate) belt_speed: u32,
 }
@@ -30,6 +32,22 @@ pub struct LayerDef {
     pub id: String,
     /// Tiles drawn for this layer; empty means it is not drawn.
     pub sprites: Vec<u32>,
+}
+
+/// A running total that rules add to with `log`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MetricDef {
+    pub id: String,
+    pub name: String,
+}
+
+/// One `mapRule`: applied every `rate` ticks to each tile that qualifies.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MapRule {
+    pub rule: Rule,
+    /// Only tiles with a value in this layer can qualify, which keeps the
+    /// rule to a finite set of tiles on an unbounded map.
+    pub anchor: LayerId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,6 +80,8 @@ pub struct Rule {
     pub conditions: Vec<Condition>,
     pub takes: Vec<Amount>,
     pub gives: Vec<Amount>,
+    /// Added to metrics each time the rule finishes.
+    pub logs: Vec<(MetricId, u32)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -134,6 +154,14 @@ impl Content {
 
     pub fn units(&self) -> &[UnitDef] {
         &self.units
+    }
+
+    pub fn metrics(&self) -> &[MetricDef] {
+        &self.metrics
+    }
+
+    pub fn metric_id(&self, id: &str) -> Option<MetricId> {
+        self.metrics.iter().position(|m| m.id == id).map(|i| MetricId(i as u16))
     }
 
     pub fn resource_id(&self, id: &str) -> Option<ItemId> {

@@ -5,11 +5,11 @@
 //! than a resource nothing produces.
 
 use crate::content::{
-    Amount, Condition, Content, LayerDef, Pack, Patch, ResourceDef, Rule, Scope, Test, UnitDef,
-    WorldGen,
+    Amount, Condition, Content, LayerDef, MapRule, MetricDef, Pack, Patch, ResourceDef, Rule,
+    Scope, Test, UnitDef, WorldGen,
 };
 use crate::world::{Building, Command};
-use crate::{Dir, ItemId, LayerId, Pos, UnitId};
+use crate::{Dir, ItemId, LayerId, MetricId, Pos, UnitId};
 use std::fmt;
 
 const BELT: &str = "belt";
@@ -178,6 +178,8 @@ struct Builder {
     resources: Vec<ResourceDef>,
     layers: Vec<LayerDef>,
     units: Vec<UnitDef>,
+    metrics: Vec<MetricDef>,
+    map_rules: Vec<MapRule>,
     patches: Vec<Patch>,
     starter: Vec<Command>,
     belt_speed: Option<u32>,
@@ -195,6 +197,13 @@ impl Builder {
         match self.layers.iter().position(|l| l.id == id) {
             Some(index) => Ok(LayerId(index as u16)),
             None => line.fail(format!("unknown map layer '{id}'; declare it with 'layer {id}'")),
+        }
+    }
+
+    fn metric(&self, line: &Line, id: &str) -> Parsed<MetricId> {
+        match self.metrics.iter().position(|m| m.id == id) {
+            Some(index) => Ok(MetricId(index as u16)),
+            None => line.fail(format!("unknown metric '{id}'; declare it with 'metric {id}'")),
         }
     }
 
@@ -226,6 +235,20 @@ impl Builder {
             }
         }
         self.resources.push(ResourceDef { id: id.to_string(), name, sprite });
+        Ok(())
+    }
+
+    fn declare_metric(&mut self, line: &Line) -> Parsed<()> {
+        let id = Self::declared_name(line, "metric")?;
+        if self.metrics.iter().any(|m| m.id == id) {
+            return line.fail(format!("metric '{id}' is declared twice"));
+        }
+        let name = match &line.strs()[2..] {
+            [] => id.to_string(),
+            ["name", value] => value.to_string(),
+            other => return line.fail(format!("metric does not understand '{}'", other[0])),
+        };
+        self.metrics.push(MetricDef { id: id.to_string(), name });
         Ok(())
     }
 
@@ -296,7 +319,7 @@ impl Builder {
                 let count = line.positive(count)?;
                 self.place(line, what, x, y, dir, count)?;
             }
-            ["resource", ..] | ["layer", ..] | ["unit", ..] => {}
+            ["resource", ..] | ["layer", ..] | ["unit", ..] | ["metric", ..] => {}
             _ => return line.fail(format!("this statement isn't understood: '{}'", line.head())),
         }
         Ok(())
@@ -317,6 +340,9 @@ impl Builder {
     fn scoped(&self, line: &Line, scope: Scope, direction: &str, amount: &str, rule: &mut Rule) -> Parsed<()> {
         let entry = Amount { scope, amount: line.positive(amount)? };
         match direction {
+            "in" if rule.takes.iter().any(|take| take.scope == scope) => {
+                return line.fail("this rule already takes that; combine them into one amount");
+            }
             "in" => rule.takes.push(entry),
             "out" => rule.gives.push(entry),
             _ => return line.fail(format!("expected 'in' or 'out', found '{direction}'")),
@@ -357,8 +383,12 @@ impl Builder {
             ["map", layer, test, value] | ["test", "map", layer, test, value] => {
                 self.condition(line, layer, test, value, rule)?;
             }
+            ["log", metric, amount] => rule.logs.push((self.metric(line, metric)?, line.positive(amount)?)),
+            ["log", flag, metric, amount] if flag.starts_with("-timestamp=") => {
+                rule.logs.push((self.metric(line, metric)?, line.positive(amount)?));
+            }
             ["successEvent", ..] | ["onFail", ..] => {}
-            [keyword @ ("agent" | "log" | "options"), ..] => {
+            [keyword @ ("agent" | "options"), ..] => {
                 return line.fail(format!("'{keyword}' is GlassBox syntax OpenFactor doesn't support yet"));
             }
             _ => return line.fail(format!("this rule statement isn't understood: '{}'", line.head())),
@@ -366,21 +396,89 @@ impl Builder {
         Ok(())
     }
 
+    fn map_rule_statement(&self, line: &Line, rule: &mut Rule) -> Parsed<()> {
+        match line.strs().as_slice() {
+            ["rate", rate] => rule.rate = line.positive(rate)?,
+            ["map", _, "out", _, "radius", _] => {
+                return line.fail("a mapRule changes one tile at a time, so 'radius' isn't allowed");
+            }
+            ["map", layer, direction @ ("in" | "out"), amount] => {
+                let scope = Scope::Map { layer: self.layer(line, layer)?, radius: 0 };
+                self.scoped(line, scope, direction, amount, rule)?;
+            }
+            ["map", layer, test, value] | ["test", "map", layer, test, value] => {
+                self.condition(line, layer, test, value, rule)?;
+            }
+            _ => return line.fail("a mapRule can only use 'rate' and 'map' statements"),
+        }
+        Ok(())
+    }
+
+    /// The layer whose tiles a map rule can possibly apply to.
+    fn map_rule_anchor(rule: &Rule) -> Option<LayerId> {
+        let from_take = rule.takes.iter().find_map(|take| match take.scope {
+            Scope::Map { layer, .. } => Some(layer),
+            _ => None,
+        });
+        from_take.or_else(|| {
+            let only_above_zero = |c: &&Condition| match c.test {
+                Test::AtLeast | Test::Is => c.value > 0,
+                Test::Greater => true,
+                Test::AtMost | Test::Less => false,
+            };
+            rule.conditions.iter().find(only_above_zero).map(|c| c.layer)
+        })
+    }
+
+    fn new_rule(name: &str) -> Rule {
+        Rule {
+            name: name.to_string(),
+            rate: 1,
+            conditions: Vec::new(),
+            takes: Vec::new(),
+            gives: Vec::new(),
+            logs: Vec::new(),
+        }
+    }
+
+    fn add_map_rule(&mut self, block: &Block, name: &str) -> Parsed<()> {
+        let mut rule = Self::new_rule(name);
+        for line in &block.body {
+            self.map_rule_statement(line, &mut rule)?;
+        }
+        if rule.takes.is_empty() && rule.gives.is_empty() {
+            return block.header.fail(format!("rule '{name}' doesn't take or give anything"));
+        }
+        let anchor = match Self::map_rule_anchor(&rule) {
+            Some(anchor) => anchor,
+            None => {
+                return block.header.fail(format!(
+                    "mapRule '{name}' could apply to endless empty tiles; add 'map <layer> in <n>' or 'map <layer> atLeast <n>'"
+                ));
+            }
+        };
+        self.map_rules.push(MapRule { rule, anchor });
+        Ok(())
+    }
+
     fn add_rule(&mut self, block: &Block) -> Parsed<()> {
         let header = &block.header;
-        if !matches!(header.head(), "unitRule" | "rule") {
+        if !matches!(header.head(), "unitRule" | "rule" | "mapRule") {
             return header.fail(format!("'{}' is GlassBox syntax OpenFactor doesn't support yet", header.head()));
         }
         let name = match header.strs().as_slice() {
             [_, name] => name.to_string(),
             _ => return header.fail(format!("'{}' needs exactly one name", header.head())),
         };
-        let mut rule = Rule { name: name.clone(), rate: 1, conditions: Vec::new(), takes: Vec::new(), gives: Vec::new() };
+        if header.head() == "mapRule" {
+            return self.add_map_rule(block, &name);
+        }
+        let mut rule = Self::new_rule(&name);
         let mut target = name.clone();
         for line in &block.body {
             self.rule_statement(line, &mut target, &mut rule)?;
         }
-        if rule.takes.is_empty() && rule.gives.is_empty() {
+        if rule.takes.is_empty() && rule.gives.is_empty() && rule.logs.is_empty() {
             return header.fail(format!("rule '{name}' doesn't take or give anything"));
         }
         let unit = self.unit(header, &target)?;
@@ -414,6 +512,8 @@ impl Builder {
                 resources: self.resources,
                 layers: self.layers,
                 units: self.units,
+                metrics: self.metrics,
+                map_rules: self.map_rules,
                 belt_speed: self.belt_speed.unwrap_or(DEFAULT_BELT_SPEED),
             },
             worldgen: WorldGen { patches: self.patches, starter: self.starter },
@@ -429,6 +529,9 @@ impl Pack {
         // Declarations come first so a pack can be written in any order.
         for line in top.iter().filter(|l| l.head() == "resource") {
             builder.declare_resource(line)?;
+        }
+        for line in top.iter().filter(|l| l.head() == "metric") {
+            builder.declare_metric(line)?;
         }
         for line in top.iter().filter(|l| l.head() == "layer") {
             builder.declare_layer(line)?;

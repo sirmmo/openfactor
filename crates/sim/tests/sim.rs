@@ -34,6 +34,7 @@ fn pack(mine: u32, smelt: u32, assemble: u32, extra: &str) -> Pack {
         unit smelter
         unit assembler
         unit depot stores any
+        metric made
         unitRule mine
             appliesTo miner
             rate {mine}
@@ -51,6 +52,7 @@ fn pack(mine: u32, smelt: u32, assemble: u32, extra: &str) -> Pack {
             rate {assemble}
             local plate in 2
             local widget out 1
+            log made 1
         end
         {extra}
         "#
@@ -304,14 +306,125 @@ fn rules_read_and_write_globals_and_map_layers() {
 }
 
 #[test]
+fn map_rules_apply_per_tile_on_their_schedule() {
+    let text = r#"
+        layer soil
+        layer water
+        layer grass
+        mapRule grow
+            rate 10
+            map soil atLeast 5
+            map water in 2
+            map grass out 3
+        end
+        patch soil at 0 0 size 1 1 amount 5
+        patch soil at 1 0 size 1 1 amount 4
+        patch soil at 2 0 size 1 1 amount 5
+        patch water at 0 0 size 3 1 amount 20
+        patch water at 2 0 size 1 1 amount 3
+    "#;
+    let pack = Pack::parse(text).unwrap();
+    let content = &pack.content;
+    let (water, grass) = (content.layer_id("water").unwrap(), content.layer_id("grass").unwrap());
+    let mut world = World::new(&pack);
+
+    run(&mut world, &[], 9);
+    assert_eq!(world.layer_value(grass, p(0, 0)), 0, "not due until ten ticks have passed");
+    run(&mut world, &[], 1);
+    assert_eq!(world.layer_value(grass, p(0, 0)), 3);
+
+    run(&mut world, &[], 90);
+    assert_eq!((world.layer_value(water, p(0, 0)), world.layer_value(grass, p(0, 0))), (0, 30));
+    assert_eq!(
+        (world.layer_value(water, p(1, 0)), world.layer_value(grass, p(1, 0))),
+        (20, 0),
+        "too little soil"
+    );
+    assert_eq!(
+        (world.layer_value(water, p(2, 0)), world.layer_value(grass, p(2, 0))),
+        (1, 3),
+        "stops when the input runs short"
+    );
+}
+
+#[test]
+fn a_map_rule_can_clear_what_units_emit() {
+    let text = r#"
+        layer smog
+        unit stack
+        unitRule puff
+            appliesTo stack
+            rate 1
+            map smog out 2
+            map smog atMost 0
+        end
+        mapRule clear
+            rate 3
+            map smog in 1
+        end
+    "#;
+    let pack = Pack::parse(text).unwrap();
+    let smog = pack.content.layer_id("smog").unwrap();
+    let mut world = World::new(&pack);
+    run(&mut world, &[unit(0, 0, UnitId(0))], 1000);
+    let value = world.layer_value(smog, p(0, 0));
+    assert!(value <= 2, "the rule holds it down, found {value}");
+    assert!(world.tick() == 1000);
+}
+
+#[test]
+fn log_totals_a_metric_each_time_a_rule_finishes() {
+    let text = r#"
+        metric heat name "Heat"
+        unit furnace
+        unitRule burn
+            appliesTo furnace
+            rate 3
+            log -timestamp=Time heat 2
+        end
+    "#;
+    let pack = Pack::parse(text).unwrap();
+    let heat = pack.content.metric_id("heat").unwrap();
+    assert_eq!(pack.content.metrics()[0].name, "Heat");
+    let mut world = World::new(&pack);
+    run(&mut world, &[unit(0, 0, UnitId(0))], 40);
+    assert_eq!(world.metric(heat), MetricValue { total: 20, last_tick: 39 });
+}
+
+#[test]
+fn map_rules_and_metrics_are_part_of_the_state_hash() {
+    let hash = |text: &str| {
+        let pack = Pack::parse(text).unwrap();
+        let mut world = World::new(&pack);
+        run(&mut world, &[], 5);
+        world.state_hash()
+    };
+    let base = "layer a\npatch a at 0 0 size 1 1 amount 9\n";
+    let plain = hash(base);
+    let with_rule = hash(&format!("{base}mapRule r\nrate 100\nmap a in 1\nend"));
+    let with_metric = hash(&format!("{base}metric m\n"));
+    assert_ne!(plain, with_rule, "rule definitions are hashed even before they fire");
+    assert_ne!(plain, with_metric);
+
+    let changes_state = hash(&format!("{base}mapRule r\nrate 2\nmap a in 1\nend"));
+    assert_ne!(with_rule, changes_state);
+}
+
+#[test]
 fn pack_mistakes_name_the_line() {
-    let cases: [(&str, usize, &str); 8] = [
+    let cases: [(&str, usize, &str); 14] = [
+        ("layer a\nlayer b\nmapRule r\nmap b out 1\nend", 3, "endless empty tiles"),
+        ("layer a\nmapRule r\nmap a atMost 3\nmap a out 1\nend", 2, "endless empty tiles"),
+        ("layer a\nmapRule r\nmap a in 1\nmap a out 1 radius 2\nend", 4, "'radius' isn't allowed"),
+        ("resource x\nlayer a\nmapRule r\nmap a in 1\nglobal x out 1\nend", 5, "only use 'rate' and 'map'"),
+        ("resource a\nunit u\nunitRule u\nlocal a in 1\nlocal a in 2\nend", 5, "already takes"),
+        ("unit u\nunitRule u\nlog -timestamp=Time missing 1\nend", 3, "unknown metric 'missing'"),
         ("resource a\nunitRule r\nappliesTo nobody\na out 1\nend", 2, "unknown unit 'nobody'"),
         ("unit u\nunitRule r\nappliesTo u\nfrobnicate 1\nend", 4, "this rule statement"),
         ("unit u\nunitRule r\nappliesTo u\nlocal ores out 1\nend", 4, "unknown resource 'ores'"),
         ("unit u\nunitRule u\nrate 1\nend", 2, "doesn't take or give"),
         ("resource a\nunit u\nunitRule u\na out 1.5\nend", 4, "whole number"),
-        ("unit u\nmapRule grow\nrate 1\nend", 2, "doesn't support yet"),
+        ("unit u\nzoneRule grow\nrate 1\nend", 2, "doesn't support yet"),
         ("resource a\nunit u\nunitRule u\na out 1", 3, "never closed"),
         ("unit belt", 1, "built into the engine"),
     ];
@@ -379,7 +492,14 @@ fn random_commands(rng: &mut Rng) -> Vec<Command> {
 }
 
 fn fuzz_world() -> World {
-    World::new(&pack(3, 5, 7, "patch oreField at 0 0 size 14 14 amount 1000000"))
+    let extra = r#"
+        patch oreField at 0 0 size 14 14 amount 1000000
+        mapRule drain
+            rate 7
+            map oreField in 1
+        end
+    "#;
+    World::new(&pack(3, 5, 7, extra))
 }
 
 fn command_log(seed: u64, ticks: usize) -> Vec<Vec<Command>> {

@@ -16,10 +16,11 @@ mod world;
 
 pub use belt::{ITEM_SPACING, TILE};
 pub use content::{
-    Amount, Condition, Content, LayerDef, Pack, ResourceDef, Rule, Scope, Test, UnitDef, WorldGen,
+    Amount, Condition, Content, LayerDef, MapRule, MetricDef, Pack, ResourceDef, Rule, Scope, Test,
+    UnitDef, WorldGen,
 };
 pub use gbx::PackError;
-pub use world::{Building, Command, ItemStats, Reject, Rejected, World};
+pub use world::{Building, Command, ItemStats, MetricValue, Reject, Rejected, World};
 
 pub type Tick = u64;
 
@@ -31,6 +32,9 @@ pub struct UnitId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LayerId(pub u16);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MetricId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EntityId(pub u32);

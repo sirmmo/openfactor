@@ -107,17 +107,19 @@
   ];
 
   const spacer = $('hud-spacer');
-  pack.resources.forEach((resource, index) => {
+  function addCounter(name, id) {
     const chip = document.createElement('div');
     chip.className = 'chip';
     const label = document.createElement('span');
-    label.textContent = resource.name.toLowerCase() + ' ';
+    label.textContent = name.toLowerCase() + ' ';
     const value = document.createElement('b');
-    value.id = 'made' + index;
+    value.id = id;
     value.textContent = '0';
     chip.append(label, value);
     spacer.before(chip);
-  });
+  }
+  pack.resources.forEach((resource, index) => addCounter(resource.name, 'made' + index));
+  pack.metrics.forEach((metric, index) => addCounter(metric.name, 'metric' + index));
 
   let tool = TOOLS[0];
   let rotation = 1;
@@ -373,7 +375,9 @@
 
   function updateHud() {
     $('tick').textContent = of.of_tick().toLocaleString('en');
-    pack.resources.forEach((_, i) => { $('made' + i).textContent = (of.of_produced(i) >>> 0).toLocaleString('en'); });
+    const count = (n) => (n >>> 0).toLocaleString('en');
+    pack.resources.forEach((_, i) => { $('made' + i).textContent = count(of.of_produced(i)); });
+    pack.metrics.forEach((_, i) => { $('metric' + i).textContent = count(of.of_metric(i)); });
     const hex = (n) => (n >>> 0).toString(16).padStart(8, '0');
     $('hash').textContent = hex(of.of_hash_hi()) + hex(of.of_hash_lo());
   }

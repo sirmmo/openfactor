@@ -10,6 +10,8 @@ resource widget name "Widgets" sprite 114
 
 layer oreField sprites 3 32
 
+metric energy name "Energy used"
+
 unit miner     name "Miner"     sprite 110 placeOn oreField
 unit smelter   name "Smelter"   sprite 75
 unit assembler name "Assembler" sprite 87
@@ -28,6 +30,7 @@ unitRule smelt
     rate 30
     local ore in 1
     local plate out 1
+    log -timestamp=Time energy 3
 end
 
 unitRule assemble
@@ -35,6 +38,7 @@ unitRule assemble
     rate 60
     local plate in 2
     local widget out 1
+    log -timestamp=Time energy 5
 end
 
 # --- The starting map -----------------------------------------------------
