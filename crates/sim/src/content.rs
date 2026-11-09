@@ -1,4 +1,7 @@
-use crate::{BeltId, Command, ItemId, LayerId, MetricId, Pos, UnitId};
+use crate::{BeltId, Command, ItemId, LayerId, MetricId, Pos, TechId, UnitId};
+
+/// What something costs from the shared stock.
+pub type Cost = Vec<(ItemId, u32)>;
 
 /// A parsed rule pack: the definitions plus the map they start on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,6 +21,18 @@ pub struct Content {
     pub(crate) map_rules: Vec<MapRule>,
     /// Belt tiers. The first is always the built-in `belt`.
     pub(crate) belts: Vec<BeltDef>,
+    pub(crate) techs: Vec<TechDef>,
+}
+
+/// One entry in the research tree. Paid for from the shared stock when it starts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TechDef {
+    pub id: String,
+    pub name: String,
+    pub requires: Vec<TechId>,
+    pub cost: Cost,
+    /// Ticks from starting to finishing.
+    pub time: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +43,9 @@ pub struct BeltDef {
     pub speed: u32,
     /// Which set of belt art to draw.
     pub style: u32,
+    pub cost: Cost,
+    /// The research that makes it available, if any.
+    pub locked_by: Option<TechId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +106,11 @@ pub struct UnitDef {
     pub place_on: Vec<LayerId>,
     /// Accepts any resource without limit.
     pub stores_any: bool,
+    /// Adds whatever it receives to the shared stock.
+    pub delivers: bool,
+    pub cost: Cost,
+    /// The research that makes it available, if any.
+    pub locked_by: Option<TechId>,
     /// If set, the unit passes items along instead of running rules.
     pub route: Option<Route>,
     /// Networks it belongs to. Rules that use a network add it here automatically.
@@ -101,7 +124,7 @@ pub struct UnitDef {
 
 impl UnitDef {
     pub fn accepts_items(&self) -> bool {
-        self.stores_any || !self.inputs.is_empty() || self.route.is_some()
+        self.stores_any || self.delivers || !self.inputs.is_empty() || self.route.is_some()
     }
 
     pub fn sends_items(&self) -> bool {
@@ -114,15 +137,14 @@ impl UnitDef {
         self.rules.iter().any(gives)
     }
 
-    /// How many of `item` it holds when running rule `index`, or any rule if `None`.
-    pub(crate) fn input_limit(&self, item: ItemId, index: Option<usize>) -> Option<u64> {
+    /// How many of `item` it holds when running rule `index`, or any open rule if `None`.
+    pub(crate) fn input_limit(&self, item: ItemId, index: Option<usize>, is_open: impl Fn(&Rule) -> bool) -> Option<u64> {
+        let limit_of = |rule: &Rule| {
+            rule.takes.iter().find(|take| take.scope == Scope::Local(item)).map(|take| u64::from(take.amount) * 2)
+        };
         match index {
-            None => self.inputs.iter().find(|(input, _)| *input == item).map(|&(_, limit)| limit),
-            Some(index) => self.rules[index]
-                .takes
-                .iter()
-                .find(|take| take.scope == Scope::Local(item))
-                .map(|take| u64::from(take.amount) * 2),
+            Some(index) => limit_of(&self.rules[index]),
+            None => self.rules.iter().filter(|rule| is_open(rule)).filter_map(limit_of).max(),
         }
     }
 }
@@ -166,6 +188,8 @@ pub struct Rule {
     pub logs: Vec<(MetricId, u32)>,
     /// Outputs that leave somewhere other than the front.
     pub sides: Vec<(ItemId, Port)>,
+    /// The research that makes it available, if any.
+    pub locked_by: Option<TechId>,
 }
 
 impl Rule {
@@ -233,6 +257,8 @@ pub struct WorldGen {
     pub(crate) patches: Vec<Patch>,
     /// Buildings the pack places at the start, to apply on the first tick.
     pub starter: Vec<Command>,
+    /// What the shared stock starts with.
+    pub(crate) stock: Vec<(ItemId, u32)>,
 }
 
 impl Content {
@@ -250,6 +276,14 @@ impl Content {
 
     pub fn metrics(&self) -> &[MetricDef] {
         &self.metrics
+    }
+
+    pub fn techs(&self) -> &[TechDef] {
+        &self.techs
+    }
+
+    pub fn tech_id(&self, id: &str) -> Option<TechId> {
+        self.techs.iter().position(|t| t.id == id).map(|i| TechId(i as u16))
     }
 
     pub fn belts(&self) -> &[BeltDef] {

@@ -23,6 +23,7 @@
   .chip b { font-weight: 600; color: var(--ink); }
   .chip span { color: var(--dim); }
   a.chip { color: var(--ink); text-decoration: none; }
+  .chip.stock { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; }
   .spacer { flex: 1; }
   button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
     border-radius: 6px; padding: 8px 11px; cursor: pointer; min-height: 40px; }
@@ -34,6 +35,32 @@
   #dock .bar { position: static; justify-content: center; }
   #dock button { display: inline-flex; align-items: center; gap: 6px; }
   #groups button[aria-pressed="true"] { background: var(--line); border-color: var(--dim); color: var(--ink); }
+  #dock button.cant { opacity: .55; }
+  .costs { display: inline-flex; gap: 5px; margin-left: 2px; }
+  .costs .icon { width: 14px; height: 14px; }
+  .costs .amount { font-size: 11px; }
+  .amount.short { color: #ff8a80; }
+  #research { position: fixed; inset: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--ground); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; z-index: 5; }
+  #research[hidden] { display: none; }
+  #research header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  #research h2 { font-size: 16px; margin: 0; }
+  #research header .close { margin-left: auto; min-height: 32px; padding: 2px 10px; }
+  #r-active { color: var(--dim); font-size: 13px; }
+  #r-scroll { overflow: auto; flex: 1; }
+  #r-tree { position: relative; display: flex; gap: 56px; width: max-content; min-height: 100%; padding: 16px 20px; }
+  #r-lines { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .r-col { display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+  .r-card { position: relative; width: 220px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; }
+  .r-card.done { border-color: #4f9d5d; }
+  .r-card.active { border-color: var(--accent); }
+  .r-card.locked { opacity: .6; }
+  .r-card b { display: block; font-size: 14px; }
+  .r-card .note { color: var(--dim); font-size: 12px; }
+  .r-card .costs, .r-card .unlocks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; align-items: center; }
+  .r-card .icon { width: 18px; height: 18px; }
+  .r-card button { width: 100%; margin-top: 7px; min-height: 32px; padding: 3px 8px; }
+  .r-card button:disabled { opacity: .5; cursor: default; }
   .icon { width: 20px; height: 20px; image-rendering: pixelated; flex: none; }
   .panel { position: fixed; right: 12px; top: calc(60px + env(safe-area-inset-top, 0px)); width: 300px;
     max-width: calc(100% - 24px); max-height: calc(100% - 210px); overflow-y: auto; background: var(--panel);
@@ -77,6 +104,7 @@
   <a class="chip" href="../">&larr; Docs</a>
   <div class="chip"><span>tick</span> <b id="tick">0</b></div>
   <button id="stats-toggle" aria-expanded="false">Production<kbd>P</kbd></button>
+  <button id="research-toggle" aria-expanded="false">Research<kbd>T</kbd></button>
   <div class="spacer" id="hud-spacer"></div>
   <div class="chip" title="Hash of the full simulation state"><span>state</span> <b id="hash">-</b></div>
 </div>
@@ -85,6 +113,12 @@
   <div class="bar" id="tools" role="toolbar" aria-label="Build tools"></div>
   <div class="bar" id="groups" role="toolbar" aria-label="Tool sections and actions"></div>
 </div>
+
+<section id="research" aria-label="Research tree" hidden>
+  <header><h2>Research</h2><span id="r-active"></span>
+    <button class="close" id="r-close" aria-label="Close">&times;</button></header>
+  <div id="r-scroll"><div id="r-tree"></div></div>
+</section>
 
 <aside class="panel" id="inspector" hidden>
   <header><canvas class="icon" id="i-icon" width="16" height="16"></canvas><span id="i-name"></span>
@@ -200,10 +234,13 @@
 
   const TOOLS = [
     ...pack.belts.map((belt, index) => (
-      { id: 'belt:' + index, kind: index, label: belt.name, group: 'Logistics', belt: true, sprite: beltIcon(belt), tint: null })),
+      { id: 'belt:' + index, kind: index, label: belt.name, group: 'Logistics', belt: true, sprite: beltIcon(belt), tint: null, cost: belt.cost, lock: belt.lock })),
     ...pack.units.map((unit, index) => (
-      { id: 'unit:' + unit.id, kind: beltCount + index, label: unit.name, group: unit.group, unit, sprite: unit.sprite, tint: unit.tint })),
+      { id: 'unit:' + unit.id, kind: beltCount + index, label: unit.name, group: unit.group, unit, sprite: unit.sprite, tint: unit.tint, cost: unit.cost, lock: unit.lock })),
   ];
+
+  const isOpen = (lock) => lock === null || of.of_researched(lock) === 1;
+  const affordable = (cost) => cost.every(([item, amount]) => (of.of_stock(item) >>> 0) >= amount);
   const GROUPS = [...new Set(TOOLS.map((t) => t.group))];
   const ACTIONS = [
     { id: 'inspect', label: 'Inspect', key: 'I' },
@@ -222,7 +259,7 @@
   // Toolbar: one row for the open section's tools, one for sections and actions.
   const toolbar = $('tools'), groupbar = $('groups');
   const buttons = new Map(), groupButtons = new Map();
-  const groupTools = () => TOOLS.filter((t) => t.group === group);
+  const groupTools = () => TOOLS.filter((t) => t.group === group && isOpen(t.lock));
 
   function renderTools() {
     toolbar.replaceChildren();
@@ -230,6 +267,12 @@
     groupTools().forEach((t, index) => {
       const b = document.createElement('button');
       b.append(icon(t.sprite, t.tint), t.label);
+      if (t.cost.length) {
+        const costs = document.createElement('span');
+        costs.className = 'costs';
+        for (const [item, amount] of t.cost) costs.append(amountChip(['l', item, amount]));
+        b.append(costs);
+      }
       if (index < 9) { const k = document.createElement('kbd'); k.textContent = index + 1; b.append(k); }
       b.setAttribute('aria-pressed', t === tool);
       b.addEventListener('click', () => selectTool(t));
@@ -237,10 +280,18 @@
       buttons.set(t, b);
     });
   }
+  // Sections with nothing researched yet stay out of the way.
+  function refreshGroups() {
+    for (const [name, b] of groupButtons) b.hidden = !TOOLS.some((t) => t.group === name && isOpen(t.lock));
+  }
+  function refreshAffordable() {
+    for (const [t, b] of buttons) b.classList.toggle('cant', !affordable(t.cost));
+  }
   function selectGroup(name) {
     group = name;
     for (const [other, b] of groupButtons) b.setAttribute('aria-pressed', other === name);
     renderTools();
+    refreshAffordable();
   }
   function selectTool(t) {
     tool = t;
@@ -275,6 +326,7 @@
       resetButton.textContent = 'Reset';
       of.of_reset();
       closeInspector();
+      progress = '';
       return;
     }
     resetButton.textContent = 'Really reset?';
@@ -284,6 +336,7 @@
 
   function showRotation() { rotateButton.innerHTML = 'Facing ' + DIR_NAMES[rotation] + '<kbd>R</kbd>'; }
   function rotate() { rotation = (rotation + 1) % 4; showRotation(); }
+  refreshGroups();
   selectGroup(group);
   selectTool(tool);
   showRotation();
@@ -371,7 +424,7 @@
       auto.addEventListener('click', () => choose(-1));
       holder.append(auto);
       unit.rules.forEach((rule, index) => {
-        holder.append(recipeButton(rule, selected.setting === index, () => choose(index)));
+        if (isOpen(rule.lock)) holder.append(recipeButton(rule, selected.setting === index, () => choose(index)));
       });
     } else if (unit.rules.length === 1) {
       holder.append(heading('Recipe'));
@@ -422,7 +475,7 @@
     } else if (unit.route) {
       status = 'Shares items between its front and sides';
     } else if (!unit.rules.length) {
-      status = unit.accepts ? 'Stores whatever is delivered to it' : 'Connects nearby buildings to its network';
+      status = unit.delivers ? 'Adds what it receives to the shared stock' : unit.accepts ? 'Stores whatever is delivered to it' : 'Connects nearby buildings to its network';
     } else {
       status = STATUS_TEXT[view.status].replace('%', view.missing >= 0 ? pack.resources[view.missing].name.toLowerCase() : '');
     }
@@ -476,6 +529,143 @@
   }
   pack.resources.forEach((resource, index) => { resource.networkOnly = !carried.has(index); });
 
+  // Research tree
+  const research = $('research'), tree = $('r-tree');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const depthOf = (index) => pack.techs[index].requires.reduce((depth, required) => Math.max(depth, depthOf(required) + 1), 0);
+  const techUnlocks = pack.techs.map(() => []);
+  pack.belts.forEach((belt) => { if (belt.lock !== null) techUnlocks[belt.lock].push({ sprite: beltIcon(belt), tint: null, title: belt.name }); });
+  pack.units.forEach((unit) => {
+    if (unit.lock !== null) techUnlocks[unit.lock].push({ sprite: unit.sprite, tint: unit.tint, title: unit.name });
+    for (const rule of unit.rules) {
+      const made = rule.out.find(([scope]) => scope === 'l');
+      if (rule.lock === null || !made) continue;
+      const resource = pack.resources[made[1]];
+      techUnlocks[rule.lock].push({ sprite: resource.sprite, tint: resource.tint, title: resource.name + ' in ' + unit.name });
+    }
+  });
+
+  const techState = (index, active) => {
+    if (of.of_researched(index)) return 'done';
+    if (active === index) return 'active';
+    return pack.techs[index].requires.every((required) => of.of_researched(required)) ? 'available' : 'locked';
+  };
+  const STATE_NOTES = { done: 'Researched', active: 'In progress', available: 'Available', locked: 'Needs earlier research' };
+
+  let cards = [];
+  function renderResearch() {
+    const active = of.of_research_active();
+    tree.replaceChildren();
+    const columns = [];
+    cards = pack.techs.map((tech, index) => {
+      const depth = depthOf(index);
+      if (!columns[depth]) {
+        columns[depth] = document.createElement('div');
+        columns[depth].className = 'r-col';
+      }
+      const state = techState(index, active);
+      const card = document.createElement('article');
+      card.className = 'r-card ' + state;
+      const name = document.createElement('b');
+      name.textContent = tech.name;
+      const note = document.createElement('span');
+      note.className = 'note';
+      note.textContent = STATE_NOTES[state] + ' · ' + Math.round(tech.time / 60) + ' s';
+      card.append(name, note);
+      const costs = document.createElement('div');
+      costs.className = 'costs';
+      const chips = tech.cost.map(([item, amount]) => {
+        const chip = amountChip(['l', item, amount]);
+        costs.append(chip);
+        return { chip, item, amount };
+      });
+      if (state !== 'done') card.append(costs);
+      const unlocks = document.createElement('div');
+      unlocks.className = 'unlocks';
+      for (const unlock of techUnlocks[index]) {
+        const image = icon(unlock.sprite, unlock.tint);
+        image.title = unlock.title;
+        unlocks.append(image);
+      }
+      card.append(unlocks);
+      let meter = null, button = null;
+      if (state === 'active') {
+        const bar = document.createElement('div');
+        bar.className = 'meter';
+        meter = document.createElement('i');
+        bar.append(meter);
+        card.append(bar);
+      } else if (state === 'available') {
+        button = document.createElement('button');
+        button.textContent = 'Research';
+        button.addEventListener('click', () => of.of_research(index));
+        card.append(button);
+      }
+      columns[depth].append(card);
+      return { card, chips, meter, button, tech, state };
+    });
+    tree.append(...columns);
+
+    // Lines are drawn once the cards have their positions.
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.id = 'r-lines';
+    svg.setAttribute('width', tree.scrollWidth);
+    svg.setAttribute('height', tree.scrollHeight);
+    cards.forEach(({ card, tech, state }) => {
+      for (const required of tech.requires) {
+        const from = cards[required].card;
+        const startX = from.offsetLeft + from.offsetWidth, startY = from.offsetTop + from.offsetHeight / 2;
+        const endX = card.offsetLeft, endY = card.offsetTop + card.offsetHeight / 2;
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', `M${startX} ${startY} C${startX + 28} ${startY} ${endX - 28} ${endY} ${endX} ${endY}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', state === 'locked' ? '#363c45' : '#f2b63c');
+        path.setAttribute('stroke-width', 1.5);
+        svg.append(path);
+      }
+    });
+    tree.prepend(svg);
+  }
+
+  function refreshResearch() {
+    if (research.hidden) return;
+    const active = of.of_research_active();
+    $('r-active').textContent = active >= 0
+      ? pack.techs[active].name + ': ' + Math.ceil(of.of_research_left() / 60) + ' s left'
+      : 'Nothing in progress';
+    for (const { chips, meter, button, tech, state } of cards) {
+      for (const { chip, item, amount } of chips) {
+        chip.classList.toggle('short', state !== 'done' && (of.of_stock(item) >>> 0) < amount);
+      }
+      if (meter) meter.style.width = (100 * (tech.time - of.of_research_left()) / tech.time) + '%';
+      if (button) button.disabled = active >= 0 || !affordable(tech.cost);
+    }
+  }
+
+  function toggleResearch() {
+    research.hidden = !research.hidden;
+    $('research-toggle').setAttribute('aria-expanded', !research.hidden);
+    if (!research.hidden) { renderResearch(); refreshResearch(); }
+  }
+  $('research-toggle').addEventListener('click', toggleResearch);
+  $('r-close').addEventListener('click', toggleResearch);
+
+  // Everything that depends on what has been researched, redone when that changes.
+  let progress = '';
+  function refreshProgress() {
+    const active = of.of_research_active();
+    const current = active + ':' + pack.techs.map((_, index) => of.of_researched(index)).join('');
+    if (current === progress) return;
+    const finished = progress !== '' && current.split(':')[1] !== progress.split(':')[1];
+    progress = current;
+    refreshGroups();
+    renderTools();
+    refreshAffordable();
+    if (selected) renderChoices();
+    if (!research.hidden) renderResearch();
+    if (finished) say('Research finished.');
+  }
+
   // Production panel
   function refreshStats() {
     if ($('stats').hidden) return;
@@ -483,21 +673,22 @@
     const table = document.createElement('table');
     table.className = 'stats-table';
     const headerRow = table.insertRow();
-    for (const label of ['Resource', 'Made', 'Used']) {
+    for (const label of ['Resource', 'Stock', 'Made', 'Used']) {
       const th = document.createElement('th');
       th.textContent = label;
       headerRow.append(th);
     }
     let rows = 0;
     pack.resources.forEach((resource, index) => {
-      const made = of.of_produced(index) >>> 0;
-      if (!made) return;
+      const made = of.of_produced(index) >>> 0, stock = of.of_stock(index) >>> 0;
+      if (!made && !stock) return;
       rows++;
       const row = table.insertRow();
       const name = document.createElement('span');
       name.className = 'name';
       name.append(icon(resource.sprite, resource.tint), resource.name);
       row.insertCell().append(name);
+      row.insertCell().textContent = stock.toLocaleString('en');
       row.insertCell().textContent = made.toLocaleString('en');
       row.insertCell().textContent = (of.of_consumed(index) >>> 0).toLocaleString('en');
     });
@@ -615,10 +806,15 @@
     const lower = e.key.toLowerCase();
     if (lower === 'r') return rotate();
     if (lower === 'p') return toggleStats();
-    if (lower === 'escape') return closeInspector();
+    if (lower === 't') return toggleResearch();
+    if (lower === 'escape') {
+      if (!research.hidden) return toggleResearch();
+      return closeInspector();
+    }
     if (e.key === 'Tab') {
       e.preventDefault();
-      return selectGroup(GROUPS[(GROUPS.indexOf(group) + 1) % GROUPS.length]);
+      const open = GROUPS.filter((name) => !groupButtons.get(name).hidden);
+      return selectGroup(open[(open.indexOf(group) + 1) % open.length]);
     }
     if (/^[1-9]$/.test(e.key)) {
       const t = groupTools()[Number(e.key) - 1];
@@ -838,12 +1034,43 @@
     }
   }
 
+  // The stock counters show only what buildings and research are paid in.
+  const paidIn = new Set();
+  for (const source of [...pack.belts, ...pack.units, ...pack.techs]) source.cost.forEach(([item]) => paidIn.add(item));
+  const stockChips = [...paidIn].sort((a, b) => a - b).map((item) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip stock';
+    chip.title = pack.resources[item].name + ' in the shared stock';
+    const value = document.createElement('b');
+    value.textContent = '0';
+    chip.append(icon(pack.resources[item].sprite, pack.resources[item].tint), value);
+    $('hash').parentElement.before(chip);
+    return { value, item, chip };
+  });
+  const REJECT_TEXT = {
+    1: 'That tile is taken.',
+    2: 'Drills and pumps need the right ground under them.',
+    3: 'That needs research first.',
+    4: 'Not enough in the shared stock. Deliver more to a depot.',
+    5: 'Another research is already running.',
+    6: 'That research needs an earlier one first.',
+    7: 'That can’t be done.',
+  };
+
   function updateHud() {
     $('tick').textContent = of.of_tick().toLocaleString('en');
     const toHex = (n) => (n >>> 0).toString(16).padStart(8, '0');
     $('hash').textContent = toHex(of.of_hash_hi()) + toHex(of.of_hash_lo());
+    refreshProgress();
+    refreshAffordable();
+    stockChips.forEach(({ value, item, chip }) => {
+      const held = of.of_stock(item) >>> 0;
+      value.textContent = held.toLocaleString('en');
+      chip.hidden = held === 0;
+    });
     refreshStats();
     refreshInspector();
+    refreshResearch();
   }
 
   let previous = performance.now(), accumulated = 0, nextHud = 0;
@@ -853,13 +1080,14 @@
     const steps = Math.min(Math.floor(accumulated / TICK_MS), MAX_STEPS_PER_FRAME);
     if (steps > 0) {
       accumulated = steps === MAX_STEPS_PER_FRAME ? 0 : accumulated - steps * TICK_MS;
-      if (of.of_step(steps) > 0) say('Can’t build there. Drills and pumps need the right ground, and the tile must be empty.');
+      if (of.of_step(steps) > 0) say(REJECT_TEXT[of.of_last_reject()]);
     }
     readSnapshot();
     draw();
     if (now >= nextHud) { updateHud(); nextHud = now + 250; }
     requestAnimationFrame(frame);
   }
+  say('Deliver items to a depot to pay for buildings and research.', 7000);
   requestAnimationFrame(frame);
 })();
 </script>

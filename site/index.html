@@ -42,26 +42,27 @@
   <h1>OpenFactor</h1>
   <p class="lead">An open source factory-building platform for the browser. The simulation is a deterministic Rust library, and the game is content that runs on top of it.</p>
   <div class="actions">
-    <a class="play" href="play/">Play the sandbox</a>
+    <a class="play" href="play/">Play</a>
     <a href="api/openfactor_sim/">API reference</a>
     <a href="https://github.com/sirmmo/openfactor">Source on GitHub</a>
   </div>
 
   <h2>Status</h2>
-  <p>Early prototype. The core simulation and a single-player sandbox with a full production chain work. There is no multiplayer or public API yet, and saves are not implemented, so reloading the page starts over.</p>
+  <p>Early prototype. The core simulation and a single-player game with costs, research and a full production chain work. There is no multiplayer or public API yet, and saves are not implemented, so reloading the page starts over.</p>
 
   <h2>The one rule</h2>
   <pre><code>state(t+1) = sim(state(t), commands(t))</code></pre>
-  <p>The simulation has no clock, no I/O, no floats and no randomised containers. Anything unpredictable enters as a command. Co-op sync, replays and integrations are all planned around this rule. Every run of the same commands produces the same state hash, which the sandbox shows in its top bar.</p>
+  <p>The simulation has no clock, no I/O, no floats and no randomised containers. Anything unpredictable enters as a command. Co-op sync, replays and integrations are all planned around this rule. Every run of the same commands produces the same state hash, which the game shows in its top bar.</p>
 
   <h2>Playing</h2>
-  <p>The sandbox opens with a coal-fired smelting line and a powered copper line. Build freely: there are no costs yet.</p>
+  <p>You start with a coal-fired smelting line feeding a depot and a little stock. Everything a depot receives joins the shared stock, which pays for buildings and research. Removing a building refunds it in full, but whatever it held is lost.</p>
   <div class="scroll"><table>
     <tr><th>Input</th><th>Action</th></tr>
     <tr><td><kbd>Tab</kbd></td><td>Next toolbar section</td></tr>
     <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>Tools in the open section</td></tr>
     <tr><td>Click a building, or <kbd>I</kbd></td><td>Inspect it: status, recipe or filter choice, contents and networks</td></tr>
-    <tr><td><kbd>P</kbd></td><td>Production totals</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Production totals and stock</td></tr>
+    <tr><td><kbd>T</kbd></td><td>Research tree</td></tr>
     <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
     <tr><td><kbd>X</kbd></td><td>Erase. Whatever the building held is destroyed</td></tr>
     <tr><td><kbd>M</kbd>, right-drag, WASD or arrows</td><td>Move the view</td></tr>
@@ -83,7 +84,7 @@
   <p>The simulation runs at 60 ticks per second. A tile is 256 position units long and belt items sit at least 64 units apart. At speed 16 a belt carries one item every 4 ticks, and at speed 32 one every 2.</p>
 
   <h2>Rules</h2>
-  <p>Everything except belts is defined in a rule pack, written in the rule language of <a href="https://www.andrewwillmott.com/talks/inside-glassbox">GlassBox</a>, the engine behind SimCity (2013). OpenFactor follows the syntax used by citysim's <code>.gbx</code> scripts. The sandbox's toolbar, counters and sprites all come from <a href="https://github.com/sirmmo/openfactor/blob/main/packs/base.gbx">the base pack</a>.</p>
+  <p>Everything except belts is defined in a rule pack, written in the rule language of <a href="https://www.andrewwillmott.com/talks/inside-glassbox">GlassBox</a>, the engine behind SimCity (2013). OpenFactor follows the syntax used by citysim's <code>.gbx</code> scripts. The game's toolbar, counters and sprites all come from <a href="https://github.com/sirmmo/openfactor/blob/main/packs/base.gbx">the base pack</a>.</p>
 <pre><code>resource ore   name "Ore"    sprite 97
 resource plate name "Plates" sprite 107 tint c8763c
 layer oreField sprites 3 32  tint 6f8fb8
@@ -113,7 +114,7 @@ place miner 2 2 east</code></pre>
     <tr><td><code>map &lt;M&gt; in &lt;n&gt;</code></td><td>Taken from the layer at the unit's tile.</td></tr>
     <tr><td><code>map &lt;M&gt; out &lt;n&gt; [radius &lt;r&gt;]</code></td><td>Added to the layer around the unit.</td></tr>
     <tr><td><code>map &lt;M&gt; atLeast|atMost|greater|less|is &lt;n&gt;</code></td><td>The rule starts only when this holds at the unit's tile. <code>test map …</code> also works.</td></tr>
-    <tr><td><code>log [-timestamp=Time] &lt;metric&gt; &lt;n&gt;</code></td><td>Adds to a metric each time the rule finishes. Declare it first with <code>metric &lt;id&gt; [name "…"]</code>. Metrics appear as counters in the sandbox.</td></tr>
+    <tr><td><code>log [-timestamp=Time] &lt;metric&gt; &lt;n&gt;</code></td><td>Adds to a metric each time the rule finishes. Declare it first with <code>metric &lt;id&gt; [name "…"]</code>. Metrics appear in the Production panel.</td></tr>
   </table></div>
   <h3>Declarations</h3>
   <div class="scroll"><table>
@@ -129,6 +130,19 @@ place miner 2 2 east</code></pre>
     <tr><td><code>… routes tunnel [range &lt;n&gt;]</code></td><td>Sends to the next tunnel of the same unit facing the same way within range, or else out of its front.</td></tr>
     <tr><td><code>… links &lt;R&gt; [reach &lt;n&gt;]</code></td><td>Joins that resource's network. Two members connect when either one's reach covers the other, counted in grid steps. Using <code>network</code> in a rule links a unit automatically, with reach 0.</td></tr>
   </table></div>
+  <h3>Costs and research</h3>
+  <p>Buildings and research are paid from the shared stock. A unit with <code>stores shared</code> adds what it receives to that stock, which is also what <code>global</code> rules read and write.</p>
+<pre><code>stock ironPlate 150 gear 30
+cost drill ironPlate 8 gear 3
+
+research electricity
+    name "Electricity"
+    requires copperWorking masonry
+    cost copperPlate 40 wire 40
+    time 600
+    unlocks steam pole arcSteel
+end</code></pre>
+  <p><code>unlocks</code> takes belts, units and rule names, and whatever is named stays unavailable until that research finishes. One research runs at a time. A pack containing the single statement <code>sandbox</code> makes everything free and open.</p>
   <h3>Networks</h3>
   <p>A network resource never travels on belts. A producer holds what it makes, up to two batches, until something on the same connected network draws it. Producers are drawn from oldest first, and machines are served in the order they were built. Cutting or joining a network loses nothing; removing a producer destroys only what it held.</p>
 <pre><code>resource power name "Power"
@@ -163,7 +177,7 @@ mapRule clearSmog
     rate 20
     map smog in 1
 end</code></pre>
-  <p>On a given tile, the rule applies only if all its conditions hold and every <code>in</code> amount is available; otherwise that tile is unchanged. Because the map has no edge, each map rule needs a <code>map … in</code>, or a condition that only non-empty tiles can meet (<code>atLeast</code> or <code>is</code> above zero, or <code>greater</code>). A map rule can only use <code>rate</code> and <code>map</code> statements, and it changes only the tile it is on, so <code>radius</code> isn't allowed. A layer needs <code>sprites</code> or <code>haze</code> to be drawn in the sandbox.</p>
+  <p>On a given tile, the rule applies only if all its conditions hold and every <code>in</code> amount is available; otherwise that tile is unchanged. Because the map has no edge, each map rule needs a <code>map … in</code>, or a condition that only non-empty tiles can meet (<code>atLeast</code> or <code>is</code> above zero, or <code>greater</code>). A map rule can only use <code>rate</code> and <code>map</code> statements, and it changes only the tile it is on, so <code>radius</code> isn't allowed. A layer needs <code>sprites</code> or <code>haze</code> to be drawn.</p>
   <h3>Differences from GlassBox and citysim</h3>
   <p>Numbers are whole, rules fire at the end of their <code>rate</code> instead of being averaged per tick, and every resource, layer, metric and unit must be declared, so a typo is reported with its line number. Declarations are on one line in the pack itself. <code>log</code> adds its amount when a rule finishes, not every tick. <code>zoneRule</code>, <code>agentRule</code>, <code>agent</code> and <code>options</code> are not supported yet and are reported as errors. <code>network</code>, belt tiers, routing and side outputs are OpenFactor additions.</p>
   <p>Rule changes alter the state hash, so players on different rules are detected as out of sync. Names and sprites don't.</p>

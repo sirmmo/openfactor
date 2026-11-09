@@ -17,7 +17,7 @@ mod world;
 pub use belt::{ITEM_SPACING, TILE};
 pub use content::{
     Amount, BeltDef, Condition, Content, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Port,
-    ResourceDef, Route, Rule, Scope, Test, UnitDef, WorldGen,
+    ResourceDef, Route, Rule, Scope, TechDef, Test, UnitDef, WorldGen,
 };
 pub use gbx::PackError;
 pub use world::{
@@ -35,6 +35,9 @@ pub struct UnitId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BeltId(pub u16);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TechId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LayerId(pub u16);

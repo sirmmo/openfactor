@@ -3,6 +3,7 @@
 # Ore comes out of the ground, is smelted, assembled and finally built into
 # automata. Coal furnaces need no power but foul the air. Powered machines are
 # faster, and need a steam or tar plant, water and oil over pipes, and poles.
+# Everything delivered to a depot joins the stock that pays for buildings and research.
 
 belt belt name "Belt" speed 16
 belt express name "Express belt" speed 32 style 1
@@ -52,7 +53,7 @@ metric automata  name "Automata built"
 unit splitter name "Splitter"  sprite 72  group "Logistics" routes split
 unit sorter   name "Sorter"    sprite 79  group "Logistics" routes filter
 unit tunnel   name "Tunnel"    sprite 68  group "Logistics" routes tunnel range 5
-unit depot    name "Depot"     sprite 58  group "Logistics" stores any
+unit depot    name "Depot"     sprite 58  group "Logistics" stores shared
 
 # Extraction
 unit drill      name "Drill"       sprite 110 group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField
@@ -360,39 +361,137 @@ patch stoneField    at -8 3   size 5 6 amount 100000
 patch tungstenField at 28 3   size 5 4 amount 100000
 patch oilField      at 24 18  size 5 4 amount 100000
 
-# Iron and coal feed a furnace from two sides.
+# --- What things cost. Depots feed the shared stock that pays for all of it.
+# Removing a building refunds it in full.
+
+stock ironPlate 150 gear 30
+
+cost belt       ironPlate 1
+cost express    ironPlate 2 gear 1
+cost splitter   ironPlate 4 gear 2
+cost sorter     ironPlate 4 gear 2 circuit 1
+cost tunnel     ironPlate 6
+cost depot      ironPlate 10
+cost drill      ironPlate 8 gear 3
+cost powerDrill steel 4 gear 6 wire 6
+cost pump       ironPlate 5 gear 2
+cost derrick    steel 10 gear 8 wire 10
+cost furnace    ironPlate 6
+cost arc        steel 4 wire 12 brick 10
+cost workshop   ironPlate 8 gear 4
+cost assembly   steel 10 gear 10 circuit 6
+cost refinery   steel 20 circuit 10 brick 20
+cost steam      ironPlate 20 gear 6 brick 10
+cost burner     steel 6 brick 10
+cost solar      copperPlate 20 circuit 4
+cost pole       ironPlate 2 wire 2
+cost pipe       ironPlate 1
+
+# --- The research tree
+
+research routing
+    name "Routing"
+    cost ironPlate 30 gear 10
+    time 300
+    unlocks splitter tunnel
+end
+research copperWorking
+    name "Copper working"
+    cost ironPlate 40
+    time 300
+    unlocks furnaceCopper workshopWire
+end
+research masonry
+    name "Masonry"
+    cost ironPlate 40 gear 10
+    time 300
+    unlocks furnaceBrick
+end
+research electricity
+    name "Electricity"
+    requires copperWorking masonry
+    cost copperPlate 40 wire 40 brick 20
+    time 600
+    unlocks steam pump pipe pole
+end
+research metallurgy
+    name "Metallurgy"
+    requires electricity
+    cost ironPlate 80 brick 40 wire 40
+    time 600
+    unlocks arc arcSteel
+end
+research electronics
+    name "Electronics"
+    requires electricity
+    cost ironPlate 60 wire 80
+    time 600
+    unlocks workshopCircuit sorter
+end
+research expressBelts
+    name "Express belts"
+    requires routing metallurgy
+    cost steel 20 gear 60
+    time 600
+    unlocks express
+end
+research poweredMining
+    name "Powered mining"
+    requires metallurgy
+    cost steel 30 gear 40 wire 40
+    time 900
+    unlocks powerDrill
+end
+research solarPower
+    name "Solar power"
+    requires electronics
+    cost copperPlate 60 circuit 30
+    time 900
+    unlocks solar
+end
+research automation
+    name "Automation"
+    requires metallurgy electronics
+    cost steel 40 gear 60 circuit 40
+    time 1200
+    unlocks assembly
+end
+research tungsten
+    name "Tungsten carbide"
+    requires poweredMining
+    cost steel 60 circuit 60
+    time 1200
+    unlocks powerDrillTungsten arcCarbide
+end
+research petroleum
+    name "Petroleum"
+    requires automation
+    cost steel 80 circuit 80 brick 60
+    time 1800
+    unlocks derrick refinery burner
+end
+research motors
+    name "Motors"
+    requires automation
+    cost steel 80 gear 200 wire 200
+    time 1800
+    unlocks assemblyMotor
+end
+research robotics
+    name "Robotics"
+    requires tungsten petroleum motors
+    cost motor 30 carbide 30 plastic 60
+    time 3600
+    unlocks assemblyController assemblyAutomaton
+end
+
+# --- The opening factory: iron and coal into a furnace, plates into a depot.
+
 place drill 2 2 east
 place belt 3 2 east count 6
 place drill 2 9 east
 place belt 3 9 east count 6
 place belt 9 9 north count 7
 place furnace 9 2 east
-
-# Plates are split between a gear workshop and a depot.
-place belt 10 2 east count 3
-place splitter 13 2 east
-place belt 14 2 east count 2
-place workshop 16 2 east
-place belt 17 2 east count 3
+place belt 10 2 east count 10
 place depot 20 2 east
-place belt 13 3 south count 3
-place depot 13 6 east
-
-# A steam plant fed by coal and piped water, wired to a powered copper line.
-place drill 2 11 east
-place belt 3 11 east count 9
-place steam 12 11 east
-place pump 12 15 east
-place pipe 12 14 east
-place pipe 12 13 east
-place pipe 12 12 east
-place pole 14 11 east
-place pole 18 11 east
-place pole 22 12 east
-place powerDrill 18 13 east
-place express 19 13 east count 5
-place arc 24 13 east
-place belt 25 13 east count 3
-place workshop 28 13 east
-place belt 29 13 east count 3
-place depot 32 13 east

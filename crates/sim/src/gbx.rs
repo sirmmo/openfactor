@@ -6,10 +6,10 @@
 
 use crate::content::{
     Amount, BeltDef, Condition, Content, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Patch,
-    Port, ResourceDef, Route, Rule, Scope, Test, UnitDef, WorldGen,
+    Port, ResourceDef, Route, Rule, Scope, TechDef, Test, UnitDef, WorldGen,
 };
 use crate::world::{Building, Command};
-use crate::{BeltId, Dir, ItemId, LayerId, MetricId, Pos, UnitId};
+use crate::{BeltId, Dir, ItemId, LayerId, MetricId, Pos, TechId, UnitId};
 use std::fmt;
 
 const BELT: &str = "belt";
@@ -17,6 +17,7 @@ const DEFAULT_BELT_SPEED: u32 = 16;
 /// Scanning a member's reach costs its area, so keep that bounded.
 const MAX_REACH: u32 = 32;
 const DEFAULT_TUNNEL_RANGE: u32 = 4;
+const DEFAULT_RESEARCH_TIME: u32 = 600;
 
 /// What went wrong in a pack, and on which line (counting from 1).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,7 +123,7 @@ fn tokenize(text: &str, number: usize) -> Parsed<Vec<String>> {
 }
 
 fn is_block_start(head: &str) -> bool {
-    matches!(head, "unitRule" | "rule" | "mapRule" | "zoneRule" | "agentRule")
+    matches!(head, "unitRule" | "rule" | "mapRule" | "zoneRule" | "agentRule" | "research")
 }
 
 fn split_lines(text: &str) -> Parsed<(Vec<Line>, Vec<Block>)> {
@@ -191,8 +192,11 @@ struct Builder {
     metrics: Vec<MetricDef>,
     map_rules: Vec<MapRule>,
     belts: Vec<BeltDef>,
+    techs: Vec<TechDef>,
     patches: Vec<Patch>,
     starter: Vec<Command>,
+    stock: Vec<(ItemId, u32)>,
+    sandbox: bool,
 }
 
 fn parse_port(token: &str) -> Option<Port> {
@@ -317,7 +321,14 @@ impl Builder {
         if id != BELT && self.belts.iter().any(|b| b.id == id) {
             return line.fail(format!("belt '{id}' is declared twice"));
         }
-        let mut belt = BeltDef { id: id.to_string(), name: id.to_string(), speed: DEFAULT_BELT_SPEED, style: 0 };
+        let mut belt = BeltDef {
+            id: id.to_string(),
+            name: id.to_string(),
+            speed: DEFAULT_BELT_SPEED,
+            style: 0,
+            cost: Vec::new(),
+            locked_by: None,
+        };
         if id == BELT {
             belt = self.belts[0].clone();
         }
@@ -356,6 +367,9 @@ impl Builder {
             group: "Buildings".to_string(),
             place_on: Vec::new(),
             stores_any: false,
+            delivers: false,
+            cost: Vec::new(),
+            locked_by: None,
             route: None,
             links: Vec::new(),
             rules: Vec::new(),
@@ -370,6 +384,7 @@ impl Builder {
                 ["group", value] => unit.group = value.to_string(),
                 ["placeOn", value] => unit.place_on.push(self.layer(line, value)?),
                 ["stores", "any"] => unit.stores_any = true,
+                ["stores", "shared"] => unit.delivers = true,
                 ["routes", "split"] => unit.route = Some(Route::Split),
                 ["routes", "filter"] => unit.route = Some(Route::Filter),
                 ["routes", "tunnel"] => unit.route = Some(Route::Tunnel { range: DEFAULT_TUNNEL_RANGE }),
@@ -399,7 +414,7 @@ impl Builder {
                 _ => return line.fail(format!("unit does not understand '{}'", pair[0])),
             }
         }
-        if unit.route.is_some() && unit.stores_any {
+        if unit.route.is_some() && (unit.stores_any || unit.delivers) {
             return line.fail("a unit can't both route items and store them");
         }
         self.units.push(unit);
@@ -418,6 +433,20 @@ impl Builder {
                     amount_per_tile: line.positive(amount)?,
                 });
             }
+            ["sandbox"] => self.sandbox = true,
+            ["stock", pairs @ ..] => {
+                let parsed = self.cost_pairs(line, pairs)?;
+                self.stock.extend(parsed);
+            }
+            ["cost", what, pairs @ ..] => {
+                let cost = self.cost_pairs(line, pairs)?;
+                if let Some(belt) = self.belts.iter_mut().find(|b| b.id == *what) {
+                    belt.cost = cost;
+                } else {
+                    let unit = self.unit(line, what)?;
+                    self.units[usize::from(unit.0)].cost = cost;
+                }
+            }
             ["place", what, x, y, dir] => self.place(line, what, x, y, dir, 1)?,
             ["place", what, x, y, dir, "count", count] => {
                 let count = line.positive(count)?;
@@ -427,6 +456,22 @@ impl Builder {
             _ => return line.fail(format!("this statement isn't understood: '{}'", line.head())),
         }
         Ok(())
+    }
+
+    /// Reads `<resource> <n> <resource> <n> ...`.
+    fn cost_pairs(&self, line: &Line, tokens: &[&str]) -> Parsed<Vec<(ItemId, u32)>> {
+        if tokens.is_empty() || tokens.len() % 2 != 0 {
+            return line.fail("expected pairs of a resource and an amount");
+        }
+        let mut pairs: Vec<(ItemId, u32)> = Vec::new();
+        for pair in tokens.chunks(2) {
+            let item = self.resource(line, pair[0])?;
+            if pairs.iter().any(|(existing, _)| *existing == item) {
+                return line.fail(format!("'{}' is listed twice", pair[0]));
+            }
+            pairs.push((item, line.positive(pair[1])?));
+        }
+        Ok(pairs)
     }
 
     fn place(&mut self, line: &Line, what: &str, x: &str, y: &str, dir: &str, count: u32) -> Parsed<()> {
@@ -560,6 +605,7 @@ impl Builder {
             gives: Vec::new(),
             logs: Vec::new(),
             sides: Vec::new(),
+            locked_by: None,
         }
     }
 
@@ -623,7 +669,118 @@ impl Builder {
         Ok(())
     }
 
+    /// Marks whatever `name` refers to as needing `tech`.
+    fn lock(&mut self, line: &Line, name: &str, tech: TechId) -> Parsed<()> {
+        let mut found = false;
+        let mut already = false;
+        let mut mark = |slot: &mut Option<TechId>| {
+            found = true;
+            already |= slot.is_some();
+            *slot = Some(tech);
+        };
+        self.belts.iter_mut().filter(|b| b.id == name).for_each(|b| mark(&mut b.locked_by));
+        self.units.iter_mut().filter(|u| u.id == name).for_each(|u| mark(&mut u.locked_by));
+        self.units
+            .iter_mut()
+            .flat_map(|u| &mut u.rules)
+            .filter(|r| r.name == name)
+            .for_each(|r| mark(&mut r.locked_by));
+        if !found {
+            return line.fail(format!("'{name}' isn't a belt, unit or rule, so it can't be unlocked"));
+        }
+        if already {
+            return line.fail(format!("'{name}' is unlocked by more than one research"));
+        }
+        Ok(())
+    }
+
+    fn tech(&self, line: &Line, id: &str) -> Parsed<TechId> {
+        match self.techs.iter().position(|t| t.id == id) {
+            Some(index) => Ok(TechId(index as u16)),
+            None => line.fail(format!("unknown research '{id}'")),
+        }
+    }
+
+    fn add_research(&mut self, blocks: &[&Block]) -> Parsed<()> {
+        for block in blocks {
+            let id = match block.header.strs().as_slice() {
+                [_, id] => id.to_string(),
+                _ => return block.header.fail("'research' needs exactly one name"),
+            };
+            if self.techs.iter().any(|t| t.id == id) {
+                return block.header.fail(format!("research '{id}' is declared twice"));
+            }
+            self.techs.push(TechDef {
+                name: id.clone(),
+                id,
+                requires: Vec::new(),
+                cost: Vec::new(),
+                time: DEFAULT_RESEARCH_TIME,
+            });
+        }
+        for (index, block) in blocks.iter().enumerate() {
+            let tech = TechId(index as u16);
+            for line in &block.body {
+                match line.strs().as_slice() {
+                    ["name", value] => self.techs[index].name = value.to_string(),
+                    ["time", value] => self.techs[index].time = line.positive(value)?,
+                    ["cost", pairs @ ..] => self.techs[index].cost = self.cost_pairs(line, pairs)?,
+                    ["requires", names @ ..] if !names.is_empty() => {
+                        for name in names {
+                            let required = self.tech(line, name)?;
+                            self.techs[index].requires.push(required);
+                        }
+                    }
+                    ["unlocks", names @ ..] if !names.is_empty() => {
+                        for name in names {
+                            self.lock(line, name, tech)?;
+                        }
+                    }
+                    _ => return line.fail(format!("research does not understand '{}'", line.head())),
+                }
+            }
+        }
+        self.check_research_order(blocks)
+    }
+
+    /// Repeatedly finds research whose requirements are all met; anything left is a loop.
+    fn check_research_order(&self, blocks: &[&Block]) -> Parsed<()> {
+        let mut done = vec![false; self.techs.len()];
+        loop {
+            let ready: Vec<usize> = (0..self.techs.len())
+                .filter(|&i| !done[i] && self.techs[i].requires.iter().all(|t| done[usize::from(t.0)]))
+                .collect();
+            if ready.is_empty() {
+                break;
+            }
+            ready.into_iter().for_each(|i| done[i] = true);
+        }
+        match done.iter().position(|finished| !finished) {
+            Some(index) => {
+                let id = &self.techs[index].id;
+                blocks[index].header.fail(format!("research '{id}' can never start: its requirements form a loop"))
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// A sandbox pack has everything available for free.
+    fn open_everything(&mut self) {
+        for belt in &mut self.belts {
+            belt.cost.clear();
+            belt.locked_by = None;
+        }
+        for unit in &mut self.units {
+            unit.cost.clear();
+            unit.locked_by = None;
+            unit.rules.iter_mut().for_each(|rule| rule.locked_by = None);
+        }
+    }
+
     fn finish(mut self) -> Pack {
+        if self.sandbox {
+            self.open_everything();
+        }
         for unit in &mut self.units {
             for rule in &unit.rules {
                 for take in &rule.takes {
@@ -659,8 +816,9 @@ impl Builder {
                 metrics: self.metrics,
                 map_rules: self.map_rules,
                 belts: self.belts,
+                techs: self.techs,
             },
-            worldgen: WorldGen { patches: self.patches, starter: self.starter },
+            worldgen: WorldGen { patches: self.patches, starter: self.starter, stock: self.stock },
         }
     }
 }
@@ -675,6 +833,8 @@ impl Pack {
             name: "Belt".to_string(),
             speed: DEFAULT_BELT_SPEED,
             style: 0,
+            cost: Vec::new(),
+            locked_by: None,
         });
         // Declarations come first so a pack can be written in any order.
         for line in top.iter().filter(|l| l.head() == "resource") {
@@ -695,9 +855,12 @@ impl Pack {
         for line in &top {
             builder.map_statement(line)?;
         }
-        for block in &blocks {
+        let (research, rules): (Vec<&Block>, Vec<&Block>) =
+            blocks.iter().partition(|block| block.header.head() == "research");
+        for block in rules {
             builder.add_rule(block)?;
         }
+        builder.add_research(&research)?;
         Ok(builder.finish())
     }
 }

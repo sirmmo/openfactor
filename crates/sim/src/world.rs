@@ -1,7 +1,7 @@
 use crate::belt::{BeltItem, Line, Target, TILE};
-use crate::content::{Amount, Content, Pack, Port, Route, Rule, Scope, UnitDef};
+use crate::content::{Amount, Content, Cost, Pack, Port, Route, Rule, Scope, UnitDef};
 use crate::hash::Hasher;
-use crate::{BeltId, Dir, EntityId, ItemId, LayerId, MetricId, Pos, Tick, UnitId};
+use crate::{BeltId, Dir, EntityId, ItemId, LayerId, MetricId, Pos, TechId, Tick, UnitId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// How many items a routing unit holds while passing them on.
@@ -21,6 +21,8 @@ pub enum Command {
     /// Chooses a unit's rule (by its index in the unit's rules) or a filter's
     /// resource (by its id). `None` goes back to the default.
     Configure { pos: Pos, setting: Option<u16> },
+    /// Pays for a research and starts it.
+    Research { tech: TechId },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,6 +34,16 @@ pub enum Reject {
     NothingToRemove,
     NothingToConfigure,
     InvalidSetting,
+    /// Needs research that hasn't finished.
+    Locked,
+    /// The shared stock doesn't cover the cost.
+    CantAfford,
+    UnknownTech,
+    AlreadyResearched,
+    /// Another research is running.
+    ResearchBusy,
+    /// A research it depends on hasn't finished.
+    MissingRequirement,
 }
 
 /// A command that had no effect. Rejection is deterministic like everything else.
@@ -46,6 +58,10 @@ pub struct ItemStats {
     pub produced: u64,
     pub consumed: u64,
     pub destroyed: u64,
+    /// In the shared stock from the start.
+    pub granted: u64,
+    /// Currently tied up in buildings and finished research.
+    pub spent: u64,
 }
 
 /// A metric's running total and the tick of its latest change.
@@ -165,6 +181,9 @@ struct Shared {
     stats: Stats,
     networks: Vec<Network>,
     charge: BTreeMap<(ItemId, EntityId), u64>,
+    researched: BTreeSet<TechId>,
+    /// The running research and the ticks it has left.
+    research: Option<(TechId, u32)>,
 }
 
 #[derive(Clone, Debug)]
@@ -261,6 +280,28 @@ fn apply_map_rule(rule: &Rule, layers: &mut [Layer], pos: Pos) {
 }
 
 impl Shared {
+    fn is_open(&self, locked_by: Option<TechId>) -> bool {
+        locked_by.map_or(true, |tech| self.researched.contains(&tech))
+    }
+
+    fn can_afford(&self, cost: &Cost) -> bool {
+        cost.iter().all(|&(item, amount)| self.globals.get(&item).copied().unwrap_or(0) >= u64::from(amount))
+    }
+
+    fn pay(&mut self, cost: &Cost) {
+        for &(item, amount) in cost {
+            subtract(&mut self.globals, item, u64::from(amount));
+            stat(&mut self.stats, item).spent += u64::from(amount);
+        }
+    }
+
+    fn refund(&mut self, cost: &Cost) {
+        for &(item, amount) in cost {
+            *self.globals.entry(item).or_default() += u64::from(amount);
+            stat(&mut self.stats, item).spent -= u64::from(amount);
+        }
+    }
+
     fn charge_of(&self, resource: ItemId, id: EntityId) -> u64 {
         self.charge.get(&(resource, id)).copied().unwrap_or(0)
     }
@@ -328,7 +369,10 @@ impl Shared {
                     subtract(&mut machine.bins, item, amount_wide);
                     stat(&mut self.stats, item).consumed += amount_wide;
                 }
-                Scope::Global(item) => subtract(&mut self.globals, item, amount_wide),
+                Scope::Global(item) => {
+                    subtract(&mut self.globals, item, amount_wide);
+                    stat(&mut self.stats, item).consumed += amount_wide;
+                }
                 Scope::Network(resource) => {
                     self.draw(resource, site.network(resource), amount_wide);
                     stat(&mut self.stats, resource).consumed += amount_wide;
@@ -346,7 +390,10 @@ impl Shared {
                     *machine.bins.entry(item).or_default() += amount_wide;
                     stat(&mut self.stats, item).produced += amount_wide;
                 }
-                Scope::Global(item) => *self.globals.entry(item).or_default() += amount_wide,
+                Scope::Global(item) => {
+                    *self.globals.entry(item).or_default() += amount_wide;
+                    stat(&mut self.stats, item).produced += amount_wide;
+                }
                 Scope::Network(resource) => {
                     *self.charge.entry((resource, site.id)).or_default() += amount_wide;
                     let network = site.network(resource);
@@ -402,17 +449,25 @@ impl World {
                 }
             }
         }
+        let mut globals = BTreeMap::new();
+        let mut stats: Stats = BTreeMap::new();
+        for &(item, amount) in &pack.worldgen.stock {
+            *globals.entry(item).or_default() += u64::from(amount);
+            stat(&mut stats, item).granted += u64::from(amount);
+        }
         World {
             content,
             tick: 0,
             next_id: 0,
             shared: Shared {
                 layers,
-                globals: BTreeMap::new(),
+                globals,
                 metrics: BTreeMap::new(),
-                stats: BTreeMap::new(),
+                stats,
                 networks: Vec::new(),
                 charge: BTreeMap::new(),
+                researched: BTreeSet::new(),
+                research: None,
             },
             tiles: BTreeMap::new(),
             machines: BTreeMap::new(),
@@ -450,6 +505,7 @@ impl World {
         self.transfer_items();
         self.run_machines();
         self.run_map_rules();
+        self.advance_research();
         self.tick += 1;
         rejected
     }
@@ -459,6 +515,7 @@ impl World {
             Command::Place { pos, dir, building } => self.place(pos, dir, building),
             Command::Remove { pos } => self.remove(pos),
             Command::Configure { pos, setting } => self.configure(pos, setting),
+            Command::Research { tech } => self.start_research(tech),
         }
     }
 
@@ -468,12 +525,19 @@ impl World {
         }
         let kind = match building {
             Building::Belt(belt) => {
-                self.content.belts.get(usize::from(belt.0)).ok_or(Reject::UnknownBelt)?;
+                let definition =
+                    self.content.belts.get(usize::from(belt.0)).ok_or(Reject::UnknownBelt)?;
+                if !self.shared.is_open(definition.locked_by) {
+                    return Err(Reject::Locked);
+                }
                 Kind::Belt(belt)
             }
             Building::Unit(unit) => {
                 let definition =
                     self.content.units.get(usize::from(unit.0)).ok_or(Reject::UnknownUnit)?;
+                if !self.shared.is_open(definition.locked_by) {
+                    return Err(Reject::Locked);
+                }
                 let layers = &self.shared.layers;
                 let allowed = definition.place_on.is_empty()
                     || definition.place_on.iter().any(|&layer| layer_at(layers, layer, pos) > 0);
@@ -489,6 +553,12 @@ impl World {
                 })
             }
         };
+        let cost = self.cost_of(building);
+        if !self.shared.can_afford(cost) {
+            return Err(Reject::CantAfford);
+        }
+        let cost = cost.clone();
+        self.shared.pay(&cost);
         let id = EntityId(self.next_id);
         self.next_id += 1;
         self.tiles.insert(pos, id);
@@ -498,6 +568,43 @@ impl World {
         Ok(())
     }
 
+    fn cost_of(&self, building: Building) -> &Cost {
+        match building {
+            Building::Belt(belt) => &self.content.belts[usize::from(belt.0)].cost,
+            Building::Unit(unit) => &self.content.unit(unit).cost,
+        }
+    }
+
+    fn start_research(&mut self, tech: TechId) -> Result<(), Reject> {
+        let definition = self.content.techs.get(usize::from(tech.0)).ok_or(Reject::UnknownTech)?;
+        if self.shared.researched.contains(&tech) {
+            return Err(Reject::AlreadyResearched);
+        }
+        if self.shared.research.is_some() {
+            return Err(Reject::ResearchBusy);
+        }
+        if !definition.requires.iter().all(|t| self.shared.researched.contains(t)) {
+            return Err(Reject::MissingRequirement);
+        }
+        if !self.shared.can_afford(&definition.cost) {
+            return Err(Reject::CantAfford);
+        }
+        self.shared.pay(&definition.cost);
+        self.shared.research = Some((tech, definition.time));
+        Ok(())
+    }
+
+    fn advance_research(&mut self) {
+        if let Some((tech, remaining)) = &mut self.shared.research {
+            *remaining -= 1;
+            if *remaining == 0 {
+                let finished = *tech;
+                self.shared.researched.insert(finished);
+                self.shared.research = None;
+            }
+        }
+    }
+
     fn remove(&mut self, pos: Pos) -> Result<(), Reject> {
         let id = self.tiles.remove(&pos).ok_or(Reject::NothingToRemove)?;
         let entity = self
@@ -505,6 +612,13 @@ impl World {
             .remove(&id)
             .or_else(|| self.belts.remove(&id))
             .expect("tile points at a live entity");
+        let building = match &entity.kind {
+            Kind::Belt(belt) => Building::Belt(*belt),
+            Kind::Machine(machine) => Building::Unit(machine.unit),
+        };
+        // Buildings give back everything they cost.
+        let cost = self.cost_of(building).clone();
+        self.shared.refund(&cost);
         // Items on a removed belt are accounted for in `rebuild_lines`.
         if let Kind::Machine(machine) = &entity.kind {
             for (&item, &count) in &machine.bins {
@@ -536,6 +650,12 @@ impl World {
         };
         if setting.map_or(false, |value| usize::from(value) >= choices) {
             return Err(Reject::InvalidSetting);
+        }
+        if unit.route.is_none() {
+            let locked_by = setting.and_then(|value| unit.rules[usize::from(value)].locked_by);
+            if !self.shared.is_open(locked_by) {
+                return Err(Reject::Locked);
+            }
         }
         machine.setting = setting;
         Ok(())
@@ -908,14 +1028,15 @@ impl World {
             Kind::Belt(_) => return false,
         };
         let unit = self.content.unit(machine.unit);
-        if unit.stores_any {
+        if unit.stores_any || unit.delivers {
             return true;
         }
         if unit.route.is_some() {
             return machine.bins.values().sum::<u64>() < ROUTE_BUFFER;
         }
         let held = machine.bins.get(&item).copied().unwrap_or(0);
-        unit.input_limit(item, machine.setting.map(usize::from)).map_or(false, |limit| held < limit)
+        let is_open = |rule: &Rule| self.shared.is_open(rule.locked_by);
+        unit.input_limit(item, machine.setting.map(usize::from), is_open).map_or(false, |limit| held < limit)
     }
 
     fn machine_mut(&mut self, id: EntityId) -> &mut Machine {
@@ -926,7 +1047,13 @@ impl World {
     }
 
     fn store(&mut self, id: EntityId, item: ItemId) {
-        *self.machine_mut(id).bins.entry(item).or_default() += 1;
+        let machine = self.machine_mut(id);
+        let unit = machine.unit;
+        if self.content.unit(unit).delivers {
+            *self.shared.globals.entry(item).or_default() += 1;
+        } else {
+            *self.machine_mut(id).bins.entry(item).or_default() += 1;
+        }
     }
 
     fn take(&mut self, offer: Offer) {
@@ -969,7 +1096,10 @@ impl World {
             let ready = match machine.setting.filter(|_| unit.route.is_none()) {
                 Some(index) => Some(usize::from(index))
                     .filter(|&index| shared.check(&unit.rules[index], machine, &site).can_start()),
-                None => unit.rules.iter().position(|r| shared.check(r, machine, &site).can_start()),
+                None => unit
+                    .rules
+                    .iter()
+                    .position(|r| shared.is_open(r.locked_by) && shared.check(r, machine, &site).can_start()),
             };
             if let Some(index) = ready {
                 shared.apply_takes(&unit.rules[index], machine, &site);
@@ -1035,7 +1165,11 @@ impl World {
         }
         let site = Site { id, pos: entity.pos, nets: &entity.nets };
         let chosen = machine.setting.map(usize::from);
-        let candidates = unit.rules.iter().enumerate().filter(|(index, _)| chosen.map_or(true, |c| c == *index));
+        let candidates = unit
+            .rules
+            .iter()
+            .enumerate()
+            .filter(|(index, rule)| chosen.map_or(self.shared.is_open(rule.locked_by), |c| c == *index));
         let mut status = Status::Idle;
         for (_, rule) in candidates {
             let readiness = self.shared.check(rule, machine, &site);
@@ -1099,11 +1233,22 @@ impl World {
         })
     }
 
+    /// Whether a research has finished.
+    pub fn researched(&self, tech: TechId) -> bool {
+        self.shared.researched.contains(&tech)
+    }
+
+    /// The running research and the ticks it has left.
+    pub fn active_research(&self) -> Option<(TechId, u32)> {
+        self.shared.research
+    }
+
     pub fn layer_value(&self, layer: LayerId, pos: Pos) -> u64 {
         layer_at(&self.shared.layers, layer, pos)
     }
 
-    /// The world-wide stock of a resource moved by `global` rules.
+    /// The shared stock of a resource: what depots have received, less what has
+    /// been spent, plus anything moved by `global` rules.
     pub fn global(&self, item: ItemId) -> u64 {
         self.shared.globals.get(&item).copied().unwrap_or(0)
     }
@@ -1158,6 +1303,9 @@ impl World {
         for (&(resource, _), &held) in &self.shared.charge {
             *totals.entry(resource).or_default() += held;
         }
+        for (&item, &held) in &self.shared.globals {
+            *totals.entry(item).or_default() += held;
+        }
         totals
     }
 
@@ -1191,6 +1339,15 @@ impl World {
             h.write(u64::from(id.0));
             h.write(*held);
         }
+        h.write(self.shared.researched.len() as u64);
+        self.shared.researched.iter().for_each(|tech| h.write(u64::from(tech.0)));
+        match self.shared.research {
+            None => h.write(u64::MAX),
+            Some((tech, remaining)) => {
+                h.write(u64::from(tech.0));
+                h.write(u64::from(remaining));
+            }
+        }
         for entities in [&self.machines, &self.belts] {
             h.write(entities.len() as u64);
             for (id, entity) in entities {
@@ -1210,6 +1367,8 @@ impl World {
             h.write(stats.produced);
             h.write(stats.consumed);
             h.write(stats.destroyed);
+            h.write(stats.granted);
+            h.write(stats.spent);
         }
         h.finish()
     }
@@ -1221,6 +1380,8 @@ impl World {
         for belt in &self.content.belts {
             h.write_str(&belt.id);
             h.write(u64::from(belt.speed));
+            hash_cost(h, &belt.cost);
+            h.write(hash_lock(belt.locked_by));
         }
         h.write(self.content.resources.len() as u64);
         for resource in &self.content.resources {
@@ -1236,6 +1397,9 @@ impl World {
             h.write(unit.place_on.len() as u64);
             unit.place_on.iter().for_each(|layer| h.write(u64::from(layer.0)));
             h.write(u64::from(unit.stores_any));
+            h.write(u64::from(unit.delivers));
+            hash_cost(h, &unit.cost);
+            h.write(hash_lock(unit.locked_by));
             match unit.route {
                 None => h.write(0),
                 Some(Route::Split) => h.write(1),
@@ -1260,6 +1424,14 @@ impl World {
                 hash_rule(h, rule);
             }
         }
+        h.write(self.content.techs.len() as u64);
+        for tech in &self.content.techs {
+            h.write_str(&tech.id);
+            h.write(u64::from(tech.time));
+            hash_cost(h, &tech.cost);
+            h.write(tech.requires.len() as u64);
+            tech.requires.iter().for_each(|required| h.write(u64::from(required.0)));
+        }
         h.write(self.content.metrics.len() as u64);
         for metric in &self.content.metrics {
             h.write_str(&metric.id);
@@ -1272,8 +1444,21 @@ impl World {
     }
 }
 
+fn hash_cost(h: &mut Hasher, cost: &Cost) {
+    h.write(cost.len() as u64);
+    for (item, amount) in cost {
+        h.write(u64::from(item.0));
+        h.write(u64::from(*amount));
+    }
+}
+
+fn hash_lock(locked_by: Option<TechId>) -> u64 {
+    locked_by.map_or(u64::MAX, |tech| u64::from(tech.0))
+}
+
 fn hash_rule(h: &mut Hasher, rule: &Rule) {
     h.write(u64::from(rule.rate));
+    h.write(hash_lock(rule.locked_by));
     h.write(rule.conditions.len() as u64);
     for condition in &rule.conditions {
         h.write(u64::from(condition.layer.0));

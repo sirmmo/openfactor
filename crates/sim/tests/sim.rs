@@ -86,7 +86,7 @@ fn assert_conserved(world: &World) {
         let held = totals.get(&item).copied().unwrap_or(0);
         assert_eq!(
             stats.produced,
-            held + stats.consumed + stats.destroyed,
+            held + stats.consumed + stats.destroyed + stats.spent - stats.granted,
             "{item:?} at tick {}",
             world.tick()
         );
@@ -412,7 +412,15 @@ fn map_rules_and_metrics_are_part_of_the_state_hash() {
 
 #[test]
 fn pack_mistakes_name_the_line() {
-    let cases: [(&str, usize, &str); 23] = [
+    let cases: [(&str, usize, &str); 31] = [
+        ("resource a\nunit u\ncost u", 3, "pairs of a resource"),
+        ("resource a\nunit u\ncost u a 1 a 2", 3, "listed twice"),
+        ("resource a\ncost nothing a 1", 2, "unknown unit"),
+        ("stock missing 1", 1, "unknown resource"),
+        ("research r\nrequires nope\nend", 2, "unknown research"),
+        ("research r\nunlocks nothing\nend", 2, "can't be unlocked"),
+        ("unit u\nresearch r\nunlocks u\nend\nresearch s\nunlocks u\nend", 6, "more than one research"),
+        ("research r\nrequires s\nend\nresearch s\nrequires r\nend", 1, "form a loop"),
         ("resource a\nunit u routes split\nunitRule u\na out 1\nend", 3, "can't have rules"),
         ("unit u routes teleport", 1, "split, filter or tunnel"),
         ("unit u range 3", 1, "after 'routes tunnel'"),
@@ -722,7 +730,7 @@ fn a_tunnel_does_not_reach_beyond_its_range() {
 
 #[test]
 fn belt_tiers_set_throughput_and_items_cross_between_them() {
-    let mut carried = |building, ticks| {
+    let carried = |building, ticks| {
         let mut world = World::new(&infra(""));
         let mut commands = vec![put(0, 0, Dir::East, SRC)];
         commands.extend((1..=4).map(|x| place(x, 0, Dir::East, building)));
@@ -943,7 +951,7 @@ fn every_base_pack_recipe_runs_when_fed() {
             let patch = ground_of(&base, rule).map_or(String::new(), |layer| {
                 format!("patch {} at 0 0 size 1 1 amount 1000000\n", base.content.layers()[usize::from(layer.0)].id)
             });
-            let pack = Pack::parse(&format!("{BASE_PACK}\n{supplies}\n{patch}")).unwrap();
+            let pack = Pack::parse(&format!("{BASE_PACK}\nsandbox\n{supplies}\n{patch}")).unwrap();
             let helper = |prefix: &str, item: ItemId| {
                 let name = format!("{prefix}_{}", base.content.resources()[usize::from(item.0)].id);
                 Building::Unit(pack.content.unit_id(&name).unwrap())
@@ -1012,7 +1020,7 @@ fn a_plant_with_spare_capacity_keeps_a_steady_supply() {
 #[test]
 fn packed_coal_furnaces_choke_on_their_own_smog() {
     const FEEDER: &str = "unit feeder\nunitRule feeder\nlocal ironOre out 2\nlocal coal out 1\nend";
-    let pack = Pack::parse(&format!("{BASE_PACK}\n{FEEDER}")).unwrap();
+    let pack = Pack::parse(&format!("{BASE_PACK}\nsandbox\n{FEEDER}")).unwrap();
     let id = |name: &str| Building::Unit(pack.content.unit_id(name).unwrap());
     let smog = pack.content.layer_id("smog").unwrap();
     // Each furnace is fed from the south and delivers to a depot to the north.
@@ -1074,10 +1082,218 @@ fn the_base_pack_starter_runs_on_its_own() {
     for _ in 0..7200 {
         world.step(&[]);
     }
-    let made = |id: &str| world.stats(pack.content.resource_id(id).unwrap()).produced;
-    assert!(made("gear") > 0, "gears");
-    assert!(made("wire") > 0, "wire");
-    assert!(made("power") > 0, "power");
-    assert!(made("copperPlate") > 0, "copper plate");
+    let plate = pack.content.resource_id("ironPlate").unwrap();
+    assert!(world.stats(plate).produced > 100, "plates");
+    assert!(world.global(plate) > 100, "delivered to the shared stock");
     assert_conserved(&world);
+}
+
+// Costs and research.
+
+const PROGRESS: &str = r#"
+    resource ore
+    resource plate
+    unit src
+    unit bank stores shared
+    unit cook
+    unit lab
+    belt fast speed 32
+    cost src plate 5
+    cost belt plate 1
+    cost fast plate 2
+    stock plate 20
+    unitRule src
+        rate 1
+        local ore out 1
+    end
+    unitRule open
+        appliesTo cook
+        rate 1
+        local plate in 1
+        local ore out 1
+    end
+    unitRule hidden
+        appliesTo cook
+        rate 1
+        local ore in 1
+        local plate out 1
+    end
+    research first
+        cost plate 5
+        time 10
+        unlocks fast hidden
+    end
+    research second
+        requires first
+        cost plate 5
+        time 3
+        unlocks lab
+    end
+"#;
+
+const STOCK_PLATE: ItemId = ItemId(1);
+
+#[test]
+fn buildings_are_paid_for_and_refunded() {
+    let pack = Pack::parse(PROGRESS).unwrap();
+    let src = Building::Unit(pack.content.unit_id("src").unwrap());
+    let mut world = World::new(&pack);
+    assert_eq!(world.global(STOCK_PLATE), 20);
+    run(&mut world, &[place(0, 0, Dir::East, src), place(1, 0, Dir::East, BELT)], 1);
+    assert_eq!(world.global(STOCK_PLATE), 14);
+    assert_conserved(&world);
+    run(&mut world, &[Command::Remove { pos: p(0, 0) }], 1);
+    assert_eq!(world.global(STOCK_PLATE), 19);
+    assert_conserved(&world);
+
+    let many: Vec<Command> = (0..5).map(|x| place(x, 3, Dir::East, src)).collect();
+    let refused = world.step(&many);
+    assert_eq!(refused.len(), 2);
+    assert!(refused.iter().all(|r| r.reason == Reject::CantAfford));
+    assert_eq!(world.global(STOCK_PLATE), 4);
+}
+
+#[test]
+fn a_depot_adds_to_the_stock_that_pays_for_things() {
+    let pack = Pack::parse(PROGRESS).unwrap();
+    let src = pack.content.unit_id("src").unwrap();
+    let bank = pack.content.unit_id("bank").unwrap();
+    let mut world = World::new(&pack);
+    run(&mut world, &[put(0, 0, Dir::East, src), put(1, 0, Dir::East, bank)], 100);
+    assert!(world.global(ItemId(0)) > 10);
+    assert_eq!(world.stock(p(1, 0), ItemId(0)), 0);
+    assert_conserved(&world);
+}
+
+#[test]
+fn research_unlocks_buildings_and_recipes_in_order() {
+    let pack = Pack::parse(PROGRESS).unwrap();
+    let (first, second) = (pack.content.tech_id("first").unwrap(), pack.content.tech_id("second").unwrap());
+    let fast = Building::Belt(pack.content.belt_id("fast").unwrap());
+    let cook = pack.content.unit_id("cook").unwrap();
+    let lab = Building::Unit(pack.content.unit_id("lab").unwrap());
+    let mut world = World::new(&pack);
+
+    let reasons = |refused: Vec<Rejected>| refused.iter().map(|r| r.reason).collect::<Vec<_>>();
+    assert_eq!(reasons(world.step(&[place(0, 0, Dir::East, fast)])), vec![Reject::Locked]);
+    assert_eq!(reasons(world.step(&[Command::Research { tech: second }])), vec![Reject::MissingRequirement]);
+
+    assert_eq!(world.step(&[put(5, 5, Dir::East, cook), Command::Research { tech: first }]), vec![]);
+    assert_eq!(world.global(STOCK_PLATE), 15);
+    assert_eq!(world.active_research().map(|(tech, _)| tech), Some(first));
+    assert_eq!(reasons(world.step(&[Command::Research { tech: second }])), vec![Reject::ResearchBusy]);
+    assert_eq!(reasons(world.step(&[Command::Configure { pos: p(5, 5), setting: Some(1) }])), vec![Reject::Locked]);
+    assert_conserved(&world);
+
+    run(&mut world, &[], 8);
+    assert!(world.researched(first));
+    assert_eq!(world.active_research(), None);
+    run(&mut world, &[place(0, 0, Dir::East, fast)], 1);
+    run(&mut world, &[Command::Configure { pos: p(5, 5), setting: Some(1) }], 1);
+    assert_eq!(reasons(world.step(&[Command::Research { tech: first }])), vec![Reject::AlreadyResearched]);
+    assert_eq!(reasons(world.step(&[Command::Research { tech: TechId(9) }])), vec![Reject::UnknownTech]);
+
+    assert_eq!(reasons(world.step(&[place(9, 9, Dir::East, lab)])), vec![Reject::Locked]);
+    run(&mut world, &[Command::Research { tech: second }], 5);
+    run(&mut world, &[place(9, 9, Dir::East, lab)], 1);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_locked_recipe_neither_runs_nor_accepts_its_inputs() {
+    let pack = Pack::parse(PROGRESS).unwrap();
+    let cook = pack.content.unit_id("cook").unwrap();
+    let src = pack.content.unit_id("src").unwrap();
+    let mut world = World::new(&pack);
+    run(&mut world, &[put(0, 0, Dir::East, src), put(1, 0, Dir::East, cook)], 100);
+    assert_eq!(world.stock(p(1, 0), ItemId(0)), 0);
+
+    run(&mut world, &[Command::Research { tech: pack.content.tech_id("first").unwrap() }], 20);
+    assert!(world.stats(STOCK_PLATE).produced > 0);
+    assert_conserved(&world);
+}
+
+#[test]
+fn research_state_is_part_of_the_hash() {
+    let pack = Pack::parse(PROGRESS).unwrap();
+    let mut idle = World::new(&pack);
+    let mut busy = World::new(&pack);
+    idle.step(&[]);
+    busy.step(&[Command::Research { tech: TechId(0) }]);
+    assert_ne!(idle.state_hash(), busy.state_hash());
+}
+
+#[test]
+fn a_sandbox_pack_is_free_and_open() {
+    let pack = Pack::parse(&format!("{PROGRESS}\nsandbox")).unwrap();
+    let fast = Building::Belt(pack.content.belt_id("fast").unwrap());
+    let mut world = World::new(&pack);
+    run(&mut world, &[place(0, 0, Dir::East, fast)], 1);
+    assert_eq!(world.global(STOCK_PLATE), 20);
+}
+
+/// Works through the tree as a player would: research anything whose cost can
+/// be made with what is open, until nothing changes. Everything must open.
+#[test]
+fn the_whole_base_pack_research_tree_can_be_reached() {
+    let pack = Pack::parse(BASE_PACK).unwrap();
+    let content = &pack.content;
+    let mut done: Vec<TechId> = Vec::new();
+    let open = |locked: Option<TechId>, done: &[TechId]| locked.map_or(true, |tech| done.contains(&tech));
+    loop {
+        // Items the open buildings and recipes can make, from what is already makeable.
+        let mut makeable: Vec<ItemId> = Vec::new();
+        loop {
+            let before = makeable.len();
+            for unit in content.units().iter().filter(|u| open(u.locked_by, &done)) {
+                for rule in unit.rules.iter().filter(|r| open(r.locked_by, &done)) {
+                    let inputs_ready = rule.takes.iter().all(|take| match take.scope {
+                        Scope::Local(item) | Scope::Network(item) | Scope::Global(item) => makeable.contains(&item),
+                        Scope::Map { .. } => true,
+                    });
+                    if !inputs_ready {
+                        continue;
+                    }
+                    for give in &rule.gives {
+                        if let Scope::Local(item) | Scope::Network(item) | Scope::Global(item) = give.scope {
+                            if !makeable.contains(&item) {
+                                makeable.push(item);
+                            }
+                        }
+                    }
+                }
+            }
+            if makeable.len() == before {
+                break;
+            }
+        }
+        let next = (0..content.techs().len() as u16).map(TechId).find(|tech| {
+            let definition = &content.techs()[usize::from(tech.0)];
+            !done.contains(tech)
+                && definition.requires.iter().all(|required| done.contains(required))
+                && definition.cost.iter().all(|(item, _)| makeable.contains(item))
+        });
+        match next {
+            Some(tech) => done.push(tech),
+            None => break,
+        }
+    }
+    let stuck: Vec<&str> = content
+        .techs()
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !done.contains(&TechId(*index as u16)))
+        .map(|(_, tech)| tech.id.as_str())
+        .collect();
+    assert!(stuck.is_empty(), "unreachable research: {stuck:?}");
+}
+
+/// Costs must only ever use things the player can make before needing them.
+#[test]
+fn base_pack_starter_is_affordable() {
+    let pack = Pack::parse(BASE_PACK).unwrap();
+    let mut world = World::new(&pack);
+    assert_eq!(world.step(&pack.worldgen.starter), vec![]);
+    let plate = pack.content.resource_id("ironPlate").unwrap();
+    assert!(world.global(plate) >= 30, "enough left to get going");
 }

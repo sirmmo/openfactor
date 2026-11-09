@@ -4,8 +4,8 @@
 //! only valid until the next call, because wasm memory can move when it grows.
 
 use openfactor_sim::{
-    BeltId, Building, Command, Dir, ItemId, MetricId, Pack, Port, Pos, Route, Rule, Scope, Status, UnitId,
-    World,
+    BeltId, Building, Command, Dir, ItemId, MetricId, Pack, Port, Pos, Reject, Route, Rule, Scope, Status,
+    TechId, UnitId, World,
 };
 use std::cell::RefCell;
 
@@ -18,6 +18,8 @@ struct Game {
     snapshot: Vec<i32>,
     pack_json: String,
     inspection: String,
+    /// Why the latest refused edit was refused, as a `reject_code`.
+    last_reject: i32,
 }
 
 impl Game {
@@ -29,6 +31,7 @@ impl Game {
             snapshot: Vec::new(),
             pack_json: pack_json(&pack),
             inspection: String::new(),
+            last_reject: 0,
         }
     }
 
@@ -139,6 +142,18 @@ fn dir_code(dir: Dir) -> i32 {
     DIRS.iter().position(|&d| d == dir).expect("all directions are listed") as i32
 }
 
+fn reject_code(reason: Reject) -> i32 {
+    match reason {
+        Reject::Occupied => 1,
+        Reject::NoResource => 2,
+        Reject::Locked => 3,
+        Reject::CantAfford => 4,
+        Reject::ResearchBusy => 5,
+        Reject::MissingRequirement => 6,
+        _ => 7,
+    }
+}
+
 fn status_code(status: Status) -> i32 {
     match status {
         Status::Idle => 0,
@@ -165,6 +180,15 @@ fn json_string(text: &str) -> String {
     out
 }
 
+fn json_cost(cost: &[(ItemId, u32)]) -> String {
+    let pairs: Vec<String> = cost.iter().map(|(item, amount)| format!("[{},{}]", item.0, amount)).collect();
+    format!("[{}]", pairs.join(","))
+}
+
+fn json_lock(locked_by: Option<TechId>) -> String {
+    locked_by.map_or("null".to_string(), |tech| tech.0.to_string())
+}
+
 fn json_tint(tint: Option<u32>) -> String {
     tint.map_or("null".to_string(), |value| value.to_string())
 }
@@ -186,7 +210,14 @@ fn json_amounts(list: &[openfactor_sim::Amount]) -> String {
 }
 
 fn json_rule(rule: &Rule) -> String {
-    format!(r#"{{"rate":{},"in":{},"out":{}}}"#, rule.rate, json_amounts(&rule.takes), json_amounts(&rule.gives))
+    format!(
+        r#"{{"name":{},"rate":{},"in":{},"out":{},"lock":{}}}"#,
+        json_string(&rule.name),
+        rule.rate,
+        json_amounts(&rule.takes),
+        json_amounts(&rule.gives),
+        json_lock(rule.locked_by)
+    )
 }
 
 fn port_code(port: Port) -> i32 {
@@ -203,7 +234,16 @@ fn pack_json(pack: &Pack) -> String {
     let belts: Vec<String> = content
         .belts()
         .iter()
-        .map(|b| format!(r#"{{"name":{},"speed":{},"style":{}}}"#, json_string(&b.name), b.speed, b.style))
+        .map(|b| {
+            format!(
+                r#"{{"name":{},"speed":{},"style":{},"cost":{},"lock":{}}}"#,
+                json_string(&b.name),
+                b.speed,
+                b.style,
+                json_cost(&b.cost),
+                json_lock(b.locked_by)
+            )
+        })
         .collect();
     let units: Vec<String> = content
         .units()
@@ -225,7 +265,7 @@ fn pack_json(pack: &Pack) -> String {
             ports.sort_unstable();
             ports.dedup();
             format!(
-                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"links":[{}],"rules":[{}],"ports":{:?}}}"#,
+                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{}}}"#,
                 json_string(&unit.id),
                 json_string(&unit.name),
                 unit.sprite,
@@ -237,7 +277,10 @@ fn pack_json(pack: &Pack) -> String {
                 range,
                 links.join(","),
                 rules.join(","),
-                ports
+                ports,
+                json_cost(&unit.cost),
+                json_lock(unit.locked_by),
+                unit.delivers
             )
         })
         .collect();
@@ -262,13 +305,28 @@ fn pack_json(pack: &Pack) -> String {
         .collect();
     let metrics: Vec<String> =
         content.metrics().iter().map(|m| format!(r#"{{"name":{}}}"#, json_string(&m.name))).collect();
+    let techs: Vec<String> = content
+        .techs()
+        .iter()
+        .map(|tech| {
+            let requires: Vec<u16> = tech.requires.iter().map(|required| required.0).collect();
+            format!(
+                r#"{{"name":{},"requires":{:?},"cost":{},"time":{}}}"#,
+                json_string(&tech.name),
+                requires,
+                json_cost(&tech.cost),
+                tech.time
+            )
+        })
+        .collect();
     format!(
-        r#"{{"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}]}}"#,
+        r#"{{"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
         belts.join(","),
         units.join(","),
         resources.join(","),
         layers.join(","),
-        metrics.join(",")
+        metrics.join(","),
+        techs.join(",")
     )
 }
 
@@ -340,7 +398,11 @@ pub extern "C" fn of_step(ticks: u32) -> u32 {
         let mut rejected = 0;
         if ticks > 0 {
             let commands = std::mem::take(&mut game.queued);
-            rejected = game.world.step(&commands).len() as u32;
+            let refused = game.world.step(&commands);
+            rejected = refused.len() as u32;
+            if let Some(last) = refused.last() {
+                game.last_reject = reject_code(last.reason);
+            }
             for _ in 1..ticks {
                 game.world.step(&[]);
             }
@@ -375,6 +437,41 @@ pub extern "C" fn of_produced(item: u32) -> u32 {
     with_game(|game| game.world.stats(ItemId(item as u16)).produced as u32)
 }
 
+/// Why the latest refused edit was refused. 0 if nothing has been.
+#[no_mangle]
+pub extern "C" fn of_last_reject() -> i32 {
+    with_game(|game| game.last_reject)
+}
+
+#[no_mangle]
+pub extern "C" fn of_stock(item: u32) -> u32 {
+    with_game(|game| game.world.global(ItemId(item as u16)) as u32)
+}
+
+/// Queues the start of a research.
+#[no_mangle]
+pub extern "C" fn of_research(tech: u32) {
+    with_game(|game| game.queued.push(Command::Research { tech: TechId(tech as u16) }));
+}
+
+/// Whether a research has finished: 1 if so, otherwise 0.
+#[no_mangle]
+pub extern "C" fn of_researched(tech: u32) -> u32 {
+    with_game(|game| u32::from(game.world.researched(TechId(tech as u16))))
+}
+
+/// The running research, or -1.
+#[no_mangle]
+pub extern "C" fn of_research_active() -> i32 {
+    with_game(|game| game.world.active_research().map_or(-1, |(tech, _)| i32::from(tech.0)))
+}
+
+/// Ticks left on the running research.
+#[no_mangle]
+pub extern "C" fn of_research_left() -> u32 {
+    with_game(|game| game.world.active_research().map_or(0, |(_, left)| left))
+}
+
 #[no_mangle]
 pub extern "C" fn of_consumed(item: u32) -> u32 {
     with_game(|game| game.world.stats(ItemId(item as u16)).consumed as u32)
@@ -407,8 +504,8 @@ mod tests {
     fn base_pack_builds_and_runs() {
         of_reset();
         assert_eq!(of_step(7200), 0);
-        assert!(of_produced(resource("gear")) > 0);
-        assert!(of_produced(resource("wire")) > 0);
+        assert!(of_produced(resource("ironPlate")) > 100);
+        assert!(of_stock(resource("ironPlate")) > 100);
         assert!(of_metric(0) > 0);
         assert!(!of_snapshot().is_null() && of_snapshot_len() > 0);
         println!("starter hash {:08x}{:08x}", of_hash_hi(), of_hash_lo());
@@ -421,6 +518,7 @@ mod tests {
         assert!(json.contains(r#""name":"Express belt","speed":32,"style":1"#));
         assert!(json.contains(r#""name":"iron ground","sprites":[3, 32]"#));
         assert!(json.contains(r#""route":"tunnel","range":5"#));
+        assert!(json.contains(r#""name":"Electricity","requires":[1, 2]"#), "{json}");
     }
 
     #[test]
@@ -431,13 +529,30 @@ mod tests {
             game.building_code(Building::Unit(unit))
         });
         of_place(100, 100, 1, kind);
-        of_configure(100, 100, 2);
+        of_configure(100, 100, 0);
         assert_eq!(of_step(1), 0);
         of_inspect(100, 100);
         let json = with_game(|game| game.inspection.clone());
         assert!(json.contains(&format!(r#""kind":{kind}"#)), "{json}");
-        assert!(json.contains(r#""setting":2"#), "{json}");
+        assert!(json.contains(r#""setting":0"#), "{json}");
         of_inspect(-100, -100);
         assert_eq!(with_game(|game| game.inspection.clone()), "null");
+
+        of_configure(100, 100, 2);
+        assert_eq!(of_step(1), 1);
+        assert_eq!(of_last_reject(), 3, "the circuit recipe needs research");
+    }
+
+    #[test]
+    fn research_runs_through_the_bindings() {
+        of_reset();
+        of_step(1);
+        assert_eq!(of_research_active(), -1);
+        of_research(0);
+        assert_eq!(of_step(1), 0);
+        assert_eq!(of_research_active(), 0);
+        assert!(of_research_left() > 0);
+        of_step(of_research_left());
+        assert_eq!(of_researched(0), 1);
     }
 }
