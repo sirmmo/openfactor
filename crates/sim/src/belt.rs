@@ -47,6 +47,17 @@ impl Line {
         self.tiles.len() as u32 * TILE
     }
 
+    /// Each item as (tile, offset along that tile in 0..=`TILE`, item), head first.
+    pub fn placed_items(&self) -> impl Iterator<Item = (Pos, u32, ItemId)> + '_ {
+        let last_tile = self.tiles.len() as u32 - 1;
+        let mut from_start = self.length();
+        self.items.iter().map(move |item| {
+            from_start -= item.gap;
+            let tile = (from_start / TILE).min(last_tile);
+            (self.tiles[tile as usize], from_start - tile * TILE, item.item)
+        })
+    }
+
     /// Moves items `speed` units, closing gaps from the head backwards.
     pub fn advance(&mut self, speed: u32) {
         let mut remaining = speed;

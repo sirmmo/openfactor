@@ -235,15 +235,8 @@ impl World {
     fn rebuild_lines(&mut self) {
         let mut carried: BTreeMap<Pos, Vec<(u32, ItemId)>> = BTreeMap::new();
         for line in &self.lines {
-            let last_tile = line.tiles.len() as u32 - 1;
-            let mut from_start = line.length();
-            for item in &line.items {
-                from_start -= item.gap;
-                let tile = (from_start / TILE).min(last_tile);
-                carried
-                    .entry(line.tiles[tile as usize])
-                    .or_default()
-                    .push((from_start - tile * TILE, item.item));
+            for (pos, offset, item) in line.placed_items() {
+                carried.entry(pos).or_default().push((offset, item));
             }
         }
 
@@ -501,6 +494,33 @@ impl World {
                 _ => {}
             }
         }
+    }
+
+    /// Every building, for rendering. Machines come first, then belts.
+    pub fn buildings(&self) -> impl Iterator<Item = (Pos, Dir, Building)> + '_ {
+        self.machines.values().chain(self.belts.values()).map(|entity| {
+            let building = match entity.kind {
+                Kind::Belt => Building::Belt,
+                Kind::Miner { .. } => Building::Miner,
+                Kind::Assembler { recipe, .. } => Building::Assembler { recipe },
+                Kind::Depot { .. } => Building::Depot,
+            };
+            (entity.pos, entity.dir, building)
+        })
+    }
+
+    /// Remaining minable tiles as (position, item, amount left).
+    pub fn resources(&self) -> impl Iterator<Item = (Pos, ItemId, u32)> + '_ {
+        self.resources.iter().map(|(pos, resource)| (*pos, resource.item, resource.amount))
+    }
+
+    /// Every belt item as (tile, tile direction, offset along it in 0..=`TILE`, item).
+    pub fn belt_items(&self) -> impl Iterator<Item = (Pos, Dir, u32, ItemId)> + '_ {
+        self.lines.iter().flat_map(move |line| {
+            line.placed_items().map(move |(pos, offset, item)| {
+                (pos, self.belt_dir(pos).expect("line tiles are belts"), offset, item)
+            })
+        })
     }
 
     pub fn stats(&self, item: ItemId) -> ItemStats {

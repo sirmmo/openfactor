@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OpenFactor</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #1d2024; --dim: #5e646b; --ground: #f7f5f0; --panel: #ece9e1; --line: #d8d4c9;
+    --accent: #8a5a00; --button: #f2b63c; --button-ink: #1b1608;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; --ink: #e8e6df; --dim: #a0a4a8; --ground: #15181c; --panel: #1f2329;
+      --line: #363c45; --accent: #f2b63c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 17px/1.6 system-ui, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+  h1 { font-size: 2.6rem; line-height: 1.1; margin: 0 0 .75rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.3rem; margin: 2.75rem 0 .6rem; }
+  p, ul, ol { margin: 0 0 1rem; }
+  li { margin-bottom: .3rem; }
+  a { color: var(--accent); }
+  .lead { font-size: 1.2rem; color: var(--dim); }
+  .actions { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: 1.5rem 0 0; }
+  .play { background: var(--button); color: var(--button-ink); font-weight: 600; text-decoration: none;
+    padding: .65rem 1.3rem; border-radius: 6px; }
+  code, pre, kbd { font-family: var(--mono); font-size: .88em; }
+  code { background: var(--panel); padding: .1em .3em; border-radius: 3px; }
+  pre { background: var(--panel); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0 0 1rem; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .scroll { overflow-x: auto; margin: 0 0 1rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .94rem; }
+  th, td { text-align: left; padding: .4rem .7rem .4rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>OpenFactor</h1>
+  <p class="lead">An open source factory-building platform for the browser. The simulation is a deterministic Rust library, and the game is content that runs on top of it.</p>
+  <div class="actions">
+    <a class="play" href="play/">Play the sandbox</a>
+    <a href="api/openfactor_sim/">API reference</a>
+    <a href="https://github.com/sirmmo/openfactor">Source on GitHub</a>
+  </div>
+
+  <h2>Status</h2>
+  <p>Early prototype. The core simulation and a single-player sandbox work. There is no multiplayer, data-pack loader or public API yet, and saves are not implemented, so reloading the page starts over.</p>
+
+  <h2>The one rule</h2>
+  <pre><code>state(t+1) = sim(state(t), commands(t))</code></pre>
+  <p>The simulation has no clock, no I/O, no floats and no randomised containers. Anything unpredictable enters as a command. Co-op sync, replays and integrations are all planned around this rule. Every run of the same commands produces the same state hash, which the sandbox shows in its top bar.</p>
+
+  <h2>Playing</h2>
+  <p>The sandbox opens with a working line. Build freely: there are no costs yet.</p>
+  <div class="scroll"><table>
+    <tr><th>Input</th><th>Action</th></tr>
+    <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>Belt, Miner, Smelter, Assembler, Depot</td></tr>
+    <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
+    <tr><td><kbd>X</kbd></td><td>Erase. Whatever the building held is destroyed</td></tr>
+    <tr><td><kbd>M</kbd>, right-drag, WASD or arrows</td><td>Move the view</td></tr>
+    <tr><td>Scroll wheel</td><td>Zoom</td></tr>
+  </table></div>
+
+  <h2>How the factory works</h2>
+  <div class="scroll"><table>
+    <tr><th>Building</th><th>Behaviour</th></tr>
+    <tr><td>Miner</td><td>Must sit on ore. Outputs through its front.</td></tr>
+    <tr><td>Belt</td><td>Moves items toward its front. Several belts or machines feeding one tile take turns.</td></tr>
+    <tr><td>Smelter</td><td>1 ore → 1 plate, 30 ticks. Takes input from anything feeding it and outputs through its front.</td></tr>
+    <tr><td>Assembler</td><td>2 plates → 1 widget, 60 ticks.</td></tr>
+    <tr><td>Depot</td><td>Stores anything delivered to it.</td></tr>
+  </table></div>
+  <p>The simulation runs at 60 ticks per second. A tile is 256 position units long and belt items sit at least 64 units apart. At the example speed of 16 units per tick, a belt carries one item every 4 ticks.</p>
+
+  <h2>Embedding the simulation</h2>
+  <p>The <code>openfactor-sim</code> crate has no dependencies. Items, recipes and speeds are passed in as a <code>Content</code> value.</p>
+<pre><code>use openfactor_sim::*;
+
+let worldgen = WorldGen { patches: vec![Patch {
+    origin: Pos::new(0, 0), width: 1, height: 1,
+    item: ItemId(0), amount_per_tile: 1_000,
+}]};
+let mut world = World::new(Content::example(), &amp;worldgen).unwrap();
+
+world.step(&amp;[Command::Place {
+    pos: Pos::new(0, 0), dir: Dir::East, building: Building::Miner,
+}]);
+println!("{:016x}", world.state_hash());</code></pre>
+
+  <h2>Building from source</h2>
+<pre><code>cargo test --workspace
+rustup target add wasm32-unknown-unknown
+cargo build --profile wasm --target wasm32-unknown-unknown -p openfactor-client-wasm
+cp target/wasm32-unknown-unknown/wasm/openfactor_client.wasm site/play/openfactor.wasm
+python3 -m http.server --directory site</code></pre>
+
+  <h2>Roadmap</h2>
+  <ol>
+    <li>Headless simulation with replay tests (done).</li>
+    <li>Browser client with a build and render loop (first version live).</li>
+    <li>Two browsers in one world, with late join and desync detection.</li>
+    <li>Data packs and the external API.</li>
+    <li>WASM mods, then federation between worlds.</li>
+  </ol>
+</main>
+</body>
+</html>

@@ -176,6 +176,23 @@ fn invalid_commands_are_rejected_without_effect() {
 }
 
 #[test]
+fn render_views_match_the_world() {
+    let mut world = ore_world();
+    let mut commands = vec![place(0, 0, Dir::East, Building::Miner)];
+    commands.extend(belts(1..=3, 0));
+    run(&mut world, &commands, 200);
+
+    assert_eq!(world.buildings().count(), 4);
+    assert_eq!(world.resources().count(), 1);
+    assert_eq!(world.belt_items().count(), world.belt_item_count());
+    for (pos, dir, offset, item) in world.belt_items() {
+        assert!((1..=3).contains(&pos.x) && pos.y == 0, "{pos:?}");
+        assert_eq!((dir, item), (Dir::East, ORE));
+        assert!(offset <= TILE);
+    }
+}
+
+#[test]
 fn invalid_content_is_refused() {
     let mut content = Content::example();
     content.recipes[0].inputs[0].0 = ItemId(42);

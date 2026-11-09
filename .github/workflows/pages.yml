@@ -1,0 +1,57 @@
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+      - name: Build the WebAssembly client
+        run: cargo build --locked --profile wasm --target wasm32-unknown-unknown -p openfactor-client-wasm
+
+      - name: Build the API reference
+        run: cargo doc --locked --no-deps -p openfactor-sim
+
+      - name: Assemble the site
+        run: |
+          cp -r site _site
+          cp target/wasm32-unknown-unknown/wasm/openfactor_client.wasm _site/play/openfactor.wasm
+          cp -r target/doc _site/api
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

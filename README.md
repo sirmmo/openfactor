@@ -21,13 +21,16 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 
 ## Milestones
 
-1. **Headless sim with replay tests (current).**
-2. Browser client with a build and render loop.
+1. Headless sim with replay tests (done).
+2. **Browser client with a build and render loop (first version in `site/play`).**
 3. Two browsers in one world, with late join and desync detection.
 4. Data packs and the external API.
 5. WASM mods, then federation.
 
 ## Running
 
-    cargo test
+    cargo test --workspace
     cargo run --release -p openfactor-sim --example demo [rows] [ticks]
+
+The docs and play pages live in `site/`. Every push to `main` tests the code,
+builds the WebAssembly client and publishes both to GitHub Pages.

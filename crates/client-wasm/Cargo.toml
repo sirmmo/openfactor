@@ -1,0 +1,13 @@
+[package]
+name = "openfactor-client-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "WebAssembly bindings for the OpenFactor sandbox"
+
+[lib]
+name = "openfactor_client"
+crate-type = ["cdylib"]
+
+[dependencies]
+openfactor-sim = { path = "../sim" }
