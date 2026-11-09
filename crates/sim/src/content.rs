@@ -1,4 +1,4 @@
-use crate::{Command, ItemId, LayerId, MetricId, Pos, UnitId};
+use crate::{BeltId, Command, ItemId, LayerId, MetricId, Pos, UnitId};
 
 /// A parsed rule pack: the definitions plus the map they start on.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -16,8 +16,18 @@ pub struct Content {
     pub(crate) units: Vec<UnitDef>,
     pub(crate) metrics: Vec<MetricDef>,
     pub(crate) map_rules: Vec<MapRule>,
-    /// Distance a belt item moves per tick, in 1/`TILE` of a tile.
-    pub(crate) belt_speed: u32,
+    /// Belt tiers. The first is always the built-in `belt`.
+    pub(crate) belts: Vec<BeltDef>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BeltDef {
+    pub id: String,
+    pub name: String,
+    /// Distance an item moves per tick, in 1/`TILE` of a tile.
+    pub speed: u32,
+    /// Which set of belt art to draw.
+    pub style: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,13 +35,28 @@ pub struct ResourceDef {
     pub id: String,
     pub name: String,
     pub sprite: u32,
+    /// Colour blended over the sprite, as 0xRRGGBB.
+    pub tint: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayerDef {
     pub id: String,
-    /// Tiles drawn for this layer; empty means it is not drawn.
+    pub name: String,
+    /// Tiles drawn for this layer; empty means it has no ground art.
     pub sprites: Vec<u32>,
+    /// Colour laid over those tiles, as 0xRRGGBB.
+    pub tint: Option<u32>,
+    /// Draws the layer as a haze that thickens with its value.
+    pub overlay: Option<Overlay>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Overlay {
+    /// Haze colour, as 0xRRGGBB.
+    pub color: u32,
+    /// The value at which the haze is at its thickest.
+    pub full: u32,
 }
 
 /// A running total that rules add to with `log`.
@@ -55,21 +80,78 @@ pub struct UnitDef {
     pub id: String,
     pub name: String,
     pub sprite: u32,
-    /// If set, the unit can only be placed where this layer is above zero.
-    pub place_on: Option<LayerId>,
+    /// Colour blended over the sprite, as 0xRRGGBB.
+    pub tint: Option<u32>,
+    /// Toolbar section. Cosmetic.
+    pub group: String,
+    /// If not empty, the unit can only be placed where one of these layers is above zero.
+    pub place_on: Vec<LayerId>,
     /// Accepts any resource without limit.
     pub stores_any: bool,
+    /// If set, the unit passes items along instead of running rules.
+    pub route: Option<Route>,
+    /// Networks it belongs to. Rules that use a network add it here automatically.
+    pub links: Vec<Link>,
     pub rules: Vec<Rule>,
     /// Resources it accepts and how many it holds, derived from `local .. in`.
     pub inputs: Vec<(ItemId, u64)>,
-    /// Resources it sends through its front, derived from `local .. out`.
-    pub outputs: Vec<ItemId>,
+    /// Resources it sends and from which side, derived from `local .. out`.
+    pub outputs: Vec<(ItemId, Port)>,
 }
 
 impl UnitDef {
     pub fn accepts_items(&self) -> bool {
-        self.stores_any || !self.inputs.is_empty()
+        self.stores_any || !self.inputs.is_empty() || self.route.is_some()
     }
+
+    pub fn sends_items(&self) -> bool {
+        !self.outputs.is_empty() || self.route.is_some()
+    }
+
+    /// Whether its rules can add to `resource`'s network.
+    pub(crate) fn produces_on(&self, resource: ItemId) -> bool {
+        let gives = |rule: &Rule| rule.gives.iter().any(|g| g.scope == Scope::Network(resource));
+        self.rules.iter().any(gives)
+    }
+
+    /// How many of `item` it holds when running rule `index`, or any rule if `None`.
+    pub(crate) fn input_limit(&self, item: ItemId, index: Option<usize>) -> Option<u64> {
+        match index {
+            None => self.inputs.iter().find(|(input, _)| *input == item).map(|&(_, limit)| limit),
+            Some(index) => self.rules[index]
+                .takes
+                .iter()
+                .find(|take| take.scope == Scope::Local(item))
+                .map(|take| u64::from(take.amount) * 2),
+        }
+    }
+}
+
+/// How a routing unit passes along what it receives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Route {
+    /// Takes turns between its front, left and right.
+    Split,
+    /// The chosen resource goes straight on; the rest leaves by the sides.
+    Filter,
+    /// Sends to the next matching tunnel ahead, within `range` tiles, over anything between.
+    Tunnel { range: u32 },
+}
+
+/// Membership of a network. Two members connect when either one's `reach`
+/// covers the other, counted in steps along the grid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Link {
+    pub resource: ItemId,
+    pub reach: u32,
+}
+
+/// The side of a unit something leaves from, relative to the way it faces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Port {
+    Front,
+    Left,
+    Right,
 }
 
 /// One `unitRule`. Inputs are taken when it starts, outputs given when it ends.
@@ -82,6 +164,14 @@ pub struct Rule {
     pub gives: Vec<Amount>,
     /// Added to metrics each time the rule finishes.
     pub logs: Vec<(MetricId, u32)>,
+    /// Outputs that leave somewhere other than the front.
+    pub sides: Vec<(ItemId, Port)>,
+}
+
+impl Rule {
+    pub(crate) fn port_of(&self, item: ItemId) -> Port {
+        self.sides.iter().find(|(side, _)| *side == item).map_or(Port::Front, |&(_, port)| port)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,6 +184,8 @@ pub struct Amount {
 pub enum Scope {
     Local(ItemId),
     Global(ItemId),
+    /// Shared between the buildings connected in that resource's network.
+    Network(ItemId),
     Map { layer: LayerId, radius: u32 },
 }
 
@@ -158,6 +250,14 @@ impl Content {
 
     pub fn metrics(&self) -> &[MetricDef] {
         &self.metrics
+    }
+
+    pub fn belts(&self) -> &[BeltDef] {
+        &self.belts
+    }
+
+    pub fn belt_id(&self, id: &str) -> Option<BeltId> {
+        self.belts.iter().position(|b| b.id == id).map(|i| BeltId(i as u16))
     }
 
     pub fn metric_id(&self, id: &str) -> Option<MetricId> {

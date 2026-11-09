@@ -35,6 +35,8 @@ pub(crate) struct Line {
     pub items: VecDeque<BeltItem>,
     /// Distance from the last item to the start of the line.
     pub tail_free: u32,
+    /// Distance items move per tick.
+    pub speed: u32,
     /// Number of leading items that cannot move.
     pub compressed: usize,
     pub target: Option<Target>,
@@ -59,7 +61,8 @@ impl Line {
     }
 
     /// Moves items `speed` units, closing gaps from the head backwards.
-    pub fn advance(&mut self, speed: u32) {
+    pub fn advance(&mut self) {
+        let speed = self.speed;
         let mut remaining = speed;
         while remaining > 0 && self.compressed < self.items.len() {
             let min_gap = if self.compressed == 0 { 0 } else { ITEM_SPACING };

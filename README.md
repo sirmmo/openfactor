@@ -30,8 +30,9 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 
 ## Rule packs
 
-Everything except belts is data: see [`packs/base.gbx`](packs/base.gbx) and the
-"Rules" section of the docs. The language follows citysim's GlassBox scripts.
+Resources, machines, recipes, belt tiers, routing, power and pipe networks are all
+data: see [`packs/base.gbx`](packs/base.gbx) and the "Rules" section of the docs.
+The language follows citysim's GlassBox scripts, with additions for logistics.
 
 ## Running
 

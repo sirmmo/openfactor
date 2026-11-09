@@ -48,17 +48,20 @@
   </div>
 
   <h2>Status</h2>
-  <p>Early prototype. The core simulation and a single-player sandbox work. There is no multiplayer or public API yet, and saves are not implemented, so reloading the page starts over.</p>
+  <p>Early prototype. The core simulation and a single-player sandbox with a full production chain work. There is no multiplayer or public API yet, and saves are not implemented, so reloading the page starts over.</p>
 
   <h2>The one rule</h2>
   <pre><code>state(t+1) = sim(state(t), commands(t))</code></pre>
   <p>The simulation has no clock, no I/O, no floats and no randomised containers. Anything unpredictable enters as a command. Co-op sync, replays and integrations are all planned around this rule. Every run of the same commands produces the same state hash, which the sandbox shows in its top bar.</p>
 
   <h2>Playing</h2>
-  <p>The sandbox opens with a working line. Build freely: there are no costs yet.</p>
+  <p>The sandbox opens with a coal-fired smelting line and a powered copper line. Build freely: there are no costs yet.</p>
   <div class="scroll"><table>
     <tr><th>Input</th><th>Action</th></tr>
-    <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>Belt, then each building in the pack, in toolbar order</td></tr>
+    <tr><td><kbd>Tab</kbd></td><td>Next toolbar section</td></tr>
+    <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>Tools in the open section</td></tr>
+    <tr><td>Click a building, or <kbd>I</kbd></td><td>Inspect it: status, recipe or filter choice, contents and networks</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Production totals</td></tr>
     <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
     <tr><td><kbd>X</kbd></td><td>Erase. Whatever the building held is destroyed</td></tr>
     <tr><td><kbd>M</kbd>, right-drag, WASD or arrows</td><td>Move the view</td></tr>
@@ -66,24 +69,27 @@
   </table></div>
 
   <h2>How the base pack works</h2>
+  <p>Ground holds iron, copper, coal, stone or tungsten; water and oil are pumped into pipes. Plates and bricks become gears, wire and circuits, then steel, carbide and plastic, then motors and controllers. An assembly line combines those with bricks into automata, the end of the chain.</p>
   <div class="scroll"><table>
-    <tr><th>Building</th><th>Behaviour</th></tr>
-    <tr><td>Miner</td><td>Must sit on ore. Outputs through its front.</td></tr>
-    <tr><td>Belt</td><td>Moves items toward its front. Several belts or machines feeding one tile take turns.</td></tr>
-    <tr><td>Smelter</td><td>1 ore → 1 plate, 30 ticks. Takes input from anything feeding it and outputs through its front.</td></tr>
-    <tr><td>Assembler</td><td>2 plates → 1 widget, 60 ticks.</td></tr>
-    <tr><td>Depot</td><td>Stores anything delivered to it.</td></tr>
+    <tr><th>Section</th><th>Buildings</th></tr>
+    <tr><td>Logistics</td><td><b>Belt</b> and the twice-as-fast <b>Express belt</b>. <b>Splitter</b>: shares items between its front and sides. <b>Sorter</b>: pick a resource in its inspector and it goes straight on while everything else leaves by the sides. <b>Tunnel</b>: sends items to the next tunnel facing the same way within 5 tiles, past anything in between. <b>Depot</b>: stores anything.</td></tr>
+    <tr><td>Extraction</td><td><b>Drill</b>: slow, unpowered. <b>Power drill</b>: three times faster and the only way to cut tungsten. <b>Pump</b> on water, <b>Derrick</b> on oil, both feeding pipes.</td></tr>
+    <tr><td>Production</td><td><b>Coal furnace</b>: burns coal, needs no power, makes smog. <b>Arc furnace</b>: clean and fast, and the only source of steel and carbide. <b>Workshop</b>: basic parts, unpowered. <b>Assembly line</b>: fast, makes every part. <b>Refinery</b>: oil and water into plastic, with tar out of its left side. If tar backs up the refinery stops, so give it somewhere to go.</td></tr>
+    <tr><td>Utilities</td><td><b>Steam plant</b>: coal and water. <b>Tar burner</b>: turns the refinery's waste into power. <b>Solar panel</b>: small, free and clean. <b>Power pole</b>: connects anything within 5 steps. <b>Pipe</b>: carries water and oil between neighbours.</td></tr>
   </table></div>
-  <p>The simulation runs at 60 ticks per second. A tile is 256 position units long and belt items sit at least 64 units apart. At the example speed of 16 units per tick, a belt carries one item every 4 ticks.</p>
+  <p>Several recipes can run in one machine. Left on Automatic, a machine runs the first it has inputs for; choosing one in the inspector makes it accept only that recipe's inputs.</p>
+  <p>Coal furnaces, steam plants and tar burners foul the air around them. Smog clears slowly by itself, but coal furnaces packed together stop until it thins, so spread them out or move to arc furnaces.</p>
+  <p>A square marker on a machine means trouble: red for a shortage on its network, amber for output with nowhere to go, grey for map conditions such as smog.</p>
+  <p>The simulation runs at 60 ticks per second. A tile is 256 position units long and belt items sit at least 64 units apart. At speed 16 a belt carries one item every 4 ticks, and at speed 32 one every 2.</p>
 
   <h2>Rules</h2>
   <p>Everything except belts is defined in a rule pack, written in the rule language of <a href="https://www.andrewwillmott.com/talks/inside-glassbox">GlassBox</a>, the engine behind SimCity (2013). OpenFactor follows the syntax used by citysim's <code>.gbx</code> scripts. The sandbox's toolbar, counters and sprites all come from <a href="https://github.com/sirmmo/openfactor/blob/main/packs/base.gbx">the base pack</a>.</p>
-<pre><code>resource ore    name "Ore"    sprite 97
-resource plate  name "Plates" sprite 107
-layer oreField  sprites 3 32
+<pre><code>resource ore   name "Ore"    sprite 97
+resource plate name "Plates" sprite 107 tint c8763c
+layer oreField sprites 3 32  tint 6f8fb8
 
-unit miner   name "Miner"   sprite 110 placeOn oreField
-unit smelter name "Smelter" sprite 75
+unit miner   name "Miner"   sprite 110 group "Mining" placeOn oreField
+unit smelter name "Smelter" sprite 75  group "Making"
 unit depot   name "Depot"   sprite 58  stores any
 
 unitRule mine
@@ -102,11 +108,48 @@ place miner 2 2 east</code></pre>
     <tr><td><code>rate &lt;n&gt;</code></td><td>Ticks from start to finish. Defaults to 1.</td></tr>
     <tr><td><code>local &lt;R&gt; in|out &lt;n&gt;</code>, or <code>&lt;R&gt; in|out &lt;n&gt;</code></td><td>Items taken from or made in the unit.</td></tr>
     <tr><td><code>global &lt;R&gt; in|out &lt;n&gt;</code></td><td>Taken from or added to a world-wide stock.</td></tr>
+    <tr><td><code>local &lt;R&gt; out &lt;n&gt; left|right</code></td><td>Makes items that leave from that side instead of the front.</td></tr>
+    <tr><td><code>network &lt;R&gt; in|out &lt;n&gt;</code></td><td>Draws from or supplies the unit's connected network for that resource.</td></tr>
     <tr><td><code>map &lt;M&gt; in &lt;n&gt;</code></td><td>Taken from the layer at the unit's tile.</td></tr>
     <tr><td><code>map &lt;M&gt; out &lt;n&gt; [radius &lt;r&gt;]</code></td><td>Added to the layer around the unit.</td></tr>
     <tr><td><code>map &lt;M&gt; atLeast|atMost|greater|less|is &lt;n&gt;</code></td><td>The rule starts only when this holds at the unit's tile. <code>test map …</code> also works.</td></tr>
     <tr><td><code>log [-timestamp=Time] &lt;metric&gt; &lt;n&gt;</code></td><td>Adds to a metric each time the rule finishes. Declare it first with <code>metric &lt;id&gt; [name "…"]</code>. Metrics appear as counters in the sandbox.</td></tr>
   </table></div>
+  <h3>Declarations</h3>
+  <div class="scroll"><table>
+    <tr><th>Statement</th><th>Meaning</th></tr>
+    <tr><td><code>belt &lt;id&gt; [name "…"] [speed &lt;n&gt;] [style &lt;n&gt;]</code></td><td>A belt tier. Belts of different tiers join up, and the slower one sets the pace. The built-in <code>belt</code> can be adjusted the same way.</td></tr>
+    <tr><td><code>resource &lt;id&gt; [name "…"] [sprite &lt;n&gt;] [tint &lt;rrggbb&gt;]</code></td><td>Something units make, carry or share over a network.</td></tr>
+    <tr><td><code>layer &lt;id&gt; [name "…"] [sprites &lt;n&gt;…] [tint &lt;rrggbb&gt;] [haze &lt;rrggbb&gt; full &lt;n&gt;]</code></td><td>A map layer. <code>sprites</code> and <code>tint</code> draw ground; <code>haze</code> draws a colour that thickens up to the value <code>full</code>.</td></tr>
+    <tr><td><code>unit &lt;id&gt; [name "…"] [sprite &lt;n&gt;] [tint &lt;rrggbb&gt;] [group "…"]</code></td><td>A building. <code>group</code> is its toolbar section.</td></tr>
+    <tr><td><code>… placeOn &lt;layer&gt;</code></td><td>It can only be built where that layer has a value. Repeat for alternatives.</td></tr>
+    <tr><td><code>… stores any</code></td><td>Accepts any resource without limit.</td></tr>
+    <tr><td><code>… routes split</code></td><td>Passes items to its front and sides in turn. Routing units can't have rules.</td></tr>
+    <tr><td><code>… routes filter</code></td><td>The resource chosen for it goes straight on and the rest leave by the sides. With nothing chosen, everything goes straight on.</td></tr>
+    <tr><td><code>… routes tunnel [range &lt;n&gt;]</code></td><td>Sends to the next tunnel of the same unit facing the same way within range, or else out of its front.</td></tr>
+    <tr><td><code>… links &lt;R&gt; [reach &lt;n&gt;]</code></td><td>Joins that resource's network. Two members connect when either one's reach covers the other, counted in grid steps. Using <code>network</code> in a rule links a unit automatically, with reach 0.</td></tr>
+  </table></div>
+  <h3>Networks</h3>
+  <p>A network resource never travels on belts. A producer holds what it makes, up to two batches, until something on the same connected network draws it. Producers are drawn from oldest first, and machines are served in the order they were built. Cutting or joining a network loses nothing; removing a producer destroys only what it held.</p>
+<pre><code>resource power name "Power"
+unit pole  sprite 116 links power reach 5
+unit plant sprite 109
+unit arc   sprite 75
+
+unitRule burn
+    appliesTo plant
+    rate 120
+    local coal in 1
+    network power out 60
+end
+
+unitRule smelt
+    appliesTo arc
+    rate 40
+    local ore in 2
+    network power in 6
+    local plate out 2
+end</code></pre>
   <h3>Map rules</h3>
   <p>A <code>mapRule</code> changes map layers by itself, tile by tile, every <code>rate</code> ticks.</p>
 <pre><code>mapRule growGrass
@@ -120,9 +163,9 @@ mapRule clearSmog
     rate 20
     map smog in 1
 end</code></pre>
-  <p>On a given tile, the rule applies only if all its conditions hold and every <code>in</code> amount is available; otherwise that tile is unchanged. Because the map has no edge, each map rule needs a <code>map … in</code>, or a condition that only non-empty tiles can meet (<code>atLeast</code> or <code>is</code> above zero, or <code>greater</code>). A map rule can only use <code>rate</code> and <code>map</code> statements, and it changes only the tile it is on, so <code>radius</code> isn't allowed. The sandbox doesn't draw layers without sprites yet, so a change like the smog above isn't visible there.</p>
+  <p>On a given tile, the rule applies only if all its conditions hold and every <code>in</code> amount is available; otherwise that tile is unchanged. Because the map has no edge, each map rule needs a <code>map … in</code>, or a condition that only non-empty tiles can meet (<code>atLeast</code> or <code>is</code> above zero, or <code>greater</code>). A map rule can only use <code>rate</code> and <code>map</code> statements, and it changes only the tile it is on, so <code>radius</code> isn't allowed. A layer needs <code>sprites</code> or <code>haze</code> to be drawn in the sandbox.</p>
   <h3>Differences from GlassBox and citysim</h3>
-  <p>Numbers are whole, rules fire at the end of their <code>rate</code> instead of being averaged per tick, and every resource, layer, metric and unit must be declared, so a typo is reported with its line number. Declarations are on one line in the pack itself. <code>log</code> adds its amount when a rule finishes, not every tick. <code>zoneRule</code>, <code>agentRule</code>, <code>agent</code> and <code>options</code> are not supported yet and are reported as errors.</p>
+  <p>Numbers are whole, rules fire at the end of their <code>rate</code> instead of being averaged per tick, and every resource, layer, metric and unit must be declared, so a typo is reported with its line number. Declarations are on one line in the pack itself. <code>log</code> adds its amount when a rule finishes, not every tick. <code>zoneRule</code>, <code>agentRule</code>, <code>agent</code> and <code>options</code> are not supported yet and are reported as errors. <code>network</code>, belt tiers, routing and side outputs are OpenFactor additions.</p>
   <p>Rule changes alter the state hash, so players on different rules are detected as out of sync. Names and sprites don't.</p>
 
   <h2>Embedding the simulation</h2>

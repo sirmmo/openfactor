@@ -20,7 +20,7 @@ fn unit(x: i32, y: i32, id: UnitId) -> Command {
 }
 
 fn belts(xs: std::ops::RangeInclusive<i32>, y: i32) -> Vec<Command> {
-    xs.map(|x| place(x, y, Dir::East, Building::Belt)).collect()
+    xs.map(|x| place(x, y, Dir::East, Building::Belt(BeltId(0)))).collect()
 }
 
 fn pack(mine: u32, smelt: u32, assemble: u32, extra: &str) -> Pack {
@@ -152,8 +152,8 @@ fn junction_alternates_between_saturated_feeders() {
     let mut commands = vec![
         unit(0, 0, MINER),
         unit(0, 2, miner2),
-        place(4, 0, Dir::South, Building::Belt),
-        place(4, 2, Dir::North, Building::Belt),
+        place(4, 0, Dir::South, Building::Belt(BeltId(0))),
+        place(4, 2, Dir::North, Building::Belt(BeltId(0))),
         unit(9, 1, DEPOT),
     ];
     commands.extend(belts(1..=3, 0));
@@ -172,10 +172,10 @@ fn junction_alternates_between_saturated_feeders() {
 fn closed_ring_circulates_without_losing_items() {
     let mut world = ore_world();
     let mut commands = vec![
-        place(1, 0, Dir::East, Building::Belt),
-        place(2, 0, Dir::South, Building::Belt),
-        place(2, 1, Dir::West, Building::Belt),
-        place(1, 1, Dir::North, Building::Belt),
+        place(1, 0, Dir::East, Building::Belt(BeltId(0))),
+        place(2, 0, Dir::South, Building::Belt(BeltId(0))),
+        place(2, 1, Dir::West, Building::Belt(BeltId(0))),
+        place(1, 1, Dir::North, Building::Belt(BeltId(0))),
     ];
     commands.push(unit(0, 0, MINER));
     run(&mut world, &commands, 200);
@@ -201,7 +201,7 @@ fn editing_a_belt_keeps_items_on_surviving_tiles() {
     assert!(world.stats(ORE).destroyed >= 4, "the removed tile's items are gone");
     assert_conserved(&world);
 
-    run(&mut world, &[place(5, 0, Dir::East, Building::Belt)], 1000);
+    run(&mut world, &[place(5, 0, Dir::East, Building::Belt(BeltId(0)))], 1000);
     assert_eq!(world.line_count(), 1);
     assert_conserved(&world);
 }
@@ -412,7 +412,16 @@ fn map_rules_and_metrics_are_part_of_the_state_hash() {
 
 #[test]
 fn pack_mistakes_name_the_line() {
-    let cases: [(&str, usize, &str); 14] = [
+    let cases: [(&str, usize, &str); 23] = [
+        ("resource a\nunit u routes split\nunitRule u\na out 1\nend", 3, "can't have rules"),
+        ("unit u routes teleport", 1, "split, filter or tunnel"),
+        ("unit u range 3", 1, "after 'routes tunnel'"),
+        ("unit u reach 3", 1, "after 'links"),
+        ("resource a\nunit u links a reach 99", 2, "at most 32"),
+        ("resource a\nunit u\nunitRule u\na out 1 up\nend", 4, "front, left or right"),
+        ("resource a\nunit u\nunitRule r\nappliesTo u\na out 1\nend\nunitRule s\nappliesTo u\na out 1 left\nend", 7, "two different sides"),
+        ("belt express\nbelt express", 2, "declared twice"),
+        ("belt express\nunit express", 2, "already the name of a belt"),
         ("layer a\nlayer b\nmapRule r\nmap b out 1\nend", 3, "endless empty tiles"),
         ("layer a\nmapRule r\nmap a atMost 3\nmap a out 1\nend", 2, "endless empty tiles"),
         ("layer a\nmapRule r\nmap a in 1\nmap a out 1 radius 2\nend", 4, "'radius' isn't allowed"),
@@ -439,7 +448,7 @@ fn pack_mistakes_name_the_line() {
 fn declarations_can_follow_the_rules_that_use_them() {
     let text = "unitRule u\na out 1\nend\nresource a # trailing comment\nunit u // another\n";
     let pack = Pack::parse(text).unwrap();
-    assert_eq!(pack.content.units()[0].outputs, vec![ItemId(0)]);
+    assert_eq!(pack.content.units()[0].outputs, vec![(ItemId(0), Port::Front)]);
 }
 
 #[test]
@@ -478,7 +487,7 @@ fn random_commands(rng: &mut Rng) -> Vec<Command> {
         let roll = rng.below(100);
         let building = |id| Building::Unit(id);
         commands.push(match roll {
-            0..=54 => Command::Place { pos, dir, building: Building::Belt },
+            0..=54 => Command::Place { pos, dir, building: Building::Belt(BeltId(0)) },
             55..=64 => Command::Place { pos, dir, building: building(MINER) },
             65..=72 => {
                 let id = if rng.below(2) == 0 { SMELTER } else { ASSEMBLER };
@@ -548,4 +557,527 @@ fn a_copy_of_the_state_continues_identically() {
         copy.step(commands);
         assert_eq!(original.state_hash(), copy.state_hash());
     }
+}
+
+// Infrastructure: routing, tiers, ports, networks and settings.
+
+/// A source of `ore` at (0, 0) plus whatever `extra` declares.
+fn infra(extra: &str) -> Pack {
+    let text = format!(
+        r#"
+        resource ore
+        resource plate
+        resource juice
+        unit src
+        unit src2
+        unit bin stores any
+        unit split routes split
+        unit sort routes filter
+        unit hole routes tunnel range 3
+        unit cook
+        unit plant
+        unit user
+        unit pole links juice reach 2
+        unit pipe links juice reach 1
+        belt fast speed 64
+        unitRule src
+            rate 1
+            local ore out 1
+        end
+        unitRule src2
+            rate 1
+            local plate out 1
+        end
+        unitRule cook1
+            appliesTo cook
+            rate 1
+            local ore in 1
+            local plate out 1
+        end
+        unitRule cook2
+            appliesTo cook
+            rate 1
+            local plate in 1
+            local juice out 1
+        end
+        unitRule plant
+            rate 10
+            network juice out 10
+        end
+        unitRule user
+            rate 1
+            network juice in 5
+            local plate out 1
+        end
+        {extra}
+        "#
+    );
+    Pack::parse(&text).unwrap()
+}
+
+const SRC: UnitId = UnitId(0);
+const SRC2: UnitId = UnitId(1);
+const BIN: UnitId = UnitId(2);
+const SPLIT: UnitId = UnitId(3);
+const SORT: UnitId = UnitId(4);
+const HOLE: UnitId = UnitId(5);
+const COOK: UnitId = UnitId(6);
+const PLANT: UnitId = UnitId(7);
+const USER: UnitId = UnitId(8);
+const POLE: UnitId = UnitId(9);
+const PIPE: UnitId = UnitId(10);
+const BELT: Building = Building::Belt(BeltId(0));
+const FAST: Building = Building::Belt(BeltId(1));
+
+fn put(x: i32, y: i32, dir: Dir, id: UnitId) -> Command {
+    place(x, y, dir, Building::Unit(id))
+}
+
+#[test]
+fn a_splitter_shares_evenly_between_its_outputs() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 1, Dir::East, SRC),
+        place(1, 1, Dir::East, BELT),
+        put(2, 1, Dir::East, SPLIT),
+        put(3, 1, Dir::East, BIN),
+        put(2, 0, Dir::East, BIN),
+        put(2, 2, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 3000);
+    let counts: Vec<u64> = [p(3, 1), p(2, 0), p(2, 2)].iter().map(|&pos| world.stock(pos, ORE)).collect();
+    assert!(counts[0] > 100, "{counts:?}");
+    assert!(counts.iter().all(|&c| c.abs_diff(counts[0]) <= 1), "{counts:?}");
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_splitter_sends_everything_to_the_output_that_is_left() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 0, Dir::East, SRC),
+        place(1, 0, Dir::East, BELT),
+        put(2, 0, Dir::East, SPLIT),
+        put(2, 1, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 2000);
+    assert!(world.stock(p(2, 1), ORE) > 100);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_sorter_separates_the_chosen_resource() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(1, 0, Dir::South, SRC),
+        put(1, 2, Dir::North, SRC2),
+        place(1, 1, Dir::East, BELT),
+        place(2, 1, Dir::East, BELT),
+        put(3, 1, Dir::East, SORT),
+        put(4, 1, Dir::East, BIN),
+        put(3, 0, Dir::East, BIN),
+        Command::Configure { pos: p(3, 1), setting: Some(PLATE.0) },
+    ];
+    run(&mut world, &commands, 2000);
+    assert!(world.stock(p(4, 1), PLATE) > 50);
+    assert_eq!(world.stock(p(4, 1), ORE), 0);
+    assert!(world.stock(p(3, 0), ORE) > 50);
+    assert_eq!(world.stock(p(3, 0), PLATE), 0);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_tunnel_carries_items_past_what_is_in_between() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 0, Dir::East, SRC),
+        put(1, 0, Dir::East, HOLE),
+        // Crossing traffic runs over the tunnel without mixing.
+        place(2, 1, Dir::North, BELT),
+        place(2, 0, Dir::North, BELT),
+        put(4, 0, Dir::East, HOLE),
+        place(5, 0, Dir::East, BELT),
+        put(6, 0, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 500);
+    assert!(world.stock(p(6, 0), ORE) > 50);
+    assert_eq!(world.belt_items().filter(|item| item.0 == p(2, 0)).count(), 0);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_tunnel_does_not_reach_beyond_its_range() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 0, Dir::East, SRC),
+        put(1, 0, Dir::East, HOLE),
+        put(5, 0, Dir::East, HOLE),
+        place(6, 0, Dir::East, BELT),
+        put(7, 0, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 500);
+    assert_eq!(world.stock(p(7, 0), ORE), 0);
+    assert_conserved(&world);
+}
+
+#[test]
+fn belt_tiers_set_throughput_and_items_cross_between_them() {
+    let mut carried = |building, ticks| {
+        let mut world = World::new(&infra(""));
+        let mut commands = vec![put(0, 0, Dir::East, SRC)];
+        commands.extend((1..=4).map(|x| place(x, 0, Dir::East, building)));
+        commands.push(put(5, 0, Dir::East, BIN));
+        run(&mut world, &commands, ticks);
+        assert_conserved(&world);
+        world.stock(p(5, 0), ORE)
+    };
+    let (slow, fast) = (carried(BELT, 2000), carried(FAST, 2000));
+    // The source only makes an item every other tick, which caps the fast belt.
+    assert!(fast * 10 >= slow * 19, "slow {slow}, fast {fast}");
+
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 0, Dir::East, SRC),
+        place(1, 0, Dir::East, FAST),
+        place(2, 0, Dir::East, FAST),
+        place(3, 0, Dir::East, BELT),
+        place(4, 0, Dir::East, BELT),
+        put(5, 0, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 1000);
+    assert_eq!(world.line_count(), 2);
+    assert!(world.stock(p(5, 0), ORE) > 100);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_byproduct_leaves_from_its_own_side_and_stops_the_unit_when_stuck() {
+    let extra = r#"
+        unit mill
+        unitRule mill
+            rate 5
+            local ore in 1
+            local plate out 1
+            local juice out 1 left
+        end
+    "#;
+    let pack = infra(extra);
+    let mill = pack.content.unit_id("mill").unwrap();
+    let juice = pack.content.resource_id("juice").unwrap();
+
+    let mut world = World::new(&pack);
+    let commands = vec![
+        put(0, 1, Dir::East, SRC),
+        put(1, 1, Dir::East, mill),
+        put(2, 1, Dir::East, BIN),
+        put(1, 0, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 200);
+    assert!(world.stock(p(2, 1), PLATE) > 10);
+    assert_eq!(world.stock(p(2, 1), juice), 0);
+    assert_eq!(world.stock(p(1, 0), juice), world.stock(p(2, 1), PLATE));
+
+    run(&mut world, &[Command::Remove { pos: p(1, 0) }], 200);
+    let stuck = world.stock(p(2, 1), PLATE);
+    assert_eq!(world.status(p(1, 1)), Some(Status::Full));
+    run(&mut world, &[], 200);
+    assert_eq!(world.stock(p(2, 1), PLATE), stuck);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_chosen_recipe_limits_what_a_unit_accepts_and_runs() {
+    let setting_commands = |setting| {
+        vec![
+            put(0, 0, Dir::East, SRC),
+            put(1, 0, Dir::East, COOK),
+            put(2, 0, Dir::East, BIN),
+            Command::Configure { pos: p(1, 0), setting },
+        ]
+    };
+    let mut world = World::new(&infra(""));
+    run(&mut world, &setting_commands(Some(1)), 200);
+    assert_eq!(world.stock(p(1, 0), ORE), 0);
+    assert_eq!(world.stock(p(2, 0), PLATE), 0);
+
+    let mut world = World::new(&infra(""));
+    run(&mut world, &setting_commands(None), 200);
+    assert!(world.stock(p(2, 0), PLATE) > 10);
+
+    run(&mut world, &[Command::Configure { pos: p(1, 0), setting: Some(0) }], 10);
+    let refused = world.step(&[
+        Command::Configure { pos: p(1, 0), setting: Some(9) },
+        Command::Configure { pos: p(2, 0), setting: Some(0) },
+        Command::Configure { pos: p(30, 30), setting: None },
+    ]);
+    let reasons: Vec<Reject> = refused.iter().map(|r| r.reason).collect();
+    assert_eq!(reasons, vec![Reject::InvalidSetting, Reject::NothingToConfigure, Reject::NothingToConfigure]);
+}
+
+#[test]
+fn networks_join_through_reach_and_supply_their_members() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 0, Dir::East, PLANT),
+        put(1, 0, Dir::East, PIPE),
+        put(3, 0, Dir::East, POLE),
+        put(5, 0, Dir::East, USER),
+        put(6, 0, Dir::East, BIN),
+    ];
+    run(&mut world, &commands, 300);
+    assert!(world.stock(p(6, 0), PLATE) > 20);
+    let view = world.inspect(p(5, 0)).unwrap();
+    assert_eq!(view.networks[0].members, 4);
+    assert_eq!(view.networks[0].producers, 1);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_unit_out_of_reach_reports_that_it_has_no_supply() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![put(0, 0, Dir::East, PLANT), put(1, 0, Dir::East, POLE), put(9, 0, Dir::East, USER)];
+    run(&mut world, &commands, 100);
+    assert_eq!(world.status(p(9, 0)), Some(Status::NoNetwork(ItemId(2))));
+    assert_eq!(world.status(p(0, 0)), Some(Status::Standby));
+    assert_eq!(world.inspect(p(9, 0)).unwrap().networks[0].members, 1);
+}
+
+#[test]
+fn removing_a_producer_destroys_only_its_share_of_the_network() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![
+        put(0, 0, Dir::East, PLANT),
+        put(1, 0, Dir::East, POLE),
+        put(2, 0, Dir::East, PLANT),
+    ];
+    run(&mut world, &commands, 50);
+    // Each plant stops at two batches.
+    assert_eq!(world.inspect(p(1, 0)).unwrap().networks[0].stock, 40);
+    run(&mut world, &[Command::Remove { pos: p(0, 0) }], 1);
+    assert_eq!(world.inspect(p(1, 0)).unwrap().networks[0].stock, 20);
+    assert_eq!(world.stats(ItemId(2)).destroyed, 20);
+    assert_conserved(&world);
+}
+
+#[test]
+fn a_unit_can_be_placed_on_any_of_its_layers() {
+    let extra = r#"
+        layer a
+        layer b
+        unit digger placeOn a placeOn b
+        patch a at 0 0 size 1 1 amount 5
+        patch b at 1 0 size 1 1 amount 5
+    "#;
+    let pack = infra(extra);
+    let digger = Building::Unit(pack.content.unit_id("digger").unwrap());
+    let mut world = World::new(&pack);
+    let commands = [place(0, 0, Dir::East, digger), place(1, 0, Dir::East, digger), place(2, 0, Dir::East, digger)];
+    let refused = world.step(&commands);
+    assert_eq!(refused, vec![Rejected { index: 2, reason: Reject::NoResource }]);
+}
+
+fn infra_fuzz_commands(rng: &mut Rng) -> Vec<Command> {
+    const DIRS: [Dir; 4] = [Dir::North, Dir::East, Dir::South, Dir::West];
+    const UNITS: [UnitId; 11] = [SRC, SRC2, BIN, SPLIT, SORT, HOLE, COOK, PLANT, USER, POLE, PIPE];
+    let mut commands = Vec::new();
+    for _ in 0..rng.below(4) {
+        let pos = p(rng.below(12) as i32, rng.below(12) as i32);
+        let dir = DIRS[rng.below(4) as usize];
+        commands.push(match rng.below(100) {
+            0..=44 => place(pos.x, pos.y, dir, Building::Belt(BeltId(rng.below(2) as u16))),
+            45..=74 => put(pos.x, pos.y, dir, UNITS[rng.below(UNITS.len() as u64) as usize]),
+            75..=84 => Command::Configure { pos, setting: Some(rng.below(3) as u16) },
+            _ => Command::Remove { pos },
+        });
+    }
+    commands
+}
+
+#[test]
+fn infrastructure_replays_identically_and_conserves_everything() {
+    for seed in 1..=10 {
+        let mut rng = Rng(0xD1B5_4A32_D192_ED03_u64.wrapping_mul(seed));
+        let log: Vec<Vec<Command>> = (0..3000).map(|_| infra_fuzz_commands(&mut rng)).collect();
+        let (mut first, mut second) = (World::new(&infra("")), World::new(&infra("")));
+        for commands in &log {
+            assert_eq!(first.step(commands), second.step(commands));
+            assert_eq!(first.state_hash(), second.state_hash(), "tick {}", first.tick());
+            assert_conserved(&first);
+        }
+    }
+}
+
+// The base pack.
+
+const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
+
+/// Test-only units that supply every resource, as items or over a network.
+fn supply_units(base: &Pack) -> String {
+    let mut text = String::new();
+    for resource in base.content.resources() {
+        let id = &resource.id;
+        text += &format!("unit give_{id}\nunitRule give_{id}\nlocal {id} out 1\nend\n");
+        text += &format!("unit charge_{id}\nunitRule charge_{id}\nnetwork {id} out 1000\nend\n");
+        text += &format!("unit reach_{id} links {id} reach 8\n");
+    }
+    text
+}
+
+/// The ground a rule has to stand on, if any. Smog is an effect, not a ground.
+fn ground_of(base: &Pack, rule: &Rule) -> Option<LayerId> {
+    let smog = base.content.layer_id("smog").unwrap();
+    let from_takes = rule.takes.iter().find_map(|entry| match entry.scope {
+        Scope::Map { layer, .. } if layer != smog => Some(layer),
+        _ => None,
+    });
+    from_takes.or_else(|| rule.conditions.iter().map(|c| c.layer).find(|&layer| layer != smog))
+}
+
+#[test]
+fn every_base_pack_recipe_runs_when_fed() {
+    let base = Pack::parse(BASE_PACK).unwrap();
+    let supplies = supply_units(&base);
+    let mut checked = 0;
+    for (unit_index, unit) in base.content.units().iter().enumerate() {
+        for (rule_index, rule) in unit.rules.iter().enumerate() {
+            let patch = ground_of(&base, rule).map_or(String::new(), |layer| {
+                format!("patch {} at 0 0 size 1 1 amount 1000000\n", base.content.layers()[usize::from(layer.0)].id)
+            });
+            let pack = Pack::parse(&format!("{BASE_PACK}\n{supplies}\n{patch}")).unwrap();
+            let helper = |prefix: &str, item: ItemId| {
+                let name = format!("{prefix}_{}", base.content.resources()[usize::from(item.0)].id);
+                Building::Unit(pack.content.unit_id(&name).unwrap())
+            };
+
+            let origin = p(0, 0);
+            let building = Building::Unit(UnitId(unit_index as u16));
+            let mut commands = vec![Command::Place { pos: origin, dir: Dir::East, building }];
+            if unit.rules.len() > 1 {
+                commands.push(Command::Configure { pos: origin, setting: Some(rule_index as u16) });
+            }
+            let mut sides = [(Dir::West, p(-1, 0)), (Dir::North, p(0, -1)), (Dir::South, p(0, 1))].into_iter();
+            let mut networks = 0;
+            for take in &rule.takes {
+                match take.scope {
+                    Scope::Local(item) => {
+                        let (side, pos) = sides.next().expect("a recipe has at most three solid inputs");
+                        commands.push(Command::Place { pos, dir: side.opposite(), building: helper("give", item) });
+                    }
+                    Scope::Network(item) => {
+                        // A long-reach pole joins the unit to its own supply.
+                        commands.push(Command::Place { pos: p(networks, 3), dir: Dir::East, building: helper("reach", item) });
+                        commands.push(Command::Place { pos: p(networks, 5), dir: Dir::East, building: helper("charge", item) });
+                        networks += 1;
+                    }
+                    _ => {}
+                }
+            }
+
+            let mut world = World::new(&pack);
+            assert_eq!(world.step(&commands), vec![], "placing for rule {}", rule.name);
+            for _ in 0..(rule.rate + 200) {
+                world.step(&[]);
+            }
+            let moved = |list: &[Amount], total: &dyn Fn(ItemId) -> u64| {
+                list.iter().all(|entry| match entry.scope {
+                    Scope::Local(item) | Scope::Network(item) => total(item) > 0,
+                    _ => true,
+                })
+            };
+            assert!(
+                moved(&rule.gives, &|item| world.stats(item).produced) && moved(&rule.takes, &|item| world.stats(item).consumed),
+                "rule {} of unit {} did not run",
+                rule.name,
+                unit.id
+            );
+            assert_conserved(&world);
+            checked += 1;
+        }
+    }
+    assert!(checked > 30, "{checked}");
+}
+
+#[test]
+fn a_plant_with_spare_capacity_keeps_a_steady_supply() {
+    let mut world = World::new(&infra(""));
+    let commands = vec![put(0, 0, Dir::East, PLANT), put(1, 0, Dir::East, POLE), put(2, 0, Dir::East, USER), put(3, 0, Dir::East, BIN)];
+    run(&mut world, &commands, 20);
+    // The user draws 5 per 2 ticks at best, the plant makes 10 per 10 ticks,
+    // so it is supply-limited but never starved for a whole plant cycle.
+    let before = world.stock(p(3, 0), PLATE);
+    run(&mut world, &[], 100);
+    assert!(world.stock(p(3, 0), PLATE) - before >= 15);
+}
+
+#[test]
+fn packed_coal_furnaces_choke_on_their_own_smog() {
+    const FEEDER: &str = "unit feeder\nunitRule feeder\nlocal ironOre out 2\nlocal coal out 1\nend";
+    let pack = Pack::parse(&format!("{BASE_PACK}\n{FEEDER}")).unwrap();
+    let id = |name: &str| Building::Unit(pack.content.unit_id(name).unwrap());
+    let smog = pack.content.layer_id("smog").unwrap();
+    // Each furnace is fed from the south and delivers to a depot to the north.
+    let bay = |x: i32| {
+        [
+            place(x, 0, Dir::North, id("furnace")),
+            place(x, 1, Dir::North, id("feeder")),
+            place(x, -1, Dir::North, id("depot")),
+        ]
+    };
+
+    let mut world = World::new(&pack);
+    let commands: Vec<Command> = (0..5).flat_map(bay).collect();
+    assert_eq!(world.step(&commands), vec![]);
+    let (mut choked, mut highest) = (false, 0);
+    for _ in 0..12000 {
+        world.step(&[]);
+        choked |= world.status(p(2, 0)) == Some(Status::Conditions);
+        highest = highest.max(world.layer_value(smog, p(2, 0)));
+    }
+    assert!(choked, "smog peaked at {highest}");
+    assert!(highest < 400, "furnaces should stop before smog runs away: {highest}");
+    assert_conserved(&world);
+
+    // One furnace on its own never gets near the limit.
+    let mut lone = World::new(&pack);
+    assert_eq!(lone.step(&bay(0)), vec![]);
+    for _ in 0..12000 {
+        lone.step(&[]);
+        assert_ne!(lone.status(p(0, 0)), Some(Status::Conditions));
+    }
+    assert!(lone.stats(pack.content.resource_id("ironPlate").unwrap()).produced > 150);
+}
+
+#[test]
+fn every_base_pack_input_has_a_source() {
+    let base = Pack::parse(BASE_PACK).unwrap();
+    let produced: Vec<ItemId> = base
+        .content
+        .units()
+        .iter()
+        .flat_map(|unit| &unit.rules)
+        .flat_map(|rule| &rule.gives)
+        .filter_map(|give| match give.scope {
+            Scope::Local(item) | Scope::Network(item) => Some(item),
+            _ => None,
+        })
+        .collect();
+    for (index, resource) in base.content.resources().iter().enumerate() {
+        assert!(produced.contains(&ItemId(index as u16)), "nothing makes {}", resource.id);
+    }
+}
+
+#[test]
+fn the_base_pack_starter_runs_on_its_own() {
+    let pack = Pack::parse(BASE_PACK).unwrap();
+    let mut world = World::new(&pack);
+    assert_eq!(world.step(&pack.worldgen.starter), vec![]);
+    for _ in 0..7200 {
+        world.step(&[]);
+    }
+    let made = |id: &str| world.stats(pack.content.resource_id(id).unwrap()).produced;
+    assert!(made("gear") > 0, "gears");
+    assert!(made("wire") > 0, "wire");
+    assert!(made("power") > 0, "power");
+    assert!(made("copperPlate") > 0, "copper plate");
+    assert_conserved(&world);
 }

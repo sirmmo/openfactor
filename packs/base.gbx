@@ -1,54 +1,398 @@
-# OpenFactor base pack, written in the GlassBox rule language.
-# Everything except belts is defined here. See the "Rules" section of the docs.
+# OpenFactor base pack.
+#
+# Ore comes out of the ground, is smelted, assembled and finally built into
+# automata. Coal furnaces need no power but foul the air. Powered machines are
+# faster, and need a steam or tar plant, water and oil over pipes, and poles.
 
-beltSpeed 16
+belt belt name "Belt" speed 16
+belt express name "Express belt" speed 32 style 1
 
-# --- What exists ----------------------------------------------------------
-resource ore    name "Ore"     sprite 97
-resource plate  name "Plates"  sprite 107
-resource widget name "Widgets" sprite 114
+# Raw materials
+resource ironOre     name "Iron ore"     sprite 96
+resource copperOre   name "Copper ore"   sprite 97
+resource coal        name "Coal"         sprite 96 tint 26262e
+resource stone       name "Stone"        sprite 96 tint c9b89a
+resource tungstenOre name "Tungsten ore" sprite 96 tint 8d5fc4
 
-layer oreField sprites 3 32
+# Moved over networks rather than belts
+resource power name "Power"     sprite 129
+resource water name "Water"     sprite 86
+resource crude name "Crude oil" sprite 73 tint 3a2f3a
 
-metric energy name "Energy used"
+# Materials
+resource ironPlate   name "Iron plate"   sprite 107
+resource copperPlate name "Copper plate" sprite 107 tint d07f43
+resource brick       name "Brick"        sprite 107 tint b5533c
+resource steel       name "Steel"        sprite 107 tint 3f4b63
+resource carbide     name "Carbide"      sprite 130 tint a86ee0
+resource plastic     name "Plastic"      sprite 74
+resource tar         name "Tar"          sprite 85 tint 2d2830
 
-unit miner     name "Miner"     sprite 110 placeOn oreField
-unit smelter   name "Smelter"   sprite 75
-unit assembler name "Assembler" sprite 87
-unit depot     name "Depot"     sprite 58 stores any
+# Parts
+resource gear       name "Gear"       sprite 114
+resource wire       name "Wire"       sprite 130 tint d07f43
+resource circuit    name "Circuit"    sprite 57 tint 3fae5a
+resource motor      name "Motor"      sprite 102
+resource controller name "Controller" sprite 129 tint 4a90d9
+resource automaton  name "Automaton"  sprite 120
 
-# --- What units do --------------------------------------------------------
-unitRule mine
-    appliesTo miner
-    rate 30
-    map oreField in 1
-    local ore out 1
+layer ironField     name "iron ground"     sprites 3 32 tint 6f8fb8
+layer copperField   name "copper ground"   sprites 3 32 tint c8763c
+layer coalField     name "coal ground"     sprites 3 32 tint 15151a
+layer stoneField    name "stone ground"    sprites 3 32 tint b9a888
+layer tungstenField name "tungsten ground" sprites 3 32 tint 8d5fc4
+layer waterField    name "water"           sprites 3    tint 2f7fd6
+layer oilField      name "oil seep"        sprites 3 32 tint 3a2f3a
+layer smog          name "smog"            haze 4d4636 full 500
+
+metric energy    name "Energy used"
+metric automata  name "Automata built"
+
+# Logistics
+unit splitter name "Splitter"  sprite 72  group "Logistics" routes split
+unit sorter   name "Sorter"    sprite 79  group "Logistics" routes filter
+unit tunnel   name "Tunnel"    sprite 68  group "Logistics" routes tunnel range 5
+unit depot    name "Depot"     sprite 58  group "Logistics" stores any
+
+# Extraction
+unit drill      name "Drill"       sprite 110 group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField
+unit powerDrill name "Power drill" sprite 98  group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField placeOn tungstenField
+unit pump       name "Pump"        sprite 90  group "Extraction" placeOn waterField
+unit derrick    name "Derrick"     sprite 128 group "Extraction" placeOn oilField
+
+# Production
+unit furnace   name "Coal furnace"  sprite 92  group "Production"
+unit arc       name "Arc furnace"   sprite 75  group "Production"
+unit workshop  name "Workshop"      sprite 87  group "Production"
+unit assembly  name "Assembly line" sprite 99  group "Production"
+unit refinery  name "Refinery"      sprite 111 group "Production"
+
+# Utilities
+unit steam  name "Steam plant"  sprite 109 group "Utilities"
+unit burner name "Tar burner"   sprite 108 group "Utilities"
+unit solar  name "Solar panel"  sprite 22  group "Utilities"
+unit pole   name "Power pole"   sprite 116 group "Utilities" links power reach 5
+unit pipe   name "Pipe"         sprite 91  group "Utilities" links water reach 1 links crude reach 1
+
+# --- Drills. Whichever rule's ground is under the drill is the one that runs.
+
+unitRule drillIron
+    appliesTo drill
+    rate 60
+    map ironField in 1
+    local ironOre out 1
+end
+unitRule drillCopper
+    appliesTo drill
+    rate 60
+    map copperField in 1
+    local copperOre out 1
+end
+unitRule drillCoal
+    appliesTo drill
+    rate 60
+    map coalField in 1
+    local coal out 1
+end
+unitRule drillStone
+    appliesTo drill
+    rate 60
+    map stoneField in 1
+    local stone out 1
 end
 
-unitRule smelt
-    appliesTo smelter
+unitRule powerDrillIron
+    appliesTo powerDrill
+    rate 20
+    map ironField in 1
+    network power in 2
+    local ironOre out 1
+end
+unitRule powerDrillCopper
+    appliesTo powerDrill
+    rate 20
+    map copperField in 1
+    network power in 2
+    local copperOre out 1
+end
+unitRule powerDrillCoal
+    appliesTo powerDrill
+    rate 20
+    map coalField in 1
+    network power in 2
+    local coal out 1
+end
+unitRule powerDrillStone
+    appliesTo powerDrill
+    rate 20
+    map stoneField in 1
+    network power in 2
+    local stone out 1
+end
+# Only powered drills can cut tungsten.
+unitRule powerDrillTungsten
+    appliesTo powerDrill
+    rate 40
+    map tungstenField in 1
+    network power in 4
+    local tungstenOre out 1
+end
+
+unitRule pumpWater
+    appliesTo pump
     rate 30
-    local ore in 1
-    local plate out 1
+    map waterField atLeast 1
+    network water out 20
+end
+unitRule pumpCrude
+    appliesTo derrick
+    rate 60
+    map oilField atLeast 1
+    network power in 3
+    network crude out 10
+end
+
+# --- Coal furnaces burn coal, need no power, and stop when the air gets too thick.
+
+unitRule furnaceIron
+    appliesTo furnace
+    rate 120
+    map smog atMost 300
+    local ironOre in 2
+    local coal in 1
+    local ironPlate out 2
+    map smog out 12 radius 1
+    log -timestamp=Time energy 4
+end
+unitRule furnaceCopper
+    appliesTo furnace
+    rate 120
+    map smog atMost 300
+    local copperOre in 2
+    local coal in 1
+    local copperPlate out 2
+    map smog out 12 radius 1
+    log -timestamp=Time energy 4
+end
+unitRule furnaceBrick
+    appliesTo furnace
+    rate 150
+    map smog atMost 300
+    local stone in 3
+    local coal in 1
+    local brick out 2
+    map smog out 12 radius 1
+    log -timestamp=Time energy 4
+end
+
+# --- Arc furnaces are clean and fast, and the only way to make steel and carbide.
+
+unitRule arcIron
+    appliesTo arc
+    rate 40
+    local ironOre in 2
+    network power in 6
+    local ironPlate out 2
+    log -timestamp=Time energy 6
+end
+unitRule arcCopper
+    appliesTo arc
+    rate 40
+    local copperOre in 2
+    network power in 6
+    local copperPlate out 2
+    log -timestamp=Time energy 6
+end
+unitRule arcBrick
+    appliesTo arc
+    rate 60
+    local stone in 3
+    network power in 8
+    local brick out 2
+    log -timestamp=Time energy 8
+end
+unitRule arcSteel
+    appliesTo arc
+    rate 150
+    local ironPlate in 3
+    local coal in 1
+    network power in 15
+    local steel out 1
+    log -timestamp=Time energy 15
+end
+unitRule arcCarbide
+    appliesTo arc
+    rate 120
+    local tungstenOre in 1
+    local coal in 2
+    network power in 20
+    local carbide out 1
+    log -timestamp=Time energy 20
+end
+
+# --- Workshops are slow and unpowered. Assembly lines are fast and make everything.
+
+unitRule workshopGear
+    appliesTo workshop
+    rate 90
+    local ironPlate in 2
+    local gear out 1
+end
+unitRule workshopWire
+    appliesTo workshop
+    rate 60
+    local copperPlate in 1
+    local wire out 2
+end
+unitRule workshopCircuit
+    appliesTo workshop
+    rate 150
+    local ironPlate in 1
+    local wire in 3
+    local circuit out 1
+end
+
+unitRule assemblyGear
+    appliesTo assembly
+    rate 30
+    local ironPlate in 2
+    network power in 3
+    local gear out 1
     log -timestamp=Time energy 3
 end
-
-unitRule assemble
-    appliesTo assembler
-    rate 60
-    local plate in 2
-    local widget out 1
+unitRule assemblyWire
+    appliesTo assembly
+    rate 20
+    local copperPlate in 1
+    network power in 2
+    local wire out 2
+    log -timestamp=Time energy 2
+end
+unitRule assemblyCircuit
+    appliesTo assembly
+    rate 50
+    local ironPlate in 1
+    local wire in 3
+    network power in 5
+    local circuit out 1
     log -timestamp=Time energy 5
 end
+unitRule assemblyMotor
+    appliesTo assembly
+    rate 120
+    local steel in 1
+    local gear in 2
+    local wire in 4
+    network power in 15
+    local motor out 1
+    log -timestamp=Time energy 15
+end
+unitRule assemblyController
+    appliesTo assembly
+    rate 180
+    local circuit in 2
+    local plastic in 1
+    local carbide in 1
+    network power in 25
+    local controller out 1
+    log -timestamp=Time energy 25
+end
+unitRule assemblyAutomaton
+    appliesTo assembly
+    rate 360
+    local motor in 1
+    local controller in 1
+    local brick in 4
+    network power in 60
+    local automaton out 1
+    log -timestamp=Time energy 60
+    log automata 1
+end
 
-# --- The starting map -----------------------------------------------------
-patch oreField at 0 0 size 6 6 amount 100000
-patch oreField at 4 12 size 8 4 amount 100000
+# Tar leaves from the refinery's left side. If it backs up, the refinery stops.
+unitRule refine
+    appliesTo refinery
+    rate 120
+    network crude in 10
+    network water in 5
+    network power in 10
+    local plastic out 2
+    local tar out 1 left
+    log -timestamp=Time energy 10
+end
 
-place miner 2 2 east
+# --- Power
+
+unitRule steamPower
+    appliesTo steam
+    rate 120
+    local coal in 1
+    network water in 5
+    network power out 60
+    map smog out 18 radius 1
+end
+unitRule burnTar
+    appliesTo burner
+    rate 120
+    local tar in 1
+    network power out 40
+    map smog out 24 radius 1
+end
+unitRule sunlight
+    appliesTo solar
+    rate 300
+    network power out 10
+end
+
+# Smog thins out by itself, so spacing dirty machines apart keeps them running.
+mapRule smogClears
+    rate 30
+    map smog in 3
+end
+
+# --- The starting map
+
+patch ironField     at 0 0    size 7 6 amount 100000
+patch coalField     at 0 8    size 7 5 amount 100000
+patch copperField   at 16 11  size 6 5 amount 100000
+patch waterField    at 10 14  size 5 4 amount 1000
+patch stoneField    at -8 3   size 5 6 amount 100000
+patch tungstenField at 28 3   size 5 4 amount 100000
+patch oilField      at 24 18  size 5 4 amount 100000
+
+# Iron and coal feed a furnace from two sides.
+place drill 2 2 east
 place belt 3 2 east count 6
-place smelter 9 2 east
-place belt 10 2 east count 5
-place assembler 15 2 east
-place belt 16 2 east count 4
+place drill 2 9 east
+place belt 3 9 east count 6
+place belt 9 9 north count 7
+place furnace 9 2 east
+
+# Plates are split between a gear workshop and a depot.
+place belt 10 2 east count 3
+place splitter 13 2 east
+place belt 14 2 east count 2
+place workshop 16 2 east
+place belt 17 2 east count 3
 place depot 20 2 east
+place belt 13 3 south count 3
+place depot 13 6 east
+
+# A steam plant fed by coal and piped water, wired to a powered copper line.
+place drill 2 11 east
+place belt 3 11 east count 9
+place steam 12 11 east
+place pump 12 15 east
+place pipe 12 14 east
+place pipe 12 13 east
+place pipe 12 12 east
+place pole 14 11 east
+place pole 18 11 east
+place pole 22 12 east
+place powerDrill 18 13 east
+place express 19 13 east count 5
+place arc 24 13 east
+place belt 25 13 east count 3
+place workshop 28 13 east
+place belt 29 13 east count 3
+place depot 32 13 east

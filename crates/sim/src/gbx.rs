@@ -5,15 +5,18 @@
 //! than a resource nothing produces.
 
 use crate::content::{
-    Amount, Condition, Content, LayerDef, MapRule, MetricDef, Pack, Patch, ResourceDef, Rule,
-    Scope, Test, UnitDef, WorldGen,
+    Amount, BeltDef, Condition, Content, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Patch,
+    Port, ResourceDef, Route, Rule, Scope, Test, UnitDef, WorldGen,
 };
 use crate::world::{Building, Command};
-use crate::{Dir, ItemId, LayerId, MetricId, Pos, UnitId};
+use crate::{BeltId, Dir, ItemId, LayerId, MetricId, Pos, UnitId};
 use std::fmt;
 
 const BELT: &str = "belt";
 const DEFAULT_BELT_SPEED: u32 = 16;
+/// Scanning a member's reach costs its area, so keep that bounded.
+const MAX_REACH: u32 = 32;
+const DEFAULT_TUNNEL_RANGE: u32 = 4;
 
 /// What went wrong in a pack, and on which line (counting from 1).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,6 +64,13 @@ impl Line {
         match self.whole::<u32>(token)? {
             0 => self.fail("this value must be at least 1"),
             value => Ok(value),
+        }
+    }
+
+    fn color(&self, token: &str) -> Parsed<u32> {
+        match u32::from_str_radix(token, 16) {
+            Ok(value) if token.len() == 6 => Ok(value),
+            _ => self.fail(format!("expected a colour like c8763c, found '{token}'")),
         }
     }
 }
@@ -180,9 +190,18 @@ struct Builder {
     units: Vec<UnitDef>,
     metrics: Vec<MetricDef>,
     map_rules: Vec<MapRule>,
+    belts: Vec<BeltDef>,
     patches: Vec<Patch>,
     starter: Vec<Command>,
-    belt_speed: Option<u32>,
+}
+
+fn parse_port(token: &str) -> Option<Port> {
+    match token {
+        "front" => Some(Port::Front),
+        "left" => Some(Port::Left),
+        "right" => Some(Port::Right),
+        _ => None,
+    }
 }
 
 impl Builder {
@@ -226,15 +245,16 @@ impl Builder {
         if self.resources.iter().any(|r| r.id == id) {
             return line.fail(format!("resource '{id}' is declared twice"));
         }
-        let (mut name, mut sprite) = (id.to_string(), 0);
+        let (mut name, mut sprite, mut tint) = (id.to_string(), 0, None);
         for pair in line.strs()[2..].chunks(2) {
             match pair {
                 ["name", value] => name = value.to_string(),
                 ["sprite", value] => sprite = line.whole(value)?,
+                ["tint", value] => tint = Some(line.color(value)?),
                 _ => return line.fail(format!("resource does not understand '{}'", pair[0])),
             }
         }
-        self.resources.push(ResourceDef { id: id.to_string(), name, sprite });
+        self.resources.push(ResourceDef { id: id.to_string(), name, sprite, tint });
         Ok(())
     }
 
@@ -257,17 +277,63 @@ impl Builder {
         if self.layers.iter().any(|l| l.id == id) {
             return line.fail(format!("layer '{id}' is declared twice"));
         }
-        let mut sprites = Vec::new();
-        match line.strs().get(2..) {
-            Some([]) | None => {}
-            Some(["sprites", values @ ..]) if !values.is_empty() => {
-                for value in values {
-                    sprites.push(line.whole(value)?);
+        let mut layer = LayerDef { id: id.to_string(), name: id.to_string(), sprites: Vec::new(), tint: None, overlay: None };
+        let tokens = line.strs();
+        let mut rest = &tokens[2..];
+        while !rest.is_empty() {
+            rest = match rest {
+                ["name", value, tail @ ..] => {
+                    layer.name = value.to_string();
+                    tail
                 }
-            }
-            Some(other) => return line.fail(format!("layer does not understand '{}'", other[0])),
+                ["tint", value, tail @ ..] => {
+                    layer.tint = Some(line.color(value)?);
+                    tail
+                }
+                ["haze", color, "full", full, tail @ ..] => {
+                    layer.overlay = Some(Overlay { color: line.color(color)?, full: line.positive(full)? });
+                    tail
+                }
+                ["sprites", tail @ ..] => {
+                    let count = tail.iter().take_while(|t| t.parse::<u32>().is_ok()).count();
+                    if count == 0 {
+                        return line.fail("'sprites' needs at least one number");
+                    }
+                    for value in &tail[..count] {
+                        layer.sprites.push(line.whole(value)?);
+                    }
+                    &tail[count..]
+                }
+                other => return line.fail(format!("layer does not understand '{}'", other[0])),
+            };
         }
-        self.layers.push(LayerDef { id: id.to_string(), sprites });
+        self.layers.push(layer);
+        Ok(())
+    }
+
+    /// `belt` declares a tier. The built-in `belt` tier can be adjusted the same way.
+    fn declare_belt(&mut self, line: &Line) -> Parsed<()> {
+        let id = Self::declared_name(line, "belt")?;
+        if id != BELT && self.belts.iter().any(|b| b.id == id) {
+            return line.fail(format!("belt '{id}' is declared twice"));
+        }
+        let mut belt = BeltDef { id: id.to_string(), name: id.to_string(), speed: DEFAULT_BELT_SPEED, style: 0 };
+        if id == BELT {
+            belt = self.belts[0].clone();
+        }
+        for pair in line.strs()[2..].chunks(2) {
+            match pair {
+                ["name", value] => belt.name = value.to_string(),
+                ["speed", value] => belt.speed = line.positive(value)?,
+                ["style", value] => belt.style = line.whole(value)?,
+                _ => return line.fail(format!("belt does not understand '{}'", pair[0])),
+            }
+        }
+        if id == BELT {
+            self.belts[0] = belt;
+        } else {
+            self.belts.push(belt);
+        }
         Ok(())
     }
 
@@ -279,12 +345,19 @@ impl Builder {
         if self.units.iter().any(|u| u.id == id) {
             return line.fail(format!("unit '{id}' is declared twice"));
         }
+        if self.belts.iter().any(|b| b.id == id) {
+            return line.fail(format!("'{id}' is already the name of a belt"));
+        }
         let mut unit = UnitDef {
             id: id.to_string(),
             name: id.to_string(),
             sprite: 0,
-            place_on: None,
+            tint: None,
+            group: "Buildings".to_string(),
+            place_on: Vec::new(),
             stores_any: false,
+            route: None,
+            links: Vec::new(),
             rules: Vec::new(),
             inputs: Vec::new(),
             outputs: Vec::new(),
@@ -293,10 +366,41 @@ impl Builder {
             match pair {
                 ["name", value] => unit.name = value.to_string(),
                 ["sprite", value] => unit.sprite = line.whole(value)?,
-                ["placeOn", value] => unit.place_on = Some(self.layer(line, value)?),
+                ["tint", value] => unit.tint = Some(line.color(value)?),
+                ["group", value] => unit.group = value.to_string(),
+                ["placeOn", value] => unit.place_on.push(self.layer(line, value)?),
                 ["stores", "any"] => unit.stores_any = true,
+                ["routes", "split"] => unit.route = Some(Route::Split),
+                ["routes", "filter"] => unit.route = Some(Route::Filter),
+                ["routes", "tunnel"] => unit.route = Some(Route::Tunnel { range: DEFAULT_TUNNEL_RANGE }),
+                ["routes", other] => {
+                    return line.fail(format!("expected split, filter or tunnel, found '{other}'"));
+                }
+                ["range", value] => match unit.route {
+                    Some(Route::Tunnel { .. }) => {
+                        unit.route = Some(Route::Tunnel { range: line.positive(value)? });
+                    }
+                    _ => return line.fail("'range' only applies after 'routes tunnel'"),
+                },
+                ["links", value] => {
+                    let resource = self.resource(line, value)?;
+                    unit.links.push(Link { resource, reach: 0 });
+                }
+                ["reach", value] => {
+                    let reach = line.positive(value)?;
+                    if reach > MAX_REACH {
+                        return line.fail(format!("'reach' can be at most {MAX_REACH}"));
+                    }
+                    match unit.links.last_mut() {
+                        Some(link) => link.reach = reach,
+                        None => return line.fail("'reach' only applies after 'links <resource>'"),
+                    }
+                }
                 _ => return line.fail(format!("unit does not understand '{}'", pair[0])),
             }
+        }
+        if unit.route.is_some() && unit.stores_any {
+            return line.fail("a unit can't both route items and store them");
         }
         self.units.push(unit);
         Ok(())
@@ -304,7 +408,7 @@ impl Builder {
 
     fn map_statement(&mut self, line: &Line) -> Parsed<()> {
         match line.strs().as_slice() {
-            ["beltSpeed", value] => self.belt_speed = Some(line.positive(value)?),
+            ["beltSpeed", value] => self.belts[0].speed = line.positive(value)?,
             ["patch", layer, "at", x, y, "size", width, height, "amount", amount] => {
                 self.patches.push(Patch {
                     layer: self.layer(line, layer)?,
@@ -319,15 +423,17 @@ impl Builder {
                 let count = line.positive(count)?;
                 self.place(line, what, x, y, dir, count)?;
             }
-            ["resource", ..] | ["layer", ..] | ["unit", ..] | ["metric", ..] => {}
+            ["resource", ..] | ["layer", ..] | ["unit", ..] | ["metric", ..] | ["belt", ..] => {}
             _ => return line.fail(format!("this statement isn't understood: '{}'", line.head())),
         }
         Ok(())
     }
 
     fn place(&mut self, line: &Line, what: &str, x: &str, y: &str, dir: &str, count: u32) -> Parsed<()> {
-        let building =
-            if what == BELT { Building::Belt } else { Building::Unit(self.unit(line, what)?) };
+        let building = match self.belts.iter().position(|b| b.id == what) {
+            Some(index) => Building::Belt(BeltId(index as u16)),
+            None => Building::Unit(self.unit(line, what)?),
+        };
         let dir = parse_dir(line, dir)?;
         let mut pos = Pos::new(line.whole(x)?, line.whole(y)?);
         for _ in 0..count {
@@ -368,8 +474,23 @@ impl Builder {
                 let scope = Scope::Local(self.resource(line, resource)?);
                 self.scoped(line, scope, direction, amount, rule)?;
             }
+            ["local", resource, "out", amount, side] | [resource, "out", amount, side] => {
+                let item = self.resource(line, resource)?;
+                let port = match parse_port(side) {
+                    Some(port) => port,
+                    None => return line.fail(format!("expected front, left or right, found '{side}'")),
+                };
+                self.scoped(line, Scope::Local(item), "out", amount, rule)?;
+                if port != Port::Front {
+                    rule.sides.push((item, port));
+                }
+            }
             ["global", resource, direction, amount] => {
                 let scope = Scope::Global(self.resource(line, resource)?);
+                self.scoped(line, scope, direction, amount, rule)?;
+            }
+            ["network", resource, direction, amount] => {
+                let scope = Scope::Network(self.resource(line, resource)?);
                 self.scoped(line, scope, direction, amount, rule)?;
             }
             ["map", layer, "out", amount, "radius", radius] => {
@@ -438,6 +559,7 @@ impl Builder {
             takes: Vec::new(),
             gives: Vec::new(),
             logs: Vec::new(),
+            sides: Vec::new(),
         }
     }
 
@@ -482,7 +604,22 @@ impl Builder {
             return header.fail(format!("rule '{name}' doesn't take or give anything"));
         }
         let unit = self.unit(header, &target)?;
-        self.units[usize::from(unit.0)].rules.push(rule);
+        let definition = &mut self.units[usize::from(unit.0)];
+        if definition.route.is_some() {
+            return header.fail(format!("unit '{target}' routes items, so it can't have rules"));
+        }
+        for give in &rule.gives {
+            if let Scope::Local(item) = give.scope {
+                let port = rule.port_of(item);
+                let gives_item = |other: &&Rule| other.gives.iter().any(|g| g.scope == give.scope);
+                if definition.rules.iter().filter(gives_item).any(|other| other.port_of(item) != port) {
+                    return header.fail(format!(
+                        "unit '{target}' would send the same resource from two different sides"
+                    ));
+                }
+            }
+        }
+        definition.rules.push(rule);
         Ok(())
     }
 
@@ -500,8 +637,15 @@ impl Builder {
                 }
                 for give in &rule.gives {
                     if let Scope::Local(item) = give.scope {
-                        if !unit.outputs.contains(&item) {
-                            unit.outputs.push(item);
+                        if !unit.outputs.iter().any(|(output, _)| *output == item) {
+                            unit.outputs.push((item, rule.port_of(item)));
+                        }
+                    }
+                }
+                for entry in rule.takes.iter().chain(&rule.gives) {
+                    if let Scope::Network(resource) = entry.scope {
+                        if !unit.links.iter().any(|link| link.resource == resource) {
+                            unit.links.push(Link { resource, reach: 0 });
                         }
                     }
                 }
@@ -514,7 +658,7 @@ impl Builder {
                 units: self.units,
                 metrics: self.metrics,
                 map_rules: self.map_rules,
-                belt_speed: self.belt_speed.unwrap_or(DEFAULT_BELT_SPEED),
+                belts: self.belts,
             },
             worldgen: WorldGen { patches: self.patches, starter: self.starter },
         }
@@ -526,6 +670,12 @@ impl Pack {
     pub fn parse(text: &str) -> Result<Pack, PackError> {
         let (top, blocks) = split_lines(text)?;
         let mut builder = Builder::default();
+        builder.belts.push(BeltDef {
+            id: BELT.to_string(),
+            name: "Belt".to_string(),
+            speed: DEFAULT_BELT_SPEED,
+            style: 0,
+        });
         // Declarations come first so a pack can be written in any order.
         for line in top.iter().filter(|l| l.head() == "resource") {
             builder.declare_resource(line)?;
@@ -535,6 +685,9 @@ impl Pack {
         }
         for line in top.iter().filter(|l| l.head() == "layer") {
             builder.declare_layer(line)?;
+        }
+        for line in top.iter().filter(|l| l.head() == "belt") {
+            builder.declare_belt(line)?;
         }
         for line in top.iter().filter(|l| l.head() == "unit") {
             builder.declare_unit(line)?;

@@ -5,7 +5,26 @@ use openfactor_sim::*;
 use std::time::Instant;
 
 const LENGTH: i32 = 20;
-const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
+const PACK: &str = r#"
+    resource ore
+    resource plate
+    layer oreField
+    unit miner placeOn oreField
+    unit smelter
+    unit depot stores any
+    unitRule mine
+        appliesTo miner
+        rate 30
+        map oreField in 1
+        local ore out 1
+    end
+    unitRule smelt
+        appliesTo smelter
+        rate 30
+        local ore in 1
+        local plate out 1
+    end
+"#;
 
 fn main() {
     let mut args = std::env::args().skip(1).map(|arg| arg.parse::<i32>().expect("numeric argument"));
@@ -13,10 +32,10 @@ fn main() {
     let ticks = args.next().unwrap_or(3600) as u32;
 
     let ore_column = format!("patch oreField at 0 0 size 1 {} amount 1000000", rows * 2);
-    let pack = Pack::parse(&format!("{BASE_PACK}\n{ore_column}")).expect("the base pack is valid");
-    let unit = |id: &str| Building::Unit(pack.content.unit_id(id).expect("the base pack defines it"));
+    let pack = Pack::parse(&format!("{PACK}\n{ore_column}")).expect("the demo pack is valid");
+    let unit = |id: &str| Building::Unit(pack.content.unit_id(id).expect("the demo pack defines it"));
     let (miner, smelter, depot) = (unit("miner"), unit("smelter"), unit("depot"));
-    let plate = pack.content.resource_id("plate").expect("the base pack defines it");
+    let plate = pack.content.resource_id("plate").expect("the demo pack defines it");
     let mut world = World::new(&pack);
 
     let at = |x, y, building| Command::Place { pos: Pos::new(x, y), dir: Dir::East, building };
@@ -24,9 +43,9 @@ fn main() {
     for row in 0..rows {
         let y = row * 2;
         commands.push(at(0, y, miner));
-        commands.extend((1..=LENGTH).map(|x| at(x, y, Building::Belt)));
+        commands.extend((1..=LENGTH).map(|x| at(x, y, Building::Belt(BeltId(0)))));
         commands.push(at(LENGTH + 1, y, smelter));
-        commands.extend((LENGTH + 2..=2 * LENGTH).map(|x| at(x, y, Building::Belt)));
+        commands.extend((LENGTH + 2..=2 * LENGTH).map(|x| at(x, y, Building::Belt(BeltId(0)))));
         commands.push(at(2 * LENGTH + 1, y, depot));
     }
 

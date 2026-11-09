@@ -16,11 +16,14 @@ mod world;
 
 pub use belt::{ITEM_SPACING, TILE};
 pub use content::{
-    Amount, Condition, Content, LayerDef, MapRule, MetricDef, Pack, ResourceDef, Rule, Scope, Test,
-    UnitDef, WorldGen,
+    Amount, BeltDef, Condition, Content, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Port,
+    ResourceDef, Route, Rule, Scope, Test, UnitDef, WorldGen,
 };
 pub use gbx::PackError;
-pub use world::{Building, Command, ItemStats, MetricValue, Reject, Rejected, World};
+pub use world::{
+    Building, Command, Inspection, ItemStats, MetricValue, NetworkView, Reject, Rejected, Status,
+    World,
+};
 
 pub type Tick = u64;
 
@@ -29,6 +32,9 @@ pub struct ItemId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UnitId(pub u16);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BeltId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LayerId(pub u16);
@@ -77,5 +83,18 @@ impl Dir {
             Dir::South => Dir::North,
             Dir::West => Dir::East,
         }
+    }
+
+    pub fn left(self) -> Dir {
+        match self {
+            Dir::North => Dir::West,
+            Dir::East => Dir::North,
+            Dir::South => Dir::East,
+            Dir::West => Dir::South,
+        }
+    }
+
+    pub fn right(self) -> Dir {
+        self.left().opposite()
     }
 }
