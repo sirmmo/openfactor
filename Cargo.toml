@@ -1,0 +1,9 @@
+[workspace]
+members = ["crates/sim"]
+
+[profile.release]
+debug = 1
+
+# The replay tests hash the whole world every tick. Overflow checks stay on.
+[profile.test]
+opt-level = 2
