@@ -2,7 +2,10 @@ use openfactor_sim::*;
 
 const ORE: ItemId = ItemId(0);
 const PLATE: ItemId = ItemId(1);
-const SMELT: RecipeId = RecipeId(0);
+const MINER: UnitId = UnitId(0);
+const SMELTER: UnitId = UnitId(1);
+const ASSEMBLER: UnitId = UnitId(2);
+const DEPOT: UnitId = UnitId(3);
 
 fn p(x: i32, y: i32) -> Pos {
     Pos::new(x, y)
@@ -12,20 +15,57 @@ fn place(x: i32, y: i32, dir: Dir, building: Building) -> Command {
     Command::Place { pos: p(x, y), dir, building }
 }
 
+fn unit(x: i32, y: i32, id: UnitId) -> Command {
+    place(x, y, Dir::East, Building::Unit(id))
+}
+
 fn belts(xs: std::ops::RangeInclusive<i32>, y: i32) -> Vec<Command> {
     xs.map(|x| place(x, y, Dir::East, Building::Belt)).collect()
 }
 
-fn patch(x: i32, y: i32, width: u32, height: u32, item: ItemId) -> Patch {
-    Patch { origin: p(x, y), width, height, item, amount_per_tile: 1_000_000 }
+fn pack(mine: u32, smelt: u32, assemble: u32, extra: &str) -> Pack {
+    let text = format!(
+        r#"
+        resource ore
+        resource plate
+        resource widget
+        layer oreField
+        unit miner placeOn oreField
+        unit smelter
+        unit assembler
+        unit depot stores any
+        unitRule mine
+            appliesTo miner
+            rate {mine}
+            map oreField in 1
+            local ore out 1
+        end
+        unitRule smelt
+            appliesTo smelter
+            rate {smelt}
+            local ore in 1
+            local plate out 1
+        end
+        unitRule assemble
+            appliesTo assembler
+            rate {assemble}
+            local plate in 2
+            local widget out 1
+        end
+        {extra}
+        "#
+    );
+    Pack::parse(&text).unwrap()
 }
 
-fn world_with(content: Content, patches: Vec<Patch>) -> World {
-    World::new(content, &WorldGen { patches }).unwrap()
-}
+const ONE_ORE: &str = "patch oreField at 0 0 size 1 1 amount 1000000";
 
 fn ore_world() -> World {
-    world_with(Content::example(), vec![patch(0, 0, 1, 1, ORE)])
+    World::new(&pack(30, 30, 60, ONE_ORE))
+}
+
+fn fast_miner_world() -> World {
+    World::new(&pack(1, 30, 60, ONE_ORE))
 }
 
 fn run(world: &mut World, commands: &[Command], ticks: u32) {
@@ -36,9 +76,9 @@ fn run(world: &mut World, commands: &[Command], ticks: u32) {
 }
 
 /// Every item ever created must be in the world, consumed or recorded destroyed.
-fn assert_conserved(world: &World, items: usize) {
+fn assert_conserved(world: &World) {
     let totals = world.item_totals();
-    for index in 0..items {
+    for index in 0..world.content().resources().len() {
         let item = ItemId(index as u16);
         let stats = world.stats(item);
         let held = totals.get(&item).copied().unwrap_or(0);
@@ -54,82 +94,88 @@ fn assert_conserved(world: &World, items: usize) {
 #[test]
 fn miner_belt_assembler_chain_delivers_plates() {
     let mut world = ore_world();
-    let mut commands = vec![place(0, 0, Dir::East, Building::Miner)];
+    let mut commands = vec![unit(0, 0, MINER)];
     commands.extend(belts(1..=5, 0));
-    commands.push(place(6, 0, Dir::East, Building::Assembler { recipe: SMELT }));
+    commands.push(unit(6, 0, SMELTER));
     commands.extend(belts(7..=10, 0));
-    commands.push(place(11, 0, Dir::East, Building::Depot));
+    commands.push(unit(11, 0, DEPOT));
 
     run(&mut world, &commands, 6000);
 
-    // Mining and smelting both take 30 ticks, so steady state is one plate per
-    // ~30 ticks; allow for the time the first item spends in transit.
-    let delivered = world.depot_stock(p(11, 0), PLATE);
+    // Each stage takes about 30 ticks, so expect close to one plate per ~31
+    // ticks, less the time the first item spends in transit.
+    let delivered = world.stock(p(11, 0), PLATE);
     assert!((180..=200).contains(&delivered), "delivered {delivered}");
-    assert_conserved(&world, 3);
+    assert_conserved(&world);
 }
 
 #[test]
 fn belt_fills_to_capacity_then_drains_at_full_throughput() {
-    let mut content = Content::example();
-    content.miner_ticks = 1;
-    let mut world = world_with(content, vec![patch(0, 0, 1, 1, ORE)]);
-
-    let mut commands = vec![place(0, 0, Dir::East, Building::Miner)];
+    let mut world = fast_miner_world();
+    let mut commands = vec![unit(0, 0, MINER)];
     commands.extend(belts(1..=8, 0));
     run(&mut world, &commands, 2000);
 
     // 8 tiles of 256 at spacing 64, counting both end positions.
     assert_eq!(world.belt_item_count(), 33);
-    assert_conserved(&world, 3);
+    assert_conserved(&world);
 
-    run(&mut world, &[place(9, 0, Dir::East, Building::Depot)], 400);
-    let first = world.depot_stock(p(9, 0), ORE);
+    run(&mut world, &[unit(9, 0, DEPOT)], 400);
+    let first = world.stock(p(9, 0), ORE);
     for _ in 0..400 {
         world.step(&[]);
     }
-    assert_eq!(world.depot_stock(p(9, 0), ORE) - first, 100, "one item per 4 ticks");
+    assert_eq!(world.stock(p(9, 0), ORE) - first, 100, "one item per 4 ticks");
 }
 
 #[test]
 fn junction_alternates_between_saturated_feeders() {
-    let mut content = Content::example();
-    content.items.push("ore2".into());
-    content.miner_ticks = 1;
-    let other = ItemId(3);
-    let mut world =
-        world_with(content, vec![patch(0, 0, 1, 1, ORE), patch(0, 2, 1, 1, other)]);
+    let extra = r#"
+        resource ore2
+        layer field2
+        unit miner2 placeOn field2
+        unitRule mine2
+            appliesTo miner2
+            map field2 in 1
+            local ore2 out 1
+        end
+        patch oreField at 0 0 size 1 1 amount 1000000
+        patch field2 at 0 2 size 1 1 amount 1000000
+    "#;
+    let pack = pack(1, 30, 60, extra);
+    let other = pack.content.resource_id("ore2").unwrap();
+    let miner2 = pack.content.unit_id("miner2").unwrap();
+    let mut world = World::new(&pack);
 
     let mut commands = vec![
-        place(0, 0, Dir::East, Building::Miner),
-        place(0, 2, Dir::East, Building::Miner),
+        unit(0, 0, MINER),
+        unit(0, 2, miner2),
         place(4, 0, Dir::South, Building::Belt),
         place(4, 2, Dir::North, Building::Belt),
-        place(9, 1, Dir::East, Building::Depot),
+        unit(9, 1, DEPOT),
     ];
     commands.extend(belts(1..=3, 0));
     commands.extend(belts(1..=3, 2));
     commands.extend(belts(4..=8, 1));
     run(&mut world, &commands, 4000);
 
-    let a = world.depot_stock(p(9, 1), ORE);
-    let b = world.depot_stock(p(9, 1), other);
+    let a = world.stock(p(9, 1), ORE);
+    let b = world.stock(p(9, 1), other);
     assert!(a > 400, "a={a}");
     assert!(a.abs_diff(b) <= 2, "a={a} b={b}");
-    assert_conserved(&world, 4);
+    assert_conserved(&world);
 }
 
 #[test]
 fn closed_ring_circulates_without_losing_items() {
     let mut world = ore_world();
-    let ring = vec![
+    let mut commands = vec![
         place(1, 0, Dir::East, Building::Belt),
         place(2, 0, Dir::South, Building::Belt),
         place(2, 1, Dir::West, Building::Belt),
         place(1, 1, Dir::North, Building::Belt),
     ];
-    let mut commands = ring;
-    commands.push(place(0, 0, Dir::East, Building::Miner));
+    commands.push(unit(0, 0, MINER));
     run(&mut world, &commands, 200);
 
     let count = world.belt_item_count();
@@ -137,15 +183,13 @@ fn closed_ring_circulates_without_losing_items() {
     assert_eq!(world.line_count(), 1);
     run(&mut world, &[Command::Remove { pos: p(0, 0) }], 2000);
     assert_eq!(world.belt_item_count(), count);
-    assert_conserved(&world, 3);
+    assert_conserved(&world);
 }
 
 #[test]
 fn editing_a_belt_keeps_items_on_surviving_tiles() {
-    let mut content = Content::example();
-    content.miner_ticks = 1;
-    let mut world = world_with(content, vec![patch(0, 0, 1, 1, ORE)]);
-    let mut commands = vec![place(0, 0, Dir::East, Building::Miner)];
+    let mut world = fast_miner_world();
+    let mut commands = vec![unit(0, 0, MINER)];
     commands.extend(belts(1..=8, 0));
     run(&mut world, &commands, 2000);
     assert_eq!(world.line_count(), 1);
@@ -153,11 +197,11 @@ fn editing_a_belt_keeps_items_on_surviving_tiles() {
     run(&mut world, &[Command::Remove { pos: p(5, 0) }], 1);
     assert_eq!(world.line_count(), 2);
     assert!(world.stats(ORE).destroyed >= 4, "the removed tile's items are gone");
-    assert_conserved(&world, 3);
+    assert_conserved(&world);
 
     run(&mut world, &[place(5, 0, Dir::East, Building::Belt)], 1000);
     assert_eq!(world.line_count(), 1);
-    assert_conserved(&world, 3);
+    assert_conserved(&world);
 }
 
 #[test]
@@ -165,12 +209,12 @@ fn invalid_commands_are_rejected_without_effect() {
     let mut world = ore_world();
     let before = world.state_hash();
     let commands = [
-        place(5, 5, Dir::East, Building::Miner),
-        place(5, 5, Dir::East, Building::Assembler { recipe: RecipeId(99) }),
+        unit(5, 5, MINER),
+        unit(5, 5, UnitId(99)),
         Command::Remove { pos: p(5, 5) },
     ];
     let reasons: Vec<Reject> = world.step(&commands).iter().map(|r| r.reason).collect();
-    assert_eq!(reasons, [Reject::NoResource, Reject::UnknownRecipe, Reject::NothingToRemove]);
+    assert_eq!(reasons, [Reject::NoResource, Reject::UnknownUnit, Reject::NothingToRemove]);
     assert_ne!(before, world.state_hash(), "the tick still advances");
     assert_eq!(world.line_count(), 0);
 }
@@ -178,12 +222,12 @@ fn invalid_commands_are_rejected_without_effect() {
 #[test]
 fn render_views_match_the_world() {
     let mut world = ore_world();
-    let mut commands = vec![place(0, 0, Dir::East, Building::Miner)];
+    let mut commands = vec![unit(0, 0, MINER)];
     commands.extend(belts(1..=3, 0));
     run(&mut world, &commands, 200);
 
     assert_eq!(world.buildings().count(), 4);
-    assert_eq!(world.resources().count(), 1);
+    assert_eq!(world.layer_tiles().count(), 1);
     assert_eq!(world.belt_items().count(), world.belt_item_count());
     for (pos, dir, offset, item) in world.belt_items() {
         assert!((1..=3).contains(&pos.x) && pos.y == 0, "{pos:?}");
@@ -192,12 +236,107 @@ fn render_views_match_the_world() {
     }
 }
 
+// Packs: behaviour comes from data.
+
 #[test]
-fn invalid_content_is_refused() {
-    let mut content = Content::example();
-    content.recipes[0].inputs[0].0 = ItemId(42);
-    let error = World::new(content, &WorldGen::default()).unwrap_err();
-    assert_eq!(error, ContentError::UnknownItem { item: ItemId(42) });
+fn a_new_unit_needs_only_rules() {
+    let extra = r#"
+        resource ingot
+        unit press
+        unitRule pressIngots
+            appliesTo press
+            rate 2
+            ore in 1
+            ingot out 3
+        end
+        patch oreField at 0 0 size 1 1 amount 10
+    "#;
+    let pack = pack(1, 30, 60, extra);
+    let press = pack.content.unit_id("press").unwrap();
+    let ingot = pack.content.resource_id("ingot").unwrap();
+    let mut world = World::new(&pack);
+
+    let mut commands = vec![unit(0, 0, MINER), unit(2, 0, press), unit(4, 0, DEPOT)];
+    commands.extend(belts(1..=1, 0));
+    commands.extend(belts(3..=3, 0));
+    run(&mut world, &commands, 2000);
+
+    assert_eq!(world.stock(p(4, 0), ingot), 30, "10 ore tiles' worth, three ingots each");
+    assert_eq!(world.layer_tiles().count(), 0, "the field is mined out");
+    assert_conserved(&world);
+}
+
+#[test]
+fn rules_read_and_write_globals_and_map_layers() {
+    let extra = r#"
+        resource coins
+        layer smog
+        unit mint
+        unit bank
+        unitRule strike
+            appliesTo mint
+            rate 2
+            global coins out 5
+            map smog out 1 radius 1
+            map smog atMost 2
+        end
+        unitRule spend
+            appliesTo bank
+            rate 1
+            global coins in 1
+        end
+    "#;
+    let pack = pack(30, 30, 60, extra);
+    let content = &pack.content;
+    let (mint, bank) = (content.unit_id("mint").unwrap(), content.unit_id("bank").unwrap());
+    let (coins, smog) = (content.resource_id("coins").unwrap(), content.layer_id("smog").unwrap());
+    let mut world = World::new(&pack);
+
+    run(&mut world, &[unit(0, 0, mint)], 100);
+    // The `atMost 2` condition stops it once the third strike has landed.
+    assert_eq!(world.global(coins), 15);
+    assert_eq!(world.layer_value(smog, p(0, 0)), 3);
+    assert_eq!(world.layer_value(smog, p(1, 0)), 3);
+    assert_eq!(world.layer_value(smog, p(1, 1)), 0, "radius is a diamond");
+
+    run(&mut world, &[unit(5, 5, bank)], 100);
+    assert_eq!(world.global(coins), 0, "another unit spends the shared stock");
+}
+
+#[test]
+fn pack_mistakes_name_the_line() {
+    let cases: [(&str, usize, &str); 8] = [
+        ("resource a\nunitRule r\nappliesTo nobody\na out 1\nend", 2, "unknown unit 'nobody'"),
+        ("unit u\nunitRule r\nappliesTo u\nfrobnicate 1\nend", 4, "this rule statement"),
+        ("unit u\nunitRule r\nappliesTo u\nlocal ores out 1\nend", 4, "unknown resource 'ores'"),
+        ("unit u\nunitRule u\nrate 1\nend", 2, "doesn't take or give"),
+        ("resource a\nunit u\nunitRule u\na out 1.5\nend", 4, "whole number"),
+        ("unit u\nmapRule grow\nrate 1\nend", 2, "doesn't support yet"),
+        ("resource a\nunit u\nunitRule u\na out 1", 3, "never closed"),
+        ("unit belt", 1, "built into the engine"),
+    ];
+    for (text, line, fragment) in cases {
+        let error = Pack::parse(text).unwrap_err();
+        assert_eq!(error.line, line, "{error}");
+        assert!(error.message.contains(fragment), "{error}");
+    }
+}
+
+#[test]
+fn declarations_can_follow_the_rules_that_use_them() {
+    let text = "unitRule u\na out 1\nend\nresource a # trailing comment\nunit u // another\n";
+    let pack = Pack::parse(text).unwrap();
+    assert_eq!(pack.content.units()[0].outputs, vec![ItemId(0)]);
+}
+
+#[test]
+fn cosmetic_changes_keep_the_hash_but_rule_changes_do_not() {
+    let hash = |text: &str| World::new(&Pack::parse(text).unwrap()).state_hash();
+    let base = hash("resource a name \"A\" sprite 1\nunit u sprite 5\nunitRule u\na out 1\nend");
+    let renamed = hash("resource a name \"B\" sprite 2\nunit u sprite 6\nunitRule u\na out 1\nend");
+    let changed = hash("resource a\nunit u\nunitRule u\nrate 2\na out 1\nend");
+    assert_eq!(base, renamed);
+    assert_ne!(base, changed);
 }
 
 // Replay tests: random but reproducible command streams.
@@ -224,15 +363,15 @@ fn random_commands(rng: &mut Rng) -> Vec<Command> {
         let pos = p(rng.below(14) as i32, rng.below(14) as i32);
         let dir = DIRS[rng.below(4) as usize];
         let roll = rng.below(100);
+        let building = |id| Building::Unit(id);
         commands.push(match roll {
             0..=54 => Command::Place { pos, dir, building: Building::Belt },
-            55..=64 => Command::Place { pos, dir, building: Building::Miner },
-            65..=72 => Command::Place {
-                pos,
-                dir,
-                building: Building::Assembler { recipe: RecipeId(rng.below(2) as u16) },
-            },
-            73..=77 => Command::Place { pos, dir, building: Building::Depot },
+            55..=64 => Command::Place { pos, dir, building: building(MINER) },
+            65..=72 => {
+                let id = if rng.below(2) == 0 { SMELTER } else { ASSEMBLER };
+                Command::Place { pos, dir, building: building(id) }
+            }
+            73..=77 => Command::Place { pos, dir, building: building(DEPOT) },
             _ => Command::Remove { pos },
         });
     }
@@ -240,11 +379,7 @@ fn random_commands(rng: &mut Rng) -> Vec<Command> {
 }
 
 fn fuzz_world() -> World {
-    let mut content = Content::example();
-    content.miner_ticks = 3;
-    content.recipes[0].ticks = 5;
-    content.recipes[1].ticks = 7;
-    world_with(content, vec![patch(0, 0, 14, 14, ORE)])
+    World::new(&pack(3, 5, 7, "patch oreField at 0 0 size 14 14 amount 1000000"))
 }
 
 fn command_log(seed: u64, ticks: usize) -> Vec<Vec<Command>> {
@@ -263,7 +398,7 @@ fn replaying_a_command_log_gives_the_same_state_every_tick() {
             let rejected_second = second.step(commands);
             assert_eq!(rejected_first, rejected_second);
             assert_eq!(first.state_hash(), second.state_hash(), "tick {}", first.tick());
-            assert_conserved(&first, 3);
+            assert_conserved(&first);
         }
     }
 }

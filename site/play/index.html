@@ -42,10 +42,7 @@
 <div class="bar" id="hud">
   <a class="chip" href="../">&larr; Docs</a>
   <div class="chip"><span>tick</span> <b id="tick">0</b></div>
-  <div class="chip"><span>ore</span> <b id="made0">0</b></div>
-  <div class="chip"><span>plates</span> <b id="made1">0</b></div>
-  <div class="chip"><span>widgets</span> <b id="made2">0</b></div>
-  <div class="spacer"></div>
+  <div class="spacer" id="hud-spacer"></div>
   <div class="chip" title="Hash of the full simulation state"><span>state</span> <b id="hash">-</b></div>
 </div>
 
@@ -59,22 +56,15 @@
   const TILE_UNITS = 256;
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   const DIR_NAMES = ['↑', '→', '↓', '←'];
-  const ITEM_COLORS = ['#c9744a', '#a9bccf', '#f2c14e'];
-  const MACHINES = {
-    1: { letter: 'M', color: '#5f7f52' },
-    2: { letter: 'S', color: '#a2563a' },
-    3: { letter: 'A', color: '#4f6fa3' },
-    4: { letter: 'D', color: '#7a6191' },
-  };
-  const TOOLS = [
-    { id: 'belt', kind: 0, label: 'Belt', key: '1' },
-    { id: 'miner', kind: 1, label: 'Miner', key: '2' },
-    { id: 'smelter', kind: 2, label: 'Smelter', key: '3' },
-    { id: 'assembler', kind: 3, label: 'Assembler', key: '4' },
-    { id: 'depot', kind: 4, label: 'Depot', key: '5' },
-    { id: 'erase', label: 'Erase', key: 'X' },
-    { id: 'move', label: 'Move', key: 'M' },
-  ];
+  // Indices into the Tiny Factory sheet: 12 columns of 16x16 tiles. Units,
+  // resources and map layers name their own sprites in the rule pack.
+  const SHEET_COLUMNS = 12, SHEET_TILE = 16;
+  const FLOOR_SPRITE = 0;
+  // Keyed by [has input behind][has output ahead]; the second animation frame
+  // is one row down for horizontal belts and one column right for vertical ones.
+  const HORIZONTAL_BELTS = [[24, 25], [27, 26]];
+  const VERTICAL_BELTS = [[12, 28], [4, 16]];
+  const ZOOM_MIN = 32, ZOOM_MAX = 96, ZOOM_STEP = 16;
 
   const canvas = document.getElementById('view');
   const ctx = canvas.getContext('2d');
@@ -91,19 +81,47 @@
   }
 
   let of;
+  const sheet = new Image();
   try {
-    const source = await fetch('openfactor.wasm');
+    sheet.src = 'assets/tiny-factory.png';
+    const [source] = await Promise.all([fetch('openfactor.wasm'), sheet.decode()]);
     if (!source.ok) throw new Error('HTTP ' + source.status);
     const { instance } = await WebAssembly.instantiate(await source.arrayBuffer(), {});
     of = instance.exports;
   } catch (error) {
-    say('The simulation could not load (' + error.message + '). Try reloading the page.', 0);
+    say('The game could not load (' + error.message + '). Try reloading the page.', 0);
     return;
   }
 
+  // Calls can grow wasm memory, so take the buffer only after the last call.
+  const packPointer = of.of_pack_json(), packLength = of.of_pack_json_len();
+  const pack = JSON.parse(new TextDecoder().decode(new Uint8Array(of.memory.buffer, packPointer, packLength)));
+  const unitOf = (b) => pack.units[b.kind - 1];
+  const digitKey = (index) => (index < 9 ? String(index + 1) : '');
+  const TOOLS = [
+    { id: 'belt', kind: 0, label: 'Belt', key: digitKey(0) },
+    ...pack.units.map((unit, index) => (
+      { id: 'unit:' + unit.id, kind: index + 1, label: unit.name, key: digitKey(index + 1) })),
+    { id: 'erase', label: 'Erase', key: 'X' },
+    { id: 'move', label: 'Move', key: 'M' },
+  ];
+
+  const spacer = $('hud-spacer');
+  pack.resources.forEach((resource, index) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    const label = document.createElement('span');
+    label.textContent = resource.name.toLowerCase() + ' ';
+    const value = document.createElement('b');
+    value.id = 'made' + index;
+    value.textContent = '0';
+    chip.append(label, value);
+    spacer.before(chip);
+  });
+
   let tool = TOOLS[0];
   let rotation = 1;
-  let cam = { x: 11, y: 5, cell: 40 };
+  let cam = { x: 11, y: 5, cell: window.innerWidth < 700 ? 32 : 48 };
   let width = 0, height = 0;
   let resources = new Map(), buildings = new Map(), items = [];
   let hover = null, drag = null, pan = null;
@@ -150,6 +168,7 @@
     width = window.innerWidth; height = window.innerHeight;
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
   }
   window.addEventListener('resize', resize);
   resize();
@@ -215,7 +234,8 @@
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    cam.cell = Math.min(96, Math.max(14, cam.cell * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    const step = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+    cam.cell = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, cam.cell + step));
   }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
@@ -233,8 +253,8 @@
   });
 
   function readSnapshot() {
-    const pointer = of.of_snapshot();
-    const data = new Int32Array(of.memory.buffer, pointer, of.of_snapshot_len());
+    const pointer = of.of_snapshot(), length = of.of_snapshot_len();
+    const data = new Int32Array(of.memory.buffer, pointer, length);
     let i = 0;
     resources = new Map();
     for (let n = data[i++]; n > 0; n--, i += 3) resources.set(data[i] + ',' + data[i + 1], data[i + 2]);
@@ -249,74 +269,91 @@
     }
   }
 
-  const sx = (x) => (x - cam.x) * cam.cell + width / 2;
-  const sy = (y) => (y - cam.y) * cam.cell + height / 2;
+  // Whole pixels only: fractional positions leave seams between tiles.
+  const sx = (x) => Math.round((x - cam.x) * cam.cell + width / 2);
+  const sy = (y) => Math.round((y - cam.y) * cam.cell + height / 2);
 
-  function drawBuilding(b, tick) {
-    const size = cam.cell;
+  function drawSprite(index, x, y, size, flipX = false, flipY = false) {
+    const srcX = (index % SHEET_COLUMNS) * SHEET_TILE;
+    const srcY = Math.floor(index / SHEET_COLUMNS) * SHEET_TILE;
+    ctx.save();
+    ctx.translate(x + (flipX ? size : 0), y + (flipY ? size : 0));
+    ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+    ctx.drawImage(sheet, srcX, srcY, SHEET_TILE, SHEET_TILE, 0, 0, size, size);
+    ctx.restore();
+  }
+
+  const buildingAt = (x, y) => buildings.get(x + ',' + y);
+
+  function beltHasOutput(b) {
+    const [dx, dy] = DIRS[b.dir];
+    const front = buildingAt(b.x + dx, b.y + dy);
+    if (!front) return false;
+    return front.kind === 0 ? front.dir !== (b.dir + 2) % 4 : unitOf(front).accepts;
+  }
+
+  function beltHasInput(b) {
+    return DIRS.some(([dx, dy], side) => {
+      if (side === b.dir) return false;
+      const neighbour = buildingAt(b.x + dx, b.y + dy);
+      if (!neighbour || neighbour.dir !== (side + 2) % 4) return false;
+      return neighbour.kind === 0 || unitOf(neighbour).sends;
+    });
+  }
+
+  function drawBelt(b, tick) {
+    const x = sx(b.x), y = sy(b.y), frame = (tick >> 3) & 1;
+    const input = beltHasInput(b) ? 1 : 0, output = beltHasOutput(b) ? 1 : 0;
+    if (b.dir === 1 || b.dir === 3) {
+      drawSprite(HORIZONTAL_BELTS[input][output] + frame * SHEET_COLUMNS, x, y, cam.cell, b.dir === 3);
+    } else {
+      drawSprite(VERTICAL_BELTS[input][output] + frame, x, y, cam.cell, false, b.dir === 2);
+    }
+  }
+
+  function drawOutputArrow(b) {
     ctx.save();
     ctx.translate(sx(b.x + 0.5), sy(b.y + 0.5));
-    ctx.scale(size, size);
-    if (b.kind === 0) {
-      ctx.rotate((b.dir - 1) * Math.PI / 2);
-      ctx.fillStyle = '#343a44';
-      ctx.fillRect(-0.5, -0.42, 1, 0.84);
-      ctx.strokeStyle = '#59616e';
-      ctx.lineWidth = 0.06;
-      const phase = ((tick * 16 / TILE_UNITS) % 0.5);
-      for (let c = -0.5 + phase; c < 0.5; c += 0.5) {
-        ctx.beginPath();
-        ctx.moveTo(c - 0.1, -0.2); ctx.lineTo(c + 0.1, 0); ctx.lineTo(c - 0.1, 0.2);
-        ctx.stroke();
-      }
-    } else {
-      const machine = MACHINES[b.kind];
-      ctx.fillStyle = machine.color;
-      ctx.fillRect(-0.44, -0.44, 0.88, 0.88);
-      ctx.fillStyle = '#f4f1e8';
-      ctx.font = '600 0.42px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(machine.letter, 0, 0.02);
-      if (b.kind !== 4) {
-        ctx.rotate((b.dir - 1) * Math.PI / 2);
-        ctx.beginPath();
-        ctx.moveTo(0.3, -0.13); ctx.lineTo(0.44, 0); ctx.lineTo(0.3, 0.13);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
+    ctx.rotate((b.dir - 1) * Math.PI / 2);
+    ctx.scale(cam.cell, cam.cell);
+    ctx.beginPath();
+    ctx.moveTo(0.3, -0.14); ctx.lineTo(0.48, 0); ctx.lineTo(0.3, 0.14);
+    ctx.closePath();
+    ctx.fillStyle = '#fff4d6';
+    ctx.strokeStyle = '#3b2a3b';
+    ctx.lineWidth = 0.04;
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
+  }
+
+  function drawBuilding(b, tick) {
+    if (b.kind === 0) return drawBelt(b, tick);
+    const unit = unitOf(b);
+    drawSprite(unit.sprite, sx(b.x), sy(b.y), cam.cell);
+    if (unit.sends) drawOutputArrow(b);
   }
 
   function draw() {
     const tick = of.of_tick();
-    ctx.fillStyle = '#15181c';
-    ctx.fillRect(0, 0, width, height);
 
     const left = Math.floor(cam.x - width / 2 / cam.cell) - 1, right = Math.ceil(cam.x + width / 2 / cam.cell) + 1;
     const top = Math.floor(cam.y - height / 2 / cam.cell) - 1, bottom = Math.ceil(cam.y + height / 2 / cam.cell) + 1;
     const visible = (x, y) => x >= left && x <= right && y >= top && y <= bottom;
 
-    ctx.strokeStyle = '#21262d';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = left; x <= right; x++) { ctx.moveTo(sx(x), 0); ctx.lineTo(sx(x), height); }
-    for (let y = top; y <= bottom; y++) { ctx.moveTo(0, sy(y)); ctx.lineTo(width, sy(y)); }
-    ctx.stroke();
-
-    ctx.fillStyle = '#4a3226';
-    for (const k of resources.keys()) {
-      const [x, y] = k.split(',').map(Number);
-      if (visible(x, y)) ctx.fillRect(sx(x), sy(y), cam.cell, cam.cell);
+    for (let x = left; x <= right; x++) {
+      for (let y = top; y <= bottom; y++) {
+        const layer = resources.get(x + ',' + y);
+        const sprites = layer === undefined ? [FLOOR_SPRITE] : pack.layers[layer].sprites;
+        drawSprite(sprites[Math.abs(x * 7 + y * 13) % sprites.length], sx(x), sy(y), cam.cell);
+      }
     }
     for (const b of buildings.values()) if (visible(b.x, b.y)) drawBuilding(b, tick);
+    // Items scale by whole multiples of the art so their pixels stay even.
+    const itemSize = SHEET_TILE * Math.floor(cam.cell / 32);
     for (const it of items) {
       if (!visible(it.x, it.y)) continue;
-      ctx.fillStyle = ITEM_COLORS[it.item] || '#fff';
-      ctx.beginPath();
-      ctx.arc(sx(it.x), sy(it.y), cam.cell * 0.13, 0, Math.PI * 2);
-      ctx.fill();
+      drawSprite(pack.resources[it.item].sprite, sx(it.x) - itemSize / 2, sy(it.y) - itemSize / 2, itemSize);
     }
 
     if (hover && !pan && tool.id !== 'move') {
@@ -328,12 +365,15 @@
         drawBuilding({ x: hover.x, y: hover.y, dir: rotation, kind: tool.kind }, tick);
         ctx.globalAlpha = 1;
       }
+      ctx.strokeStyle = 'rgba(255, 255, 255, .8)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(sx(hover.x) + 1, sy(hover.y) + 1, cam.cell - 2, cam.cell - 2);
     }
   }
 
   function updateHud() {
     $('tick').textContent = of.of_tick().toLocaleString('en');
-    for (let i = 0; i < 3; i++) $('made' + i).textContent = (of.of_produced(i) >>> 0).toLocaleString('en');
+    pack.resources.forEach((_, i) => { $('made' + i).textContent = (of.of_produced(i) >>> 0).toLocaleString('en'); });
     const hex = (n) => (n >>> 0).toString(16).padStart(8, '0');
     $('hash').textContent = hex(of.of_hash_hi()) + hex(of.of_hash_lo());
   }

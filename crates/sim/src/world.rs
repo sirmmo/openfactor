@@ -1,15 +1,13 @@
 use crate::belt::{BeltItem, Line, Target, TILE};
-use crate::content::{Content, ContentError, WorldGen};
+use crate::content::{Amount, Content, Pack, Rule, Scope};
 use crate::hash::Hasher;
-use crate::{Dir, EntityId, ItemId, Pos, RecipeId, Tick};
+use crate::{Dir, EntityId, ItemId, LayerId, Pos, Tick, UnitId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Building {
     Belt,
-    Miner,
-    Assembler { recipe: RecipeId },
-    Depot,
+    Unit(UnitId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,7 +20,7 @@ pub enum Command {
 pub enum Reject {
     Occupied,
     NoResource,
-    UnknownRecipe,
+    UnknownUnit,
     NothingToRemove,
 }
 
@@ -41,37 +39,31 @@ pub struct ItemStats {
 }
 
 #[derive(Clone, Debug)]
-struct Resource {
-    item: ItemId,
-    amount: u32,
-}
-
-#[derive(Clone, Debug)]
 struct Entity {
     pos: Pos,
     dir: Dir,
     kind: Kind,
-    /// Where a miner or assembler sends its output. Derived from the layout.
+    /// Where a unit sends its output. Derived from the layout.
     output_target: Option<Target>,
 }
 
 #[derive(Clone, Debug)]
 enum Kind {
     Belt,
-    Miner {
-        progress: u32,
-        output: Option<ItemId>,
-    },
-    Assembler {
-        recipe: RecipeId,
-        /// Parallel to the recipe's inputs.
-        stock: Vec<u32>,
-        remaining: u32,
-        pending: VecDeque<ItemId>,
-    },
-    Depot {
-        stock: BTreeMap<ItemId, u64>,
-    },
+    Machine(Machine),
+}
+
+#[derive(Clone, Debug)]
+struct Machine {
+    unit: UnitId,
+    bins: BTreeMap<ItemId, u64>,
+    job: Option<Job>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Job {
+    rule: usize,
+    remaining: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -88,50 +80,136 @@ struct Offer {
     target: Target,
 }
 
+type Layer = BTreeMap<Pos, u64>;
+type Stats = BTreeMap<ItemId, ItemStats>;
+
 #[derive(Clone, Debug)]
 pub struct World {
     content: Content,
     tick: Tick,
     next_id: u32,
-    resources: BTreeMap<Pos, Resource>,
+    layers: Vec<Layer>,
+    globals: BTreeMap<ItemId, u64>,
     tiles: BTreeMap<Pos, EntityId>,
     /// Everything that isn't a belt. Kept apart so a tick never visits belts.
     machines: BTreeMap<EntityId, Entity>,
     belts: BTreeMap<EntityId, Entity>,
     lines: Vec<Line>,
-    stats: BTreeMap<ItemId, ItemStats>,
+    stats: Stats,
     topology_dirty: bool,
 }
 
-fn stat(stats: &mut BTreeMap<ItemId, ItemStats>, item: ItemId) -> &mut ItemStats {
+fn stat(stats: &mut Stats, item: ItemId) -> &mut ItemStats {
     stats.entry(item).or_default()
 }
 
-impl World {
-    pub fn new(content: Content, worldgen: &WorldGen) -> Result<World, ContentError> {
-        content.validate(worldgen)?;
-        let mut resources = BTreeMap::new();
-        for patch in &worldgen.patches {
-            for dx in 0..patch.width as i32 {
-                for dy in 0..patch.height as i32 {
-                    let pos = Pos::new(patch.origin.x + dx, patch.origin.y + dy);
-                    let amount = patch.amount_per_tile;
-                    resources.insert(pos, Resource { item: patch.item, amount });
+fn layer_at(layers: &[Layer], layer: LayerId, pos: Pos) -> u64 {
+    layers[usize::from(layer.0)].get(&pos).copied().unwrap_or(0)
+}
+
+fn can_start(rule: &Rule, machine: &Machine, layers: &[Layer], globals: &BTreeMap<ItemId, u64>, pos: Pos) -> bool {
+    let conditions_hold = rule
+        .conditions
+        .iter()
+        .all(|c| c.test.holds(layer_at(layers, c.layer, pos), c.value));
+    let has_inputs = rule.takes.iter().all(|take| {
+        let needed = u64::from(take.amount);
+        match take.scope {
+            Scope::Local(item) => machine.bins.get(&item).copied().unwrap_or(0) >= needed,
+            Scope::Global(item) => globals.get(&item).copied().unwrap_or(0) >= needed,
+            Scope::Map { layer, .. } => layer_at(layers, layer, pos) >= needed,
+        }
+    });
+    // A unit doesn't start again until what it last made has left.
+    let output_clear = rule.gives.iter().all(|give| match give.scope {
+        Scope::Local(item) => machine.bins.get(&item).copied().unwrap_or(0) == 0,
+        _ => true,
+    });
+    conditions_hold && has_inputs && output_clear
+}
+
+fn subtract(map: &mut BTreeMap<ItemId, u64>, item: ItemId, amount: u64) {
+    let held = map.get_mut(&item).expect("checked by can_start");
+    *held -= amount;
+    if *held == 0 {
+        map.remove(&item);
+    }
+}
+
+fn apply_takes(rule: &Rule, machine: &mut Machine, layers: &mut [Layer], globals: &mut BTreeMap<ItemId, u64>, stats: &mut Stats, pos: Pos) {
+    for &Amount { scope, amount } in &rule.takes {
+        let amount_wide = u64::from(amount);
+        match scope {
+            Scope::Local(item) => {
+                subtract(&mut machine.bins, item, amount_wide);
+                stat(stats, item).consumed += amount_wide;
+            }
+            Scope::Global(item) => subtract(globals, item, amount_wide),
+            Scope::Map { layer, .. } => {
+                let tiles = &mut layers[usize::from(layer.0)];
+                let value = tiles.get_mut(&pos).expect("checked by can_start");
+                *value -= amount_wide;
+                if *value == 0 {
+                    tiles.remove(&pos);
                 }
             }
         }
-        Ok(World {
+    }
+}
+
+fn apply_gives(rule: &Rule, machine: &mut Machine, layers: &mut [Layer], globals: &mut BTreeMap<ItemId, u64>, stats: &mut Stats, pos: Pos) {
+    for &Amount { scope, amount } in &rule.gives {
+        let amount_wide = u64::from(amount);
+        match scope {
+            Scope::Local(item) => {
+                *machine.bins.entry(item).or_default() += amount_wide;
+                stat(stats, item).produced += amount_wide;
+            }
+            Scope::Global(item) => *globals.entry(item).or_default() += amount_wide,
+            Scope::Map { layer, radius } => {
+                let tiles = &mut layers[usize::from(layer.0)];
+                let reach = radius as i32;
+                for dx in -reach..=reach {
+                    let spread = reach - dx.abs();
+                    for dy in -spread..=spread {
+                        *tiles.entry(Pos::new(pos.x + dx, pos.y + dy)).or_default() += amount_wide;
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl World {
+    pub fn new(pack: &Pack) -> World {
+        let content = pack.content.clone();
+        let mut layers = vec![Layer::new(); content.layers.len()];
+        for patch in &pack.worldgen.patches {
+            let tiles = &mut layers[usize::from(patch.layer.0)];
+            for dx in 0..patch.width as i32 {
+                for dy in 0..patch.height as i32 {
+                    let pos = Pos::new(patch.origin.x + dx, patch.origin.y + dy);
+                    tiles.insert(pos, u64::from(patch.amount_per_tile));
+                }
+            }
+        }
+        World {
             content,
             tick: 0,
             next_id: 0,
-            resources,
+            layers,
+            globals: BTreeMap::new(),
             tiles: BTreeMap::new(),
             machines: BTreeMap::new(),
             belts: BTreeMap::new(),
             lines: Vec::new(),
             stats: BTreeMap::new(),
             topology_dirty: false,
-        })
+        }
+    }
+
+    pub fn content(&self) -> &Content {
+        &self.content
     }
 
     pub fn tick(&self) -> Tick {
@@ -173,26 +251,16 @@ impl World {
         }
         let kind = match building {
             Building::Belt => Kind::Belt,
-            Building::Miner => {
-                if !self.resources.contains_key(&pos) {
-                    return Err(Reject::NoResource);
+            Building::Unit(unit) => {
+                let definition =
+                    self.content.units.get(usize::from(unit.0)).ok_or(Reject::UnknownUnit)?;
+                if let Some(layer) = definition.place_on {
+                    if layer_at(&self.layers, layer, pos) == 0 {
+                        return Err(Reject::NoResource);
+                    }
                 }
-                Kind::Miner { progress: 0, output: None }
+                Kind::Machine(Machine { unit, bins: BTreeMap::new(), job: None })
             }
-            Building::Assembler { recipe } => {
-                let definition = self
-                    .content
-                    .recipes
-                    .get(usize::from(recipe.0))
-                    .ok_or(Reject::UnknownRecipe)?;
-                Kind::Assembler {
-                    recipe,
-                    stock: vec![0; definition.inputs.len()],
-                    remaining: 0,
-                    pending: VecDeque::new(),
-                }
-            }
-            Building::Depot => Kind::Depot { stock: BTreeMap::new() },
         };
         let id = EntityId(self.next_id);
         self.next_id += 1;
@@ -211,11 +279,11 @@ impl World {
             .or_else(|| self.belts.remove(&id))
             .expect("tile points at a live entity");
         // Items on a removed belt are accounted for in `rebuild_lines`.
-        let content = &self.content;
-        let stats = &mut self.stats;
-        for_each_held_item(&entity.kind, content, |item, count| {
-            stat(stats, item).destroyed += count;
-        });
+        if let Kind::Machine(machine) = &entity.kind {
+            for (&item, &count) in &machine.bins {
+                stat(&mut self.stats, item).destroyed += count;
+            }
+        }
         self.topology_dirty = true;
         Ok(())
     }
@@ -231,6 +299,13 @@ impl World {
         (front_dir != dir.opposite()).then_some(front)
     }
 
+    fn sends_items(&self, entity: &Entity) -> bool {
+        match &entity.kind {
+            Kind::Belt => true,
+            Kind::Machine(machine) => !self.content.unit(machine.unit).outputs.is_empty(),
+        }
+    }
+
     /// Regroups belt tiles into lines, keeping every item where it physically is.
     fn rebuild_lines(&mut self) {
         let mut carried: BTreeMap<Pos, Vec<(u32, ItemId)>> = BTreeMap::new();
@@ -243,7 +318,7 @@ impl World {
         // (belt feeders, machine feeders) for each belt tile.
         let mut feeders: BTreeMap<Pos, (u32, u32)> = BTreeMap::new();
         for entity in self.machines.values().chain(self.belts.values()) {
-            if matches!(entity.kind, Kind::Depot { .. }) {
+            if !self.sends_items(entity) {
                 continue;
             }
             if let Some(front) = self.fed_belt(entity.pos, entity.dir) {
@@ -296,8 +371,10 @@ impl World {
                 return Some(Target::Line(line_at[&front]));
             }
             let id = *world.tiles.get(&pos.step(dir))?;
-            match world.machines.get(&id)?.kind {
-                Kind::Assembler { .. } | Kind::Depot { .. } => Some(Target::Entity(id)),
+            match &world.machines.get(&id)?.kind {
+                Kind::Machine(machine) if world.content.unit(machine.unit).accepts_items() => {
+                    Some(Target::Entity(id))
+                }
                 _ => None,
             }
         };
@@ -351,6 +428,12 @@ impl World {
         self.topology_dirty = false;
     }
 
+    /// The next item a machine wants to send, if it has one.
+    fn output_item(&self, machine: &Machine) -> Option<ItemId> {
+        let outputs = &self.content.unit(machine.unit).outputs;
+        outputs.iter().copied().find(|item| machine.bins.contains_key(item))
+    }
+
     fn collect_offers(&self) -> Vec<Offer> {
         let mut offers = Vec::new();
         for (index, line) in self.lines.iter().enumerate() {
@@ -361,9 +444,8 @@ impl World {
         }
         for (&id, entity) in &self.machines {
             let item = match &entity.kind {
-                Kind::Miner { output, .. } => *output,
-                Kind::Assembler { pending, .. } => pending.front().copied(),
-                _ => None,
+                Kind::Machine(machine) => self.output_item(machine),
+                Kind::Belt => None,
             };
             if let (Some(item), Some(target)) = (item, entity.output_target) {
                 offers.push(Offer { key: id, item, source: Source::Machine(id), target });
@@ -380,7 +462,7 @@ impl World {
             match offer.target {
                 Target::Entity(id) => {
                     if self.accepts(id, offer.item) {
-                        self.take(offer.source);
+                        self.take(offer.source, offer.item);
                         self.store(id, offer.item);
                     }
                 }
@@ -399,7 +481,7 @@ impl World {
             }
         }
         for (index, (_, offer)) in winners {
-            self.take(offer.source);
+            self.take(offer.source, offer.item);
             let line = &mut self.lines[index as usize];
             line.push_tail(offer.item);
             line.last_feeder = Some(offer.key);
@@ -407,91 +489,62 @@ impl World {
     }
 
     fn accepts(&self, id: EntityId, item: ItemId) -> bool {
-        match &self.machines[&id].kind {
-            Kind::Depot { .. } => true,
-            Kind::Assembler { recipe, stock, .. } => {
-                let inputs = &self.content.recipes[usize::from(recipe.0)].inputs;
-                inputs
-                    .iter()
-                    .zip(stock)
-                    .any(|(&(input, amount), &held)| input == item && held < amount * 2)
-            }
-            _ => false,
+        let machine = match &self.machines[&id].kind {
+            Kind::Machine(machine) => machine,
+            Kind::Belt => return false,
+        };
+        let unit = self.content.unit(machine.unit);
+        if unit.stores_any {
+            return true;
+        }
+        let held = machine.bins.get(&item).copied().unwrap_or(0);
+        unit.inputs.iter().any(|&(input, limit)| input == item && held < limit)
+    }
+
+    fn machine_mut(&mut self, id: EntityId) -> &mut Machine {
+        match &mut self.machines.get_mut(&id).expect("id is live").kind {
+            Kind::Machine(machine) => machine,
+            Kind::Belt => unreachable!("belts are stored separately"),
         }
     }
 
     fn store(&mut self, id: EntityId, item: ItemId) {
-        let content = &self.content;
-        match &mut self.machines.get_mut(&id).expect("target is live").kind {
-            Kind::Depot { stock } => *stock.entry(item).or_default() += 1,
-            Kind::Assembler { recipe, stock, .. } => {
-                let inputs = &content.recipes[usize::from(recipe.0)].inputs;
-                let slot = inputs.iter().position(|&(input, _)| input == item);
-                stock[slot.expect("store follows accepts")] += 1;
-            }
-            _ => unreachable!("only depots and assemblers accept items"),
-        }
+        *self.machine_mut(id).bins.entry(item).or_default() += 1;
     }
 
-    fn take(&mut self, source: Source) {
+    fn take(&mut self, source: Source, item: ItemId) {
         match source {
             Source::Line(index) => self.lines[index as usize].pop_head(),
-            Source::Machine(id) => {
-                match &mut self.machines.get_mut(&id).expect("source is live").kind {
-                    Kind::Miner { output, .. } => *output = None,
-                    Kind::Assembler { pending, .. } => {
-                        pending.pop_front();
-                    }
-                    _ => unreachable!("only miners and assemblers output items"),
-                }
-            }
+            Source::Machine(id) => subtract(&mut self.machine_mut(id).bins, item, 1),
         }
     }
 
     fn run_machines(&mut self) {
         let content = &self.content;
-        let resources = &mut self.resources;
+        let layers = &mut self.layers;
+        let globals = &mut self.globals;
         let stats = &mut self.stats;
         for entity in self.machines.values_mut() {
-            match &mut entity.kind {
-                Kind::Miner { progress, output } if output.is_none() => {
-                    let resource = match resources.get_mut(&entity.pos) {
-                        Some(resource) => resource,
-                        None => continue,
-                    };
-                    *progress += 1;
-                    if *progress >= content.miner_ticks {
-                        *progress = 0;
-                        *output = Some(resource.item);
-                        stat(stats, resource.item).produced += 1;
-                        resource.amount -= 1;
-                        if resource.amount == 0 {
-                            resources.remove(&entity.pos);
-                        }
-                    }
+            let pos = entity.pos;
+            let machine = match &mut entity.kind {
+                Kind::Machine(machine) => machine,
+                Kind::Belt => continue,
+            };
+            let rules = &content.unit(machine.unit).rules;
+            if let Some(job) = &mut machine.job {
+                job.remaining -= 1;
+                if job.remaining == 0 {
+                    let rule = &rules[job.rule];
+                    machine.job = None;
+                    apply_gives(rule, machine, layers, globals, stats, pos);
                 }
-                Kind::Assembler { recipe, stock, remaining, pending } => {
-                    let definition = &content.recipes[usize::from(recipe.0)];
-                    if *remaining > 0 {
-                        *remaining -= 1;
-                        if *remaining == 0 {
-                            for &(item, count) in &definition.outputs {
-                                pending.extend((0..count).map(|_| item));
-                                stat(stats, item).produced += u64::from(count);
-                            }
-                        }
-                    } else if pending.is_empty()
-                        && definition.inputs.iter().zip(stock.iter()).all(|(i, s)| *s >= i.1)
-                    {
-                        for (&(item, count), held) in definition.inputs.iter().zip(stock.iter_mut())
-                        {
-                            *held -= count;
-                            stat(stats, item).consumed += u64::from(count);
-                        }
-                        *remaining = definition.ticks;
-                    }
-                }
-                _ => {}
+                continue;
+            }
+            // Rules are tried in the order the pack lists them.
+            let ready = rules.iter().position(|r| can_start(r, machine, layers, globals, pos));
+            if let Some(index) = ready {
+                apply_takes(&rules[index], machine, layers, globals, stats, pos);
+                machine.job = Some(Job { rule: index, remaining: rules[index].rate });
             }
         }
     }
@@ -499,19 +552,28 @@ impl World {
     /// Every building, for rendering. Machines come first, then belts.
     pub fn buildings(&self) -> impl Iterator<Item = (Pos, Dir, Building)> + '_ {
         self.machines.values().chain(self.belts.values()).map(|entity| {
-            let building = match entity.kind {
+            let building = match &entity.kind {
                 Kind::Belt => Building::Belt,
-                Kind::Miner { .. } => Building::Miner,
-                Kind::Assembler { recipe, .. } => Building::Assembler { recipe },
-                Kind::Depot { .. } => Building::Depot,
+                Kind::Machine(machine) => Building::Unit(machine.unit),
             };
             (entity.pos, entity.dir, building)
         })
     }
 
-    /// Remaining minable tiles as (position, item, amount left).
-    pub fn resources(&self) -> impl Iterator<Item = (Pos, ItemId, u32)> + '_ {
-        self.resources.iter().map(|(pos, resource)| (*pos, resource.item, resource.amount))
+    /// Every non-zero map tile as (position, layer, value).
+    pub fn layer_tiles(&self) -> impl Iterator<Item = (Pos, LayerId, u64)> + '_ {
+        self.layers.iter().enumerate().flat_map(|(index, tiles)| {
+            tiles.iter().map(move |(pos, value)| (*pos, LayerId(index as u16), *value))
+        })
+    }
+
+    pub fn layer_value(&self, layer: LayerId, pos: Pos) -> u64 {
+        layer_at(&self.layers, layer, pos)
+    }
+
+    /// The world-wide stock of a resource moved by `global` rules.
+    pub fn global(&self, item: ItemId) -> u64 {
+        self.globals.get(&item).copied().unwrap_or(0)
     }
 
     /// Every belt item as (tile, tile direction, offset along it in 0..=`TILE`, item).
@@ -537,10 +599,11 @@ impl World {
         self.lines.len()
     }
 
-    pub fn depot_stock(&self, pos: Pos, item: ItemId) -> u64 {
+    /// How many of `item` the unit at `pos` holds.
+    pub fn stock(&self, pos: Pos, item: ItemId) -> u64 {
         let entity = self.tiles.get(&pos).and_then(|id| self.machines.get(id));
         match entity.map(|entity| &entity.kind) {
-            Some(Kind::Depot { stock }) => stock.get(&item).copied().unwrap_or(0),
+            Some(Kind::Machine(machine)) => machine.bins.get(&item).copied().unwrap_or(0),
             _ => 0,
         }
     }
@@ -554,9 +617,11 @@ impl World {
             }
         }
         for entity in self.machines.values() {
-            for_each_held_item(&entity.kind, &self.content, |item, count| {
-                *totals.entry(item).or_default() += count;
-            });
+            if let Kind::Machine(machine) = &entity.kind {
+                for (&item, &count) in &machine.bins {
+                    *totals.entry(item).or_default() += count;
+                }
+            }
         }
         totals
     }
@@ -567,11 +632,17 @@ impl World {
         h.write(self.tick);
         h.write(u64::from(self.next_id));
         self.hash_content(&mut h);
-        h.write(self.resources.len() as u64);
-        for (pos, resource) in &self.resources {
-            hash_pos(&mut h, *pos);
-            h.write(u64::from(resource.item.0));
-            h.write(u64::from(resource.amount));
+        for tiles in &self.layers {
+            h.write(tiles.len() as u64);
+            for (pos, value) in tiles {
+                hash_pos(&mut h, *pos);
+                h.write(*value);
+            }
+        }
+        h.write(self.globals.len() as u64);
+        for (item, value) in &self.globals {
+            h.write(u64::from(item.0));
+            h.write(*value);
         }
         for entities in [&self.machines, &self.belts] {
             h.write(entities.len() as u64);
@@ -596,48 +667,58 @@ impl World {
         h.finish()
     }
 
+    /// Covers everything that affects the simulation. Names and sprites are
+    /// left out, so a cosmetic difference between packs is not a desync.
     fn hash_content(&self, h: &mut Hasher) {
-        h.write(u64::from(self.content.miner_ticks));
         h.write(u64::from(self.content.belt_speed));
-        h.write(self.content.items.len() as u64);
-        for name in &self.content.items {
-            h.write_str(name);
+        h.write(self.content.resources.len() as u64);
+        for resource in &self.content.resources {
+            h.write_str(&resource.id);
         }
-        h.write(self.content.recipes.len() as u64);
-        for recipe in &self.content.recipes {
-            h.write(u64::from(recipe.ticks));
-            for list in [&recipe.inputs, &recipe.outputs] {
-                h.write(list.len() as u64);
-                for &(item, count) in list {
-                    h.write(u64::from(item.0));
-                    h.write(u64::from(count));
-                }
+        h.write(self.content.layers.len() as u64);
+        for layer in &self.content.layers {
+            h.write_str(&layer.id);
+        }
+        h.write(self.content.units.len() as u64);
+        for unit in &self.content.units {
+            h.write_str(&unit.id);
+            h.write(unit.place_on.map_or(u64::MAX, |layer| u64::from(layer.0)));
+            h.write(u64::from(unit.stores_any));
+            h.write(unit.rules.len() as u64);
+            for rule in &unit.rules {
+                hash_rule(h, rule);
             }
         }
     }
 }
 
-fn for_each_held_item(kind: &Kind, content: &Content, mut visit: impl FnMut(ItemId, u64)) {
-    match kind {
-        Kind::Belt => {}
-        Kind::Miner { output, .. } => {
-            if let Some(item) = output {
-                visit(*item, 1);
+fn hash_rule(h: &mut Hasher, rule: &Rule) {
+    h.write(u64::from(rule.rate));
+    h.write(rule.conditions.len() as u64);
+    for condition in &rule.conditions {
+        h.write(u64::from(condition.layer.0));
+        h.write(condition.test as u64);
+        h.write(u64::from(condition.value));
+    }
+    for list in [&rule.takes, &rule.gives] {
+        h.write(list.len() as u64);
+        for entry in list {
+            match entry.scope {
+                Scope::Local(item) => {
+                    h.write(0);
+                    h.write(u64::from(item.0));
+                }
+                Scope::Global(item) => {
+                    h.write(1);
+                    h.write(u64::from(item.0));
+                }
+                Scope::Map { layer, radius } => {
+                    h.write(2);
+                    h.write(u64::from(layer.0));
+                    h.write(u64::from(radius));
+                }
             }
-        }
-        Kind::Assembler { recipe, stock, pending, .. } => {
-            let inputs = &content.recipes[usize::from(recipe.0)].inputs;
-            for (&(item, _), &held) in inputs.iter().zip(stock) {
-                visit(item, u64::from(held));
-            }
-            for &item in pending {
-                visit(item, 1);
-            }
-        }
-        Kind::Depot { stock } => {
-            for (&item, &count) in stock {
-                visit(item, count);
-            }
+            h.write(u64::from(entry.amount));
         }
     }
 }
@@ -650,24 +731,18 @@ fn hash_pos(h: &mut Hasher, pos: Pos) {
 fn hash_kind(h: &mut Hasher, kind: &Kind) {
     match kind {
         Kind::Belt => h.write(0),
-        Kind::Miner { progress, output } => {
+        Kind::Machine(machine) => {
             h.write(1);
-            h.write(u64::from(*progress));
-            h.write(output.map_or(u64::MAX, |item| u64::from(item.0)));
-        }
-        Kind::Assembler { recipe, stock, remaining, pending } => {
-            h.write(2);
-            h.write(u64::from(recipe.0));
-            h.write(u64::from(*remaining));
-            h.write(stock.len() as u64);
-            stock.iter().for_each(|&held| h.write(u64::from(held)));
-            h.write(pending.len() as u64);
-            pending.iter().for_each(|item| h.write(u64::from(item.0)));
-        }
-        Kind::Depot { stock } => {
-            h.write(3);
-            h.write(stock.len() as u64);
-            for (item, count) in stock {
+            h.write(u64::from(machine.unit.0));
+            match machine.job {
+                None => h.write(u64::MAX),
+                Some(job) => {
+                    h.write(job.rule as u64);
+                    h.write(u64::from(job.remaining));
+                }
+            }
+            h.write(machine.bins.len() as u64);
+            for (item, count) in &machine.bins {
                 h.write(u64::from(item.0));
                 h.write(*count);
             }

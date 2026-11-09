@@ -1,45 +1,44 @@
 //! Browser sandbox bindings: a plain numeric ABI, so no JS glue generator is needed.
 //!
-//! Edits are queued and applied on the next `of_step`. A snapshot pointer is
+//! Edits are queued and applied on the next `of_step`. A returned pointer is
 //! only valid until the next call, because wasm memory can move when it grows.
 
-use openfactor_sim::{Building, Command, Content, Dir, ItemId, Patch, Pos, RecipeId, World, WorldGen};
+use openfactor_sim::{Building, Command, Dir, ItemId, Pack, Pos, UnitId, World};
 use std::cell::RefCell;
 
+const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
 const DIRS: [Dir; 4] = [Dir::North, Dir::East, Dir::South, Dir::West];
+/// Building codes: 0 is a belt, and n is the pack's unit n - 1.
 const KIND_BELT: i32 = 0;
-const KIND_MINER: i32 = 1;
-const KIND_SMELTER: i32 = 2;
-const KIND_ASSEMBLER: i32 = 3;
-const KIND_DEPOT: i32 = 4;
 
 struct Game {
     world: World,
     queued: Vec<Command>,
     snapshot: Vec<i32>,
+    pack_json: String,
 }
 
 impl Game {
     fn new() -> Game {
-        let patch = |x, y, width, height| Patch {
-            origin: Pos::new(x, y),
-            width,
-            height,
-            item: ItemId(0),
-            amount_per_tile: 100_000,
-        };
-        let worldgen = WorldGen { patches: vec![patch(0, 0, 6, 6), patch(4, 12, 8, 4)] };
-        let world = World::new(Content::example(), &worldgen).expect("example content is valid");
-        Game { world, queued: starter_factory(), snapshot: Vec::new() }
+        let pack = Pack::parse(BASE_PACK).expect("the base pack is checked by a test");
+        Game {
+            world: World::new(&pack),
+            queued: pack.worldgen.starter.clone(),
+            snapshot: Vec::new(),
+            pack_json: pack_json(&pack),
+        }
     }
 
     fn write_snapshot(&mut self) {
+        let layers = self.world.content().layers();
         let out = &mut self.snapshot;
         out.clear();
 
         let mark = reserve_count(out);
-        for (pos, item, _) in self.world.resources() {
-            out.extend([pos.x, pos.y, i32::from(item.0)]);
+        for (pos, layer, _) in self.world.layer_tiles() {
+            if !layers[usize::from(layer.0)].sprites.is_empty() {
+                out.extend([pos.x, pos.y, i32::from(layer.0)]);
+            }
         }
         finish_count(out, mark, 3);
 
@@ -73,34 +72,67 @@ fn dir_code(dir: Dir) -> i32 {
 fn building_code(building: Building) -> i32 {
     match building {
         Building::Belt => KIND_BELT,
-        Building::Miner => KIND_MINER,
-        Building::Assembler { recipe } => KIND_SMELTER + i32::from(recipe.0),
-        Building::Depot => KIND_DEPOT,
+        Building::Unit(unit) => i32::from(unit.0) + 1,
     }
 }
 
-fn building_from_code(kind: i32) -> Option<Building> {
-    match kind {
-        KIND_BELT => Some(Building::Belt),
-        KIND_MINER => Some(Building::Miner),
-        KIND_SMELTER => Some(Building::Assembler { recipe: RecipeId(0) }),
-        KIND_ASSEMBLER => Some(Building::Assembler { recipe: RecipeId(1) }),
-        KIND_DEPOT => Some(Building::Depot),
-        _ => None,
+fn building_from_code(kind: i32) -> Building {
+    if kind == KIND_BELT {
+        Building::Belt
+    } else {
+        // An out-of-range code is refused by the simulation as an unknown unit.
+        Building::Unit(UnitId((kind - 1) as u16))
     }
 }
 
-/// A working ore -> plate -> widget line, so the page opens with something moving.
-fn starter_factory() -> Vec<Command> {
-    let at = |x, building| Command::Place { pos: Pos::new(x, 2), dir: Dir::East, building };
-    let mut commands = vec![at(2, Building::Miner)];
-    commands.extend((3..=8).map(|x| at(x, Building::Belt)));
-    commands.push(at(9, Building::Assembler { recipe: RecipeId(0) }));
-    commands.extend((10..=14).map(|x| at(x, Building::Belt)));
-    commands.push(at(15, Building::Assembler { recipe: RecipeId(1) }));
-    commands.extend((16..=19).map(|x| at(x, Building::Belt)));
-    commands.push(at(20, Building::Depot));
-    commands
+fn json_string(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if u32::from(c) < 0x20 => out.push(' '),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// What the page needs to build its toolbar and draw the pack's content.
+fn pack_json(pack: &Pack) -> String {
+    let content = &pack.content;
+    let units: Vec<String> = content
+        .units()
+        .iter()
+        .map(|unit| {
+            format!(
+                r#"{{"id":{},"name":{},"sprite":{},"sends":{},"accepts":{}}}"#,
+                json_string(&unit.id),
+                json_string(&unit.name),
+                unit.sprite,
+                !unit.outputs.is_empty(),
+                unit.accepts_items()
+            )
+        })
+        .collect();
+    let resources: Vec<String> = content
+        .resources()
+        .iter()
+        .map(|r| format!(r#"{{"name":{},"sprite":{}}}"#, json_string(&r.name), r.sprite))
+        .collect();
+    let layers: Vec<String> = content
+        .layers()
+        .iter()
+        .map(|layer| format!(r#"{{"sprites":{:?}}}"#, layer.sprites))
+        .collect();
+    format!(
+        r#"{{"units":[{}],"resources":[{}],"layers":[{}]}}"#,
+        units.join(","),
+        resources.join(","),
+        layers.join(",")
+    )
 }
 
 thread_local! {
@@ -116,14 +148,24 @@ pub extern "C" fn of_reset() {
     with_game(|game| *game = Game::new());
 }
 
-/// Queues a placement. `kind` is one of the KIND_ codes; unknown kinds are ignored.
+/// The pack's definitions as JSON text. Read `of_pack_json_len` bytes from here.
+#[no_mangle]
+pub extern "C" fn of_pack_json() -> *const u8 {
+    with_game(|game| game.pack_json.as_ptr())
+}
+
+#[no_mangle]
+pub extern "C" fn of_pack_json_len() -> u32 {
+    with_game(|game| game.pack_json.len() as u32)
+}
+
+/// Queues a placement. `kind` is 0 for a belt, or 1 + the pack's unit index.
 #[no_mangle]
 pub extern "C" fn of_place(x: i32, y: i32, dir: i32, kind: i32) {
-    if let Some(building) = building_from_code(kind) {
-        let dir = DIRS[dir.rem_euclid(4) as usize];
-        let pos = Pos::new(x, y);
-        with_game(|game| game.queued.push(Command::Place { pos, dir, building }));
-    }
+    let building = building_from_code(kind);
+    let dir = DIRS[dir.rem_euclid(4) as usize];
+    let pos = Pos::new(x, y);
+    with_game(|game| game.queued.push(Command::Place { pos, dir, building }));
 }
 
 #[no_mangle]
@@ -147,8 +189,8 @@ pub extern "C" fn of_step(ticks: u32) -> u32 {
     })
 }
 
-/// Writes the view as three counted lists of i32 records: resources (x, y, item),
-/// buildings (x, y, dir, kind) and belt items (x, y, dir, offset, item).
+/// Writes the view as three counted lists of i32 records: drawn map tiles
+/// (x, y, layer), buildings (x, y, dir, kind) and belt items (x, y, dir, offset, item).
 #[no_mangle]
 pub extern "C" fn of_snapshot() -> *const i32 {
     with_game(|game| {
@@ -187,11 +229,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn starter_factory_builds_and_makes_widgets() {
+    fn base_pack_builds_and_makes_widgets() {
         of_reset();
         assert_eq!(of_step(3600), 0);
         assert!(of_produced(2) > 0);
         assert!(!of_snapshot().is_null() && of_snapshot_len() > 0);
         println!("starter hash {:08x}{:08x}", of_hash_hi(), of_hash_lo());
+    }
+
+    #[test]
+    fn pack_json_lists_the_units() {
+        let json = with_game(|game| game.pack_json.clone());
+        assert!(json.contains(r#""id":"depot","name":"Depot","sprite":58,"sends":false,"accepts":true"#));
+        assert!(json.contains(r#"{"sprites":[3, 32]}"#));
     }
 }

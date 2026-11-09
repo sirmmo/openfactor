@@ -1,0 +1,50 @@
+# OpenFactor base pack, written in the GlassBox rule language.
+# Everything except belts is defined here. See the "Rules" section of the docs.
+
+beltSpeed 16
+
+# --- What exists ----------------------------------------------------------
+resource ore    name "Ore"     sprite 97
+resource plate  name "Plates"  sprite 107
+resource widget name "Widgets" sprite 114
+
+layer oreField sprites 3 32
+
+unit miner     name "Miner"     sprite 110 placeOn oreField
+unit smelter   name "Smelter"   sprite 75
+unit assembler name "Assembler" sprite 87
+unit depot     name "Depot"     sprite 58 stores any
+
+# --- What units do --------------------------------------------------------
+unitRule mine
+    appliesTo miner
+    rate 30
+    map oreField in 1
+    local ore out 1
+end
+
+unitRule smelt
+    appliesTo smelter
+    rate 30
+    local ore in 1
+    local plate out 1
+end
+
+unitRule assemble
+    appliesTo assembler
+    rate 60
+    local plate in 2
+    local widget out 1
+end
+
+# --- The starting map -----------------------------------------------------
+patch oreField at 0 0 size 6 6 amount 100000
+patch oreField at 4 12 size 8 4 amount 100000
+
+place miner 2 2 east
+place belt 3 2 east count 6
+place smelter 9 2 east
+place belt 10 2 east count 5
+place assembler 15 2 east
+place belt 16 2 east count 4
+place depot 20 2 east

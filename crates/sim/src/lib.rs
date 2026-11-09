@@ -3,16 +3,22 @@
 //! `World::step` is a pure function of the current state and the commands for
 //! that tick. To keep it that way this crate must not use floats, clocks, I/O
 //! or `HashMap`/`HashSet` (their iteration order is randomised).
+//!
+//! Apart from belts, everything in the world is defined by a rule [`Pack`].
 
 #![forbid(unsafe_code)]
 
 mod belt;
 mod content;
+mod gbx;
 mod hash;
 mod world;
 
 pub use belt::{ITEM_SPACING, TILE};
-pub use content::{Content, ContentError, Patch, Recipe, WorldGen};
+pub use content::{
+    Amount, Condition, Content, LayerDef, Pack, ResourceDef, Rule, Scope, Test, UnitDef, WorldGen,
+};
+pub use gbx::PackError;
 pub use world::{Building, Command, ItemStats, Reject, Rejected, World};
 
 pub type Tick = u64;
@@ -21,7 +27,10 @@ pub type Tick = u64;
 pub struct ItemId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RecipeId(pub u16);
+pub struct UnitId(pub u16);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LayerId(pub u16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EntityId(pub u32);

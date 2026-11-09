@@ -48,7 +48,7 @@
   </div>
 
   <h2>Status</h2>
-  <p>Early prototype. The core simulation and a single-player sandbox work. There is no multiplayer, data-pack loader or public API yet, and saves are not implemented, so reloading the page starts over.</p>
+  <p>Early prototype. The core simulation and a single-player sandbox work. There is no multiplayer or public API yet, and saves are not implemented, so reloading the page starts over.</p>
 
   <h2>The one rule</h2>
   <pre><code>state(t+1) = sim(state(t), commands(t))</code></pre>
@@ -58,14 +58,14 @@
   <p>The sandbox opens with a working line. Build freely: there are no costs yet.</p>
   <div class="scroll"><table>
     <tr><th>Input</th><th>Action</th></tr>
-    <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>Belt, Miner, Smelter, Assembler, Depot</td></tr>
+    <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>Belt, then each building in the pack, in toolbar order</td></tr>
     <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
     <tr><td><kbd>X</kbd></td><td>Erase. Whatever the building held is destroyed</td></tr>
     <tr><td><kbd>M</kbd>, right-drag, WASD or arrows</td><td>Move the view</td></tr>
     <tr><td>Scroll wheel</td><td>Zoom</td></tr>
   </table></div>
 
-  <h2>How the factory works</h2>
+  <h2>How the base pack works</h2>
   <div class="scroll"><table>
     <tr><th>Building</th><th>Behaviour</th></tr>
     <tr><td>Miner</td><td>Must sit on ore. Outputs through its front.</td></tr>
@@ -76,19 +76,47 @@
   </table></div>
   <p>The simulation runs at 60 ticks per second. A tile is 256 position units long and belt items sit at least 64 units apart. At the example speed of 16 units per tick, a belt carries one item every 4 ticks.</p>
 
+  <h2>Rules</h2>
+  <p>Everything except belts is defined in a rule pack, written in the rule language of <a href="https://www.andrewwillmott.com/talks/inside-glassbox">GlassBox</a>, the engine behind SimCity (2013). OpenFactor follows the syntax used by citysim's <code>.gbx</code> scripts. The sandbox's toolbar, counters and sprites all come from <a href="https://github.com/sirmmo/openfactor/blob/main/packs/base.gbx">the base pack</a>.</p>
+<pre><code>resource ore    name "Ore"    sprite 97
+resource plate  name "Plates" sprite 107
+layer oreField  sprites 3 32
+
+unit miner   name "Miner"   sprite 110 placeOn oreField
+unit smelter name "Smelter" sprite 75
+unit depot   name "Depot"   sprite 58  stores any
+
+unitRule mine
+    appliesTo miner
+    rate 30
+    map oreField in 1
+    local ore out 1
+end
+
+patch oreField at 0 0 size 6 6 amount 100000
+place miner 2 2 east</code></pre>
+  <p>A unit runs the first of its rules that can start. Inputs are taken at the start and outputs given <code>rate</code> ticks later. It accepts what its rules take, up to twice the amount, and sends what they make through its front.</p>
+  <div class="scroll"><table>
+    <tr><th>Rule statement</th><th>Meaning</th></tr>
+    <tr><td><code>appliesTo &lt;unit&gt;</code></td><td>The unit this rule belongs to. Defaults to the rule's name.</td></tr>
+    <tr><td><code>rate &lt;n&gt;</code></td><td>Ticks from start to finish. Defaults to 1.</td></tr>
+    <tr><td><code>local &lt;R&gt; in|out &lt;n&gt;</code>, or <code>&lt;R&gt; in|out &lt;n&gt;</code></td><td>Items taken from or made in the unit.</td></tr>
+    <tr><td><code>global &lt;R&gt; in|out &lt;n&gt;</code></td><td>Taken from or added to a world-wide stock.</td></tr>
+    <tr><td><code>map &lt;M&gt; in &lt;n&gt;</code></td><td>Taken from the layer at the unit's tile.</td></tr>
+    <tr><td><code>map &lt;M&gt; out &lt;n&gt; [radius &lt;r&gt;]</code></td><td>Added to the layer around the unit.</td></tr>
+    <tr><td><code>map &lt;M&gt; atLeast|atMost|greater|less|is &lt;n&gt;</code></td><td>The rule starts only when this holds at the unit's tile. <code>test map …</code> also works.</td></tr>
+  </table></div>
+  <p>Where it differs from GlassBox and citysim: numbers are whole, rules fire at the end of their <code>rate</code> instead of being averaged per tick, and every resource, layer and unit must be declared, so a typo is reported with its line number. Declarations are on one line in the pack itself. <code>mapRule</code>, <code>zoneRule</code>, <code>agentRule</code>, <code>agent</code>, <code>log</code> and <code>options</code> are not supported yet and are reported as errors.</p>
+  <p>Rule changes alter the state hash, so players on different rules are detected as out of sync. Names and sprites don't.</p>
+
   <h2>Embedding the simulation</h2>
-  <p>The <code>openfactor-sim</code> crate has no dependencies. Items, recipes and speeds are passed in as a <code>Content</code> value.</p>
+  <p>The <code>openfactor-sim</code> crate has no dependencies.</p>
 <pre><code>use openfactor_sim::*;
 
-let worldgen = WorldGen { patches: vec![Patch {
-    origin: Pos::new(0, 0), width: 1, height: 1,
-    item: ItemId(0), amount_per_tile: 1_000,
-}]};
-let mut world = World::new(Content::example(), &amp;worldgen).unwrap();
+let pack = Pack::parse(include_str!("base.gbx"))?;
+let mut world = World::new(&amp;pack);
 
-world.step(&amp;[Command::Place {
-    pos: Pos::new(0, 0), dir: Dir::East, building: Building::Miner,
-}]);
+world.step(&amp;pack.worldgen.starter);
 println!("{:016x}", world.state_hash());</code></pre>
 
   <h2>Building from source</h2>
@@ -103,9 +131,12 @@ python3 -m http.server --directory site</code></pre>
     <li>Headless simulation with replay tests (done).</li>
     <li>Browser client with a build and render loop (first version live).</li>
     <li>Two browsers in one world, with late join and desync detection.</li>
-    <li>Data packs and the external API.</li>
+    <li>GlassBox-style rule packs (first version live), map rules, an in-game inspector and editor, and the external API.</li>
     <li>WASM mods, then federation between worlds.</li>
   </ol>
+
+  <h2>Credits</h2>
+  <p>Sandbox art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> by Kenney, released under <a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>.</p>
 </main>
 </body>
 </html>
