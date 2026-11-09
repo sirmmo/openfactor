@@ -412,7 +412,7 @@ fn map_rules_and_metrics_are_part_of_the_state_hash() {
 
 #[test]
 fn pack_mistakes_name_the_line() {
-    let cases: [(&str, usize, &str); 31] = [
+    let cases: [(&str, usize, &str); 35] = [
         ("resource a\nunit u\ncost u", 3, "pairs of a resource"),
         ("resource a\nunit u\ncost u a 1 a 2", 3, "listed twice"),
         ("resource a\ncost nothing a 1", 2, "unknown unit"),
@@ -422,7 +422,7 @@ fn pack_mistakes_name_the_line() {
         ("unit u\nresearch r\nunlocks u\nend\nresearch s\nunlocks u\nend", 6, "more than one research"),
         ("research r\nrequires s\nend\nresearch s\nrequires r\nend", 1, "form a loop"),
         ("resource a\nunit u routes split\nunitRule u\na out 1\nend", 3, "can't have rules"),
-        ("unit u routes teleport", 1, "split, filter or tunnel"),
+        ("unit u routes teleport", 1, "split, filter, tunnel, up or down"),
         ("unit u range 3", 1, "after 'routes tunnel'"),
         ("unit u reach 3", 1, "after 'links"),
         ("resource a\nunit u links a reach 99", 2, "at most 32"),
@@ -444,6 +444,10 @@ fn pack_mistakes_name_the_line() {
         ("unit u\nzoneRule grow\nrate 1\nend", 2, "doesn't support yet"),
         ("resource a\nunit u\nunitRule u\na out 1", 3, "never closed"),
         ("unit belt", 1, "built into the engine"),
+        ("levels 99", 1, "at most 8"),
+        ("span 99", 1, "at most 16"),
+        ("levels 0", 1, "at least 1"),
+        ("unit u\nplace u 0 0 east height 2", 2, "does not understand 'height'"),
     ];
     for (text, line, fragment) in cases {
         let error = Pack::parse(text).unwrap_err();
@@ -1296,4 +1300,288 @@ fn base_pack_starter_is_affordable() {
     assert_eq!(world.step(&pack.worldgen.starter), vec![]);
     let plate = pack.content.resource_id("ironPlate").unwrap();
     assert!(world.global(plate) >= 30, "enough left to get going");
+}
+
+// --- Levels
+
+const FLOORS: &str = r#"
+    levels 4
+    span 2
+    resource ore
+    resource power
+    layer oreField
+    layer fumes
+    unit miner placeOn oreField
+    unit hoist routes up range 2
+    unit chute routes down range 2
+    unit pillar
+    unit bin stores any
+    unit plant links power reach 2
+    unit lamp links power reach 2
+    unit stack
+    unitRule mine
+        appliesTo miner
+        rate 4
+        map oreField in 1
+        local ore out 1
+    end
+    unitRule burn
+        appliesTo plant
+        rate 2
+        network power out 10
+    end
+    unitRule shine
+        appliesTo lamp
+        rate 2
+        network power in 1
+        local ore out 1
+    end
+    unitRule smoke
+        appliesTo stack
+        rate 2
+        map fumes out 1
+    end
+    patch oreField at 0 0 size 1 1 amount 1000000
+"#;
+
+fn floors() -> (World, Floors) {
+    let pack = Pack::parse(FLOORS).unwrap();
+    let id = |name: &str| pack.content.unit_id(name).unwrap();
+    let units = Floors {
+        miner: id("miner"),
+        hoist: id("hoist"),
+        chute: id("chute"),
+        pillar: id("pillar"),
+        bin: id("bin"),
+        plant: id("plant"),
+        lamp: id("lamp"),
+        stack: id("stack"),
+    };
+    (World::new(&pack), units)
+}
+
+struct Floors {
+    miner: UnitId,
+    hoist: UnitId,
+    chute: UnitId,
+    pillar: UnitId,
+    bin: UnitId,
+    plant: UnitId,
+    lamp: UnitId,
+    stack: UnitId,
+}
+
+fn at3(x: i32, y: i32, z: i32, dir: Dir, building: Building) -> Command {
+    Command::Place { pos: Pos::at(x, y, z), dir, building }
+}
+
+fn unit3(x: i32, y: i32, z: i32, id: UnitId) -> Command {
+    at3(x, y, z, Dir::East, Building::Unit(id))
+}
+
+fn belt3(x: i32, y: i32, z: i32, dir: Dir) -> Command {
+    at3(x, y, z, dir, Building::Belt(BeltId(0)))
+}
+
+fn reasons(world: &mut World, commands: &[Command]) -> Vec<Reject> {
+    world.step(commands).into_iter().map(|rejected| rejected.reason).collect()
+}
+
+#[test]
+fn a_hoist_lifts_items_and_a_chute_brings_them_down() {
+    let (mut world, u) = floors();
+    run(
+        &mut world,
+        &[
+            unit3(0, 0, 0, u.miner),
+            unit3(1, 0, 0, u.hoist),
+            unit3(1, 0, 1, u.hoist),
+            belt3(2, 0, 1, Dir::East),
+            unit3(3, 0, 1, u.chute),
+            unit3(3, 0, 0, u.chute),
+            unit3(4, 0, 0, u.bin),
+        ],
+        800,
+    );
+    assert!(world.stock(p(4, 0), ORE) > 100, "{}", world.stock(p(4, 0), ORE));
+    assert_conserved(&world);
+
+    let top = world.inspect(Pos::at(1, 0, 1)).unwrap();
+    assert_eq!((top.sends_to, top.receives_from), (None, Some(0)));
+    let bottom = world.inspect(p(1, 0)).unwrap();
+    assert_eq!((bottom.sends_to, bottom.receives_from), (Some(1), None));
+}
+
+#[test]
+fn a_belt_can_cross_over_another() {
+    let (mut world, u) = floors();
+    let ground_belt = |x| belt3(x, 3, 0, Dir::East);
+    // The ground belt goes first, because it holds up the far end of the bridge.
+    let mut commands: Vec<Command> = (0..=2).map(ground_belt).collect();
+    commands.extend([
+        unit3(0, 0, 0, u.miner),
+        // Down the column at x=1, up one level at y=1, over the ground belt at y=3.
+        at3(1, 0, 0, Dir::South, Building::Belt(BeltId(0))),
+        unit3(1, 1, 0, u.hoist),
+        at3(1, 1, 1, Dir::South, Building::Unit(u.hoist)),
+        belt3(1, 2, 1, Dir::South),
+        belt3(1, 3, 1, Dir::South),
+        belt3(1, 4, 1, Dir::South),
+        unit3(1, 5, 1, u.bin),
+    ]);
+    run(&mut world, &commands, 800);
+    assert!(world.stock(Pos::at(1, 5, 1), ORE) > 100);
+    assert_eq!(world.line_count(), 3, "the crossing belts stay separate lines");
+    assert_conserved(&world);
+}
+
+#[test]
+fn belts_on_different_levels_do_not_connect() {
+    let (mut world, u) = floors();
+    // A level-1 belt whose front is over a ground bin delivers nowhere.
+    run(
+        &mut world,
+        &[unit3(0, 0, 0, u.pillar), belt3(0, 0, 1, Dir::East), unit3(1, 0, 0, u.bin)],
+        5,
+    );
+    assert_eq!(world.inspect(p(1, 0)).unwrap().held.len(), 0);
+    assert_eq!(world.line_count(), 1);
+}
+
+#[test]
+fn upper_levels_need_something_below_them() {
+    let (mut world, u) = floors();
+    assert_eq!(reasons(&mut world, &[belt3(10, 10, 1, Dir::East)]), vec![Reject::Unsupported]);
+    assert_eq!(reasons(&mut world, &[unit3(10, 10, 0, u.pillar)]), vec![]);
+    // Within the span of 2, along the grid; a diagonal step counts as two.
+    assert_eq!(reasons(&mut world, &[belt3(12, 10, 1, Dir::East)]), vec![]);
+    assert_eq!(reasons(&mut world, &[belt3(11, 11, 1, Dir::East)]), vec![]);
+    assert_eq!(reasons(&mut world, &[belt3(13, 10, 1, Dir::East)]), vec![Reject::Unsupported]);
+    assert_eq!(reasons(&mut world, &[belt3(12, 11, 1, Dir::East)]), vec![Reject::Unsupported]);
+    // The level above needs something on level 1, not on the ground.
+    assert_eq!(reasons(&mut world, &[belt3(13, 10, 2, Dir::East)]), vec![]);
+    assert_eq!(reasons(&mut world, &[belt3(10, 13, 2, Dir::East)]), vec![Reject::Unsupported]);
+}
+
+#[test]
+fn a_support_cannot_be_pulled_out_from_under_a_load() {
+    let (mut world, u) = floors();
+    run(
+        &mut world,
+        &[unit3(10, 10, 0, u.pillar), unit3(11, 10, 0, u.pillar), belt3(12, 10, 1, Dir::East)],
+        1,
+    );
+    // Either pillar can go, but not both.
+    assert_eq!(reasons(&mut world, &[Command::Remove { pos: p(11, 10) }]), vec![]);
+    assert_eq!(reasons(&mut world, &[Command::Remove { pos: p(10, 10) }]), vec![Reject::CarriesLoad]);
+    assert!(world.inspect(p(10, 10)).is_some());
+    assert_eq!(reasons(&mut world, &[Command::Remove { pos: Pos::at(12, 10, 1) }]), vec![]);
+    assert_eq!(reasons(&mut world, &[Command::Remove { pos: p(10, 10) }]), vec![]);
+}
+
+#[test]
+fn levels_are_bounded_and_the_ground_stays_on_the_ground() {
+    let (mut world, u) = floors();
+    assert_eq!(reasons(&mut world, &[belt3(5, 5, -1, Dir::East)]), vec![Reject::NoSuchLevel]);
+    assert_eq!(reasons(&mut world, &[belt3(5, 5, 4, Dir::East)]), vec![Reject::NoSuchLevel]);
+    // A drill above the ore can't reach it.
+    assert_eq!(reasons(&mut world, &[unit3(0, 1, 0, u.pillar), unit3(0, 0, 1, u.miner)]), vec![Reject::NoResource]);
+
+    // A flat pack has no upper levels at all.
+    let mut flat = ore_world();
+    assert_eq!(reasons(&mut flat, &[belt3(1, 1, 1, Dir::East)]), vec![Reject::NoSuchLevel]);
+}
+
+#[test]
+fn a_blocked_shaft_breaks_the_lift() {
+    let (mut world, u) = floors();
+    run(
+        &mut world,
+        &[unit3(5, 5, 0, u.hoist), unit3(6, 5, 0, u.pillar), unit3(6, 5, 1, u.pillar), unit3(5, 5, 2, u.hoist)],
+        2,
+    );
+    assert_eq!(world.inspect(p(5, 5)).unwrap().sends_to, Some(2));
+    run(&mut world, &[unit3(5, 5, 1, u.bin)], 2);
+    assert_eq!(world.inspect(p(5, 5)).unwrap().sends_to, None);
+    assert_eq!(world.status(p(5, 5)), Some(Status::Unlinked));
+}
+
+#[test]
+fn lifts_only_pair_with_their_own_kind_and_direction() {
+    let (mut world, u) = floors();
+    run(&mut world, &[unit3(5, 5, 0, u.hoist), unit3(5, 5, 1, u.chute)], 2);
+    assert_eq!(world.status(p(5, 5)), Some(Status::Unlinked));
+    assert_eq!(world.status(Pos::at(5, 5, 1)), Some(Status::Unlinked));
+}
+
+#[test]
+fn networks_reach_between_levels_and_height_counts_as_distance() {
+    let (mut world, u) = floors();
+    run(
+        &mut world,
+        &[
+            unit3(5, 5, 0, u.plant),
+            unit3(5, 6, 0, u.pillar),
+            // One up and one along: two steps, inside the reach of 2.
+            unit3(5, 6, 1, u.lamp),
+            // Two up and two along: four steps from the plant, and three from the lamp.
+            unit3(7, 5, 1, u.pillar),
+            unit3(7, 5, 2, u.lamp),
+        ],
+        30,
+    );
+    let view = |pos| world.inspect(pos).unwrap().networks[0];
+    assert_eq!(view(Pos::at(5, 6, 1)).producers, 1);
+    assert!(world.stats(ORE).produced > 0, "the lamp in reach worked");
+    assert_eq!(view(Pos::at(7, 5, 2)).members, 1);
+}
+
+#[test]
+fn everything_on_the_map_is_read_from_the_ground_below() {
+    let (mut world, u) = floors();
+    run(&mut world, &[unit3(8, 9, 0, u.pillar), unit3(8, 8, 1, u.stack)], 11);
+    let fumes = world.content().layer_id("fumes").unwrap();
+    assert_eq!(world.layer_value(fumes, p(8, 8)), 3, "a rule takes rate + 1 ticks per cycle");
+    assert_eq!(world.layer_value(fumes, Pos::at(8, 8, 1)), 3);
+}
+
+#[test]
+fn level_fuzz_replays_identically_and_conserves_items() {
+    let build = |seed: u64| -> Vec<Vec<Command>> {
+        let (_, u) = floors();
+        let mut rng = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let mut next = move |bound: u64| {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng % bound
+        };
+        let units = [u.miner, u.hoist, u.chute, u.pillar, u.bin, u.plant, u.lamp, u.stack];
+        let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
+        (0..600)
+            .map(|_| {
+                (0..next(4))
+                    .map(|_| {
+                        let pos = Pos::at(next(8) as i32, next(8) as i32, next(5) as i32 - (next(2) as i32 & next(2) as i32));
+                        let dir = dirs[next(4) as usize];
+                        match next(5) {
+                            0 => Command::Remove { pos },
+                            1 | 2 => Command::Place { pos, dir, building: Building::Belt(BeltId(0)) },
+                            _ => Command::Place { pos, dir, building: Building::Unit(units[next(8) as usize]) },
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    };
+    for seed in 1..8 {
+        let log = build(seed);
+        let (mut first, _) = floors();
+        let (mut second, _) = floors();
+        for commands in &log {
+            assert_eq!(first.step(commands), second.step(commands));
+            assert_eq!(first.state_hash(), second.state_hash());
+            assert_conserved(&first);
+        }
+    }
 }

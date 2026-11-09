@@ -64,6 +64,7 @@
     <tr><td><kbd>P</kbd></td><td>Production totals and stock</td></tr>
     <tr><td><kbd>T</kbd></td><td>Research tree</td></tr>
     <tr><td><kbd>V</kbd></td><td>Switch between the 2D and 3D views. <kbd>Q</kbd> and <kbd>E</kbd> turn the 3D camera</td></tr>
+    <tr><td><kbd>Z</kbd> and <kbd>C</kbd></td><td>Down and up a level, once Elevated logistics is researched. Tools only act on the level you are on</td></tr>
     <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
     <tr><td><kbd>X</kbd></td><td>Erase. Whatever the building held is destroyed</td></tr>
     <tr><td><kbd>M</kbd>, right-drag, WASD or arrows</td><td>Move the view</td></tr>
@@ -74,7 +75,7 @@
   <p>Ground holds iron, copper, coal, stone or tungsten; water and oil are pumped into pipes. Plates and bricks become gears, wire and circuits, then steel, carbide and plastic, then motors and controllers. An assembly line combines those with bricks into automata, the end of the chain.</p>
   <div class="scroll"><table>
     <tr><th>Section</th><th>Buildings</th></tr>
-    <tr><td>Logistics</td><td><b>Belt</b> and the twice-as-fast <b>Express belt</b>. <b>Splitter</b>: shares items between its front and sides. <b>Sorter</b>: pick a resource in its inspector and it goes straight on while everything else leaves by the sides. <b>Tunnel</b>: sends items to the next tunnel facing the same way within 5 tiles, past anything in between. <b>Depot</b>: stores anything.</td></tr>
+    <tr><td>Logistics</td><td><b>Belt</b> and the twice-as-fast <b>Express belt</b>. <b>Splitter</b>: shares items between its front and sides. <b>Sorter</b>: pick a resource in its inspector and it goes straight on while everything else leaves by the sides. <b>Tunnel</b>: sends items to the next tunnel facing the same way within 5 tiles, past anything in between. <b>Hoist</b> and <b>Chute</b>: build one at each end of a shaft, up to 3 levels apart, with nothing between them. Items go in the first and leave from the front of the last. <b>Pillar</b>: holds up what is built above it. <b>Depot</b>: stores anything.</td></tr>
     <tr><td>Extraction</td><td><b>Drill</b>: slow, unpowered. <b>Power drill</b>: three times faster and the only way to cut tungsten. <b>Pump</b> on water, <b>Derrick</b> on oil, both feeding pipes.</td></tr>
     <tr><td>Production</td><td><b>Coal furnace</b>: burns coal, needs no power, makes smog. <b>Arc furnace</b>: clean and fast, and the only source of steel and carbide. <b>Workshop</b>: basic parts, unpowered. <b>Assembly line</b>: fast, makes every part. <b>Refinery</b>: oil and water into plastic, with tar out of its left side. If tar backs up the refinery stops, so give it somewhere to go.</td></tr>
     <tr><td>Utilities</td><td><b>Steam plant</b>: coal and water. <b>Tar burner</b>: turns the refinery's waste into power. <b>Solar panel</b>: small, free and clean. <b>Power pole</b>: connects anything within 5 steps. <b>Pipe</b>: carries water and oil between neighbours.</td></tr>
@@ -131,6 +132,14 @@ place miner 2 2 east</code></pre>
     <tr><td><code>… routes tunnel [range &lt;n&gt;]</code></td><td>Sends to the next tunnel of the same unit facing the same way within range, or else out of its front.</td></tr>
     <tr><td><code>… links &lt;R&gt; [reach &lt;n&gt;]</code></td><td>Joins that resource's network. Two members connect when either one's reach covers the other, counted in grid steps. Using <code>network</code> in a rule links a unit automatically, with reach 0.</td></tr>
   </table></div>
+  <h3>Levels</h3>
+  <div class="scroll"><table>
+    <tr><td><code>levels &lt;n&gt;</code></td><td>How many levels can be built on, up to 8. The default is 1, a flat world.</td></tr>
+    <tr><td><code>span &lt;n&gt;</code></td><td>How far, in grid steps, something above the ground can be from the nearest building on the level below. The default is 3. A building can't be removed while something above relies on it alone.</td></tr>
+    <tr><td><code>… routes up [range &lt;n&gt;]</code>, <code>… routes down [range &lt;n&gt;]</code></td><td>A lift. Sends to the next lift of the same unit straight up or down within range, as long as the shaft between is empty. The last one sends out of its front.</td></tr>
+    <tr><td><code>place &lt;what&gt; &lt;x&gt; &lt;y&gt; &lt;dir&gt; [count &lt;n&gt;] [level &lt;n&gt;]</code></td><td>Places a starting building on a level.</td></tr>
+  </table></div>
+  <p>Belts, tunnels and machine outputs stay on their own level, so belts can cross over each other. Map layers exist only on the ground: <code>placeOn</code> units must be built there, and map statements in a rule read and change the ground under the building at any height. Network reach counts a level as one step.</p>
   <h3>Costs and research</h3>
   <p>Buildings and research are paid from the shared stock. A unit with <code>stores shared</code> adds what it receives to that stock, which is also what <code>global</code> rules read and write.</p>
 <pre><code>stock ironPlate 150 gear 30

@@ -5,6 +5,11 @@
 # faster, and need a steam or tar plant, water and oil over pipes, and poles.
 # Everything delivered to a depot joins the stock that pays for buildings and research.
 
+# The factory can stack four levels high. Above the ground, a building needs
+# something on the level below within three tiles of it.
+levels 4
+span 3
+
 belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
 belt express name "Express belt" speed 32 style 1 model conveyor-stripe corner conveyor-stripe-corner
 
@@ -53,6 +58,9 @@ metric automata  name "Automata built"
 unit splitter name "Splitter"  sprite 72  group "Logistics" routes split model conveyor-cross
 unit sorter   name "Sorter"    sprite 79  group "Logistics" routes filter model scanner-low
 unit tunnel   name "Tunnel"    sprite 68  group "Logistics" routes tunnel range 5 model machine-connection-hole
+unit hoist    name "Hoist"     sprite 127 group "Logistics" routes up range 3 model crane-lift
+unit chute    name "Chute"     sprite 109 group "Logistics" routes down range 3 model hopper-square
+unit pillar   name "Pillar"    sprite 128 group "Logistics" model structure-yellow-tall
 unit depot    name "Depot"     sprite 58  group "Logistics" stores shared model box-wide
 # Extraction
 unit drill      name "Drill"       sprite 110 group "Extraction" placeOn ironField placeOn copperField placeOn coalField placeOn stoneField model piston-round
@@ -367,6 +375,9 @@ cost express    ironPlate 2 gear 1
 cost splitter   ironPlate 4 gear 2
 cost sorter     ironPlate 4 gear 2 circuit 1
 cost tunnel     ironPlate 6
+cost hoist      ironPlate 8 gear 2
+cost chute      ironPlate 6
+cost pillar     ironPlate 3
 cost depot      ironPlate 10
 cost drill      ironPlate 8 gear 3
 cost powerDrill steel 4 gear 6 wire 6
@@ -479,6 +490,13 @@ research robotics
     cost motor 30 carbide 30 plastic 60
     time 3600
     unlocks assemblyController assemblyAutomaton
+end
+research elevation
+    name "Elevated logistics"
+    requires routing
+    cost ironPlate 60 gear 6
+    time 480
+    unlocks hoist chute pillar
 end
 
 # --- The opening factory: iron and coal into a furnace, plates into a depot.

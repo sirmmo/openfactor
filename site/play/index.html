@@ -28,6 +28,8 @@
   a.chip { color: var(--ink); text-decoration: none; }
   .chip.stock { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; }
   .spacer { flex: 1; }
+  #levels { display: flex; align-items: center; gap: 4px; }
+  #levels button:disabled { opacity: .4; cursor: default; }
   button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
     border-radius: 6px; padding: 8px 11px; cursor: pointer; min-height: 40px; }
   button:hover { border-color: var(--dim); }
@@ -108,6 +110,11 @@
   <div class="chip"><span>tick</span> <b id="tick">0</b></div>
   <button id="stats-toggle" aria-expanded="false">Production<kbd>P</kbd></button>
   <button id="research-toggle" aria-expanded="false">Research<kbd>T</kbd></button>
+  <div id="levels" role="group" aria-label="Building level" hidden>
+    <button id="level-down" aria-label="One level down">&#9660;<kbd>Z</kbd></button>
+    <div class="chip"><span>level</span> <b id="level">0</b></div>
+    <button id="level-up" aria-label="One level up">&#9650;<kbd>C</kbd></button>
+  </div>
   <div class="spacer" id="hud-spacer"></div>
   <div class="chip" title="Hash of the full simulation state"><span>state</span> <b id="hash">-</b></div>
 </div>
@@ -158,16 +165,17 @@
     { horizontal: [[48, 49], [51, 50]], vertical: [[14, 64], [40, 52]] },
   ];
   const TINT_STRENGTH = 0.6, GROUND_TINT_STRENGTH = 0.55, HAZE_STRENGTH = 0.8;
-  const STATUS_MARKS = { 2: '#e05252', 3: '#b9bdc2', 4: '#f2b63c' };
-  const STATUS_TEXT = ['Waiting for inputs', 'Working', 'Not enough %', 'Held back by map conditions', 'Output has nowhere to go', 'Standing by: nothing needs its output yet'];
+  const STATUS_MARKS = { 2: '#e05252', 3: '#b9bdc2', 4: '#f2b63c', 6: '#e05252' };
+  const STATUS_TEXT = ['Waiting for inputs', 'Working', 'Not enough %', 'Held back by map conditions', 'Output has nowhere to go', 'Standing by: nothing needs its output yet', 'Not connected'];
   const PORT_TURNS = [0, -1, 1];
+  const LOWER_LEVEL_ALPHA = 0.5, LOWER_LEVEL_FADE = 0.55;
   const ZOOM_MIN = 32, ZOOM_MAX = 96, ZOOM_STEP = 16;
 
   const canvas = document.getElementById('view');
   const ctx = canvas.getContext('2d');
   const statusEl = document.getElementById('status');
   const $ = (id) => document.getElementById(id);
-  const key = (c) => c.x + ',' + c.y;
+  const key = (c) => c.x + ',' + c.y + ',' + c.z;
 
   let statusTimer = 0;
   function say(text, ms = 2200) {
@@ -257,6 +265,8 @@
   let width = 0, height = 0;
   let ground = new Map(), haze = [], buildings = new Map(), items = [];
   let hover = null, drag = null, pan = null;
+  // The level being built on. 0 is the ground.
+  let level = 0;
   let selected = null;
   // The 3D view is loaded the first time it is opened.
   let view3d = null, use3d = false, loading3d = false;
@@ -302,6 +312,26 @@
     tool = t;
     for (const [other, b] of buttons) b.setAttribute('aria-pressed', other === t);
     for (const [other, b] of actionButtons) b.setAttribute('aria-pressed', other === t);
+    if (t.unit && t.unit.route === 'lift') {
+      say(t.label + ': build one at each end of the shaft, on different levels. Z and C change level.', 5000);
+    }
+  }
+
+  function setLevel(value) {
+    level = Math.max(0, Math.min(pack.levels - 1, value));
+    $('level').textContent = level;
+    $('level-down').disabled = level === 0;
+    $('level-up').disabled = level === pack.levels - 1;
+    if (hover) hover = { ...hover, z: level };
+  }
+  $('level-down').addEventListener('click', () => setLevel(level - 1));
+  $('level-up').addEventListener('click', () => setLevel(level + 1));
+
+  // The level control appears once there is a way to move items between levels.
+  function refreshLevels() {
+    const open = pack.levels > 1 && TOOLS.some((t) => t.unit && t.unit.route === 'lift' && isOpen(t.lock));
+    $('levels').hidden = !open;
+    if (!open && level !== 0) setLevel(0);
   }
 
   for (const name of GROUPS) {
@@ -335,6 +365,7 @@
       resetButton.textContent = 'Reset';
       of.of_reset();
       closeInspector();
+      setLevel(0);
       progress = '';
       return;
     }
@@ -346,6 +377,8 @@
   function showRotation() { rotateButton.innerHTML = 'Facing ' + DIR_NAMES[rotation] + '<kbd>R</kbd>'; }
   function rotate() { rotation = (rotation + 1) % 4; showRotation(); }
   refreshGroups();
+  setLevel(0);
+  refreshLevels();
   selectGroup(group);
   selectTool(tool);
   showRotation();
@@ -353,7 +386,7 @@
   // Inspector
   const decoder = new TextDecoder();
   function inspect(cell) {
-    const pointer = of.of_inspect(cell.x, cell.y), length = of.of_inspect_len();
+    const pointer = of.of_inspect(cell.x, cell.y, cell.z), length = of.of_inspect_len();
     return JSON.parse(decoder.decode(new Uint8Array(of.memory.buffer, pointer, length)));
   }
 
@@ -394,7 +427,7 @@
   }
 
   function choose(value) {
-    of.of_configure(selected.x, selected.y, value);
+    of.of_configure(selected.x, selected.y, selected.z, value);
     selected.setting = value < 0 ? null : value;
     selected.pendingSetting = true;
     renderChoices();
@@ -446,9 +479,9 @@
   function openInspector(cell) {
     const view = inspect(cell);
     if (!view) return;
-    selected = { x: cell.x, y: cell.y, kind: view.kind, setting: view.setting, pendingSetting: false };
+    selected = { x: cell.x, y: cell.y, z: cell.z, kind: view.kind, setting: view.setting, pendingSetting: false };
     const unit = isBelt(view.kind) ? null : pack.units[view.kind - beltCount];
-    $('i-name').textContent = unit ? unit.name : pack.belts[view.kind].name;
+    $('i-name').textContent = (unit ? unit.name : pack.belts[view.kind].name) + (cell.z > 0 ? ' · level ' + cell.z : '');
     if (unit) paintIcon($('i-icon'), unit.sprite, unit.tint);
     else paintIcon($('i-icon'), beltIcon(pack.belts[view.kind]), null);
     renderChoices();
@@ -477,6 +510,11 @@
     let status;
     if (belt) {
       status = 'Moves ' + (pack.belts[view.kind].speed * 60 / TILE_UNITS).toFixed(2).replace(/\.?0+$/, '') + ' tiles a second';
+    } else if (unit.route === 'lift') {
+      const way = unit.down ? 'below' : 'above';
+      if (view.sendsTo !== null) status = 'Carries items to level ' + view.sendsTo;
+      else if (view.receivesFrom !== null) status = 'Receives from level ' + view.receivesFrom + ' and sends items out of its front';
+      else status = 'Not connected: build another ' + unit.name + ' up to ' + unit.range + ' levels ' + way + ', with nothing in the shaft';
     } else if (unit.route === 'tunnel') {
       status = 'Sends to the next tunnel facing the same way, up to ' + unit.range + ' tiles ahead';
     } else if (unit.route === 'filter') {
@@ -667,6 +705,7 @@
     if (current === progress) return;
     const finished = progress !== '' && current.split(':')[1] !== progress.split(':')[1];
     progress = current;
+    refreshLevels();
     refreshGroups();
     renderTools();
     refreshAffordable();
@@ -744,7 +783,7 @@
       loading3d = true;
       say('Loading the 3D view…', 0);
       try {
-        const { createView3d } = await import('./view3d.js?v=1');
+        const { createView3d } = await import('./view3d.js?v=2');
         view3d = await createView3d({ pack, canvas: $('view3d'), spriteSource, isBelt, DIRS, PORT_TURNS, beltCount });
         statusEl.hidden = true;
       } catch (error) {
@@ -760,19 +799,30 @@
     if (use3d) view3d.resize(width, height);
   }
 
-  const cellAt = (e) => (use3d ? view3d.cellAt(e.clientX, e.clientY) : {
+  const cellAt = (e) => (use3d ? { ...view3d.cellAt(e.clientX, e.clientY, level), z: level } : {
     x: Math.floor(cam.x + (e.clientX - width / 2) / cam.cell),
     y: Math.floor(cam.y + (e.clientY - height / 2) / cam.cell),
+    z: level,
   });
+
+  // The same test the simulation makes, to warn before the click.
+  function canStand(cell) {
+    if (cell.z === 0) return true;
+    for (let dx = -pack.span; dx <= pack.span; dx++) {
+      const spread = pack.span - Math.abs(dx);
+      for (let dy = -spread; dy <= spread; dy++) if (buildingAt(cell.x + dx, cell.y + dy, cell.z - 1)) return true;
+    }
+    return false;
+  }
 
   function applyAt(cell) {
     const k = key(cell);
     if (drag.touched.has(k) || tool.id === 'inspect') return;
     const occupied = buildings.has(k);
     if (tool.id === 'erase') {
-      if (occupied) { of.of_remove(cell.x, cell.y); drag.touched.add(k); }
+      if (occupied) { of.of_remove(cell.x, cell.y, cell.z); drag.touched.add(k); }
     } else if (!occupied) {
-      of.of_place(cell.x, cell.y, rotation, tool.kind);
+      of.of_place(cell.x, cell.y, cell.z, rotation, tool.kind);
       drag.touched.add(k);
     }
   }
@@ -781,13 +831,13 @@
   function dragTo(cell) {
     while (drag.last.x !== cell.x || drag.last.y !== cell.y) {
       const dx = Math.sign(cell.x - drag.last.x), dy = dx ? 0 : Math.sign(cell.y - drag.last.y);
-      const next = { x: drag.last.x + dx, y: drag.last.y + dy };
+      const next = { x: drag.last.x + dx, y: drag.last.y + dy, z: drag.last.z };
       if (tool.belt) {
         rotation = DIRS.findIndex(([x, y]) => x === dx && y === dy);
         showRotation();
         if (drag.touched.has(key(drag.last))) {
-          of.of_remove(drag.last.x, drag.last.y);
-          of.of_place(drag.last.x, drag.last.y, rotation, tool.kind);
+          of.of_remove(drag.last.x, drag.last.y, drag.last.z);
+          of.of_place(drag.last.x, drag.last.y, drag.last.z, rotation, tool.kind);
         }
       }
       drag.last = next;
@@ -844,6 +894,7 @@
     if (lower === 'r') return rotate();
     if (lower === 'v') return toggle3d();
     if (use3d && (lower === 'q' || lower === 'e')) return view3d.rotateView(lower === 'q' ? -1 : 1);
+    if (!$('levels').hidden && (lower === 'z' || lower === 'c')) return setLevel(level + (lower === 'c' ? 1 : -1));
     if (lower === 'p') return toggleStats();
     if (lower === 't') return toggleResearch();
     if (lower === 'escape') {
@@ -881,13 +932,14 @@
     haze = [];
     for (let n = data[i++]; n > 0; n--, i += 4) haze.push({ x: data[i], y: data[i + 1], layer: data[i + 2], strength: data[i + 3] });
     buildings = new Map();
-    for (let n = data[i++]; n > 0; n--, i += 5) {
-      buildings.set(data[i] + ',' + data[i + 1], { x: data[i], y: data[i + 1], dir: data[i + 2], kind: data[i + 3], status: data[i + 4] });
+    for (let n = data[i++]; n > 0; n--, i += 6) {
+      const b = { x: data[i], y: data[i + 1], z: data[i + 2], dir: data[i + 3], kind: data[i + 4], status: data[i + 5] };
+      buildings.set(key(b), b);
     }
     items = [];
-    for (let n = data[i++]; n > 0; n--, i += 5) {
-      const along = data[i + 3] / TILE_UNITS - 0.5, [dx, dy] = DIRS[data[i + 2]];
-      items.push({ x: data[i] + 0.5 + dx * along, y: data[i + 1] + 0.5 + dy * along, item: data[i + 4] });
+    for (let n = data[i++]; n > 0; n--, i += 6) {
+      const along = data[i + 4] / TILE_UNITS - 0.5, [dx, dy] = DIRS[data[i + 3]];
+      items.push({ x: data[i] + 0.5 + dx * along, y: data[i + 1] + 0.5 + dy * along, z: data[i + 2], item: data[i + 5] });
     }
   }
 
@@ -904,11 +956,11 @@
     ctx.restore();
   }
 
-  const buildingAt = (x, y) => buildings.get(x + ',' + y);
+  const buildingAt = (x, y, z) => buildings.get(x + ',' + y + ',' + z);
 
   function beltHasOutput(b) {
     const [dx, dy] = DIRS[b.dir];
-    const front = buildingAt(b.x + dx, b.y + dy);
+    const front = buildingAt(b.x + dx, b.y + dy, b.z);
     if (!front) return false;
     return isBelt(front.kind) ? front.dir !== (b.dir + 2) % 4 : unitOf(front).accepts;
   }
@@ -916,7 +968,7 @@
   function beltHasInput(b) {
     return DIRS.some(([dx, dy], side) => {
       if (side === b.dir) return false;
-      const neighbour = buildingAt(b.x + dx, b.y + dy);
+      const neighbour = buildingAt(b.x + dx, b.y + dy, b.z);
       if (!neighbour) return false;
       const toward = (side + 2) % 4;
       if (isBelt(neighbour.kind)) return neighbour.dir === toward;
@@ -962,11 +1014,25 @@
     ctx.fillRect(x, y, size, size);
   }
 
+  // Which way a lift goes, in the corner of its tile.
+  function drawLiftMark(b, unit) {
+    const size = Math.max(10, Math.round(cam.cell / 3));
+    ctx.font = size + 'px system-ui, sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#1b1608';
+    ctx.fillStyle = unit.down ? '#ffb27a' : '#8ff0a4';
+    const glyph = unit.down ? '\u25BC' : '\u25B2';
+    ctx.strokeText(glyph, sx(b.x) + 2, sy(b.y) + 1);
+    ctx.fillText(glyph, sx(b.x) + 2, sy(b.y) + 1);
+  }
+
   function drawBuilding(b, tick) {
     if (isBelt(b.kind)) return drawBelt(b, tick);
     const unit = unitOf(b);
     drawSprite(unit.sprite, sx(b.x), sy(b.y), cam.cell, false, false, unit.tint);
     for (const port of unit.ports) drawOutputArrow(b, PORT_TURNS[port]);
+    if (unit.route === 'lift') drawLiftMark(b, unit);
     if (b.status !== undefined) drawStatusMark(b);
   }
 
@@ -978,7 +1044,7 @@
   // Pipes (reach 1) are drawn as runs under the art, longer links as wires above it.
   function drawLinks(visible, wires) {
     for (const b of buildings.values()) {
-      if (isBelt(b.kind) || !visible(b.x, b.y)) continue;
+      if (isBelt(b.kind) || b.z !== level || !visible(b.x, b.y)) continue;
       for (const [resource, reach] of unitOf(b).links) {
         if (reach === 0 || (reach > 1) !== wires) continue;
         ctx.strokeStyle = wires ? 'rgba(232, 192, 74, .65)' : '#8ea0b8';
@@ -988,13 +1054,33 @@
           const spread = reach - Math.abs(dx);
           for (let dy = -spread; dy <= spread; dy++) {
             if (!dx && !dy) continue;
-            const other = buildingAt(b.x + dx, b.y + dy);
+            const other = buildingAt(b.x + dx, b.y + dy, b.z);
             if (!other || isBelt(other.kind) || !unitOf(other).linked.has(resource)) continue;
             ctx.beginPath();
             ctx.moveTo(sx(b.x + 0.5), sy(b.y + 0.5));
             ctx.lineTo(sx(other.x + 0.5), sy(other.y + 0.5));
             ctx.stroke();
           }
+        }
+      }
+    }
+  }
+
+  // Above the ground the map is dimmed, except where the level below can hold something up.
+  function drawLevelFloor(left, right, top, bottom) {
+    ctx.fillStyle = 'rgba(14, 17, 22, .62)';
+    ctx.fillRect(0, 0, width, height);
+    const lit = new Set();
+    ctx.fillStyle = 'rgba(232, 214, 170, .14)';
+    for (const b of buildings.values()) {
+      if (b.z !== level - 1) continue;
+      for (let dx = -pack.span; dx <= pack.span; dx++) {
+        const spread = pack.span - Math.abs(dx);
+        for (let dy = -spread; dy <= spread; dy++) {
+          const x = b.x + dx, y = b.y + dy, id = x + ',' + y;
+          if (x < left || x > right || y < top || y > bottom || lit.has(id)) continue;
+          lit.add(id);
+          ctx.fillRect(sx(x), sy(y), cam.cell, cam.cell);
         }
       }
     }
@@ -1030,12 +1116,21 @@
         drawSprite(sprite, sx(x), sy(y), cam.cell, false, false, definition ? definition.tint : null, GROUND_TINT_STRENGTH);
       }
     }
+    if (level > 0) drawLevelFloor(left, right, top, bottom);
+    // Lower levels show through, fainter the further down they are.
+    for (let z = 0; z < level; z++) {
+      ctx.globalAlpha = LOWER_LEVEL_ALPHA * Math.pow(LOWER_LEVEL_FADE, level - 1 - z);
+      for (const b of buildings.values()) {
+        if (b.z === z && visible(b.x, b.y)) drawBuilding({ ...b, status: undefined }, tick);
+      }
+    }
+    ctx.globalAlpha = 1;
     drawLinks(visible, false);
-    for (const b of buildings.values()) if (visible(b.x, b.y)) drawBuilding(b, tick);
+    for (const b of buildings.values()) if (b.z === level && visible(b.x, b.y)) drawBuilding(b, tick);
     // Items scale by whole multiples of the art so their pixels stay even.
     const itemSize = SHEET_TILE * Math.floor(cam.cell / 32);
     for (const it of items) {
-      if (!visible(it.x, it.y)) continue;
+      if (it.z !== level || !visible(it.x, it.y)) continue;
       const resource = pack.resources[it.item];
       drawSprite(resource.sprite, sx(it.x) - itemSize / 2, sy(it.y) - itemSize / 2, itemSize, false, false, resource.tint);
     }
@@ -1047,15 +1142,21 @@
     }
     ctx.globalAlpha = 1;
     drawLinks(visible, true);
+    // Whatever is built higher up is only outlined.
+    ctx.strokeStyle = 'rgba(190, 210, 240, .45)';
+    ctx.lineWidth = 1;
+    for (const b of buildings.values()) {
+      if (b.z > level && visible(b.x, b.y)) ctx.strokeRect(sx(b.x) + 3.5, sy(b.y) + 3.5, cam.cell - 7, cam.cell - 7);
+    }
 
-    if (selected) {
+    if (selected && selected.z === level) {
       ctx.strokeStyle = '#f2b63c';
       ctx.lineWidth = 3;
       ctx.strokeRect(sx(selected.x) + 1, sy(selected.y) + 1, cam.cell - 2, cam.cell - 2);
     }
 
     if (hover && !pan && tool.id !== 'move') {
-      if (tool.id === 'erase') {
+      if (tool.id === 'erase' || (tool.id !== 'inspect' && !canStand(hover))) {
         ctx.fillStyle = 'rgba(224, 82, 82, .4)';
         ctx.fillRect(sx(hover.x), sy(hover.y), cam.cell, cam.cell);
       } else if (tool.id !== 'inspect' && !buildings.has(key(hover))) {
@@ -1065,7 +1166,7 @@
           if (tool.unit.route === 'tunnel') drawTunnelRange(hover, tool.unit.range);
         }
         ctx.globalAlpha = 0.5;
-        drawBuilding({ x: hover.x, y: hover.y, dir: rotation, kind: tool.kind }, tick);
+        drawBuilding({ x: hover.x, y: hover.y, z: hover.z, dir: rotation, kind: tool.kind }, tick);
         ctx.globalAlpha = 1;
       }
       ctx.strokeStyle = 'rgba(255, 255, 255, .8)';
@@ -1095,6 +1196,9 @@
     5: 'Another research is already running.',
     6: 'That research needs an earlier one first.',
     7: 'That can’t be done.',
+    8: 'There’s no level there.',
+    9: 'Nothing on the level below is close enough to hold that up. Build a pillar.',
+    10: 'Something on the level above is resting on that.',
   };
 
   function updateHud() {
@@ -1123,7 +1227,7 @@
       if (of.of_step(steps) > 0) say(REJECT_TEXT[of.of_last_reject()]);
     }
     readSnapshot();
-    if (use3d) view3d.render({ ground, haze, buildings, items, cam, hover: pan ? null : hover, tool, rotation, selected });
+    if (use3d) view3d.render({ ground, haze, buildings, items, cam, hover: pan ? null : hover, tool, rotation, selected, level, unsupported: !!hover && !canStand(hover) });
     else draw();
     if (now >= nextHud) { updateHud(); nextHud = now + 250; }
     requestAnimationFrame(frame);

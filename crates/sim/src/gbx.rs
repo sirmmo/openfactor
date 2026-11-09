@@ -17,6 +17,11 @@ const DEFAULT_BELT_SPEED: u32 = 16;
 /// Scanning a member's reach costs its area, so keep that bounded.
 const MAX_REACH: u32 = 32;
 const DEFAULT_TUNNEL_RANGE: u32 = 4;
+const DEFAULT_LIFT_RANGE: u32 = 1;
+/// Networks scan every level they can reach, so keep these bounded too.
+const MAX_LEVELS: u32 = 8;
+const MAX_SPAN: u32 = 16;
+const DEFAULT_SPAN: u32 = 3;
 const DEFAULT_RESEARCH_TIME: u32 = 600;
 
 /// What went wrong in a pack, and on which line (counting from 1).
@@ -197,6 +202,8 @@ struct Builder {
     starter: Vec<Command>,
     stock: Vec<(ItemId, u32)>,
     sandbox: bool,
+    levels: Option<u32>,
+    span: Option<u32>,
 }
 
 fn parse_port(token: &str) -> Option<Port> {
@@ -394,14 +401,19 @@ impl Builder {
                 ["routes", "split"] => unit.route = Some(Route::Split),
                 ["routes", "filter"] => unit.route = Some(Route::Filter),
                 ["routes", "tunnel"] => unit.route = Some(Route::Tunnel { range: DEFAULT_TUNNEL_RANGE }),
+                ["routes", "up"] => unit.route = Some(Route::Lift { range: DEFAULT_LIFT_RANGE, down: false }),
+                ["routes", "down"] => unit.route = Some(Route::Lift { range: DEFAULT_LIFT_RANGE, down: true }),
                 ["routes", other] => {
-                    return line.fail(format!("expected split, filter or tunnel, found '{other}'"));
+                    return line.fail(format!("expected split, filter, tunnel, up or down, found '{other}'"));
                 }
                 ["range", value] => match unit.route {
                     Some(Route::Tunnel { .. }) => {
                         unit.route = Some(Route::Tunnel { range: line.positive(value)? });
                     }
-                    _ => return line.fail("'range' only applies after 'routes tunnel'"),
+                    Some(Route::Lift { down, .. }) => {
+                        unit.route = Some(Route::Lift { range: line.positive(value)?, down });
+                    }
+                    _ => return line.fail("'range' only applies after 'routes tunnel', 'routes up' or 'routes down'"),
                 },
                 ["links", value] => {
                     let resource = self.resource(line, value)?;
@@ -440,6 +452,20 @@ impl Builder {
                 });
             }
             ["sandbox"] => self.sandbox = true,
+            ["levels", value] => {
+                let levels = line.positive(value)?;
+                if levels > MAX_LEVELS {
+                    return line.fail(format!("'levels' can be at most {MAX_LEVELS}"));
+                }
+                self.levels = Some(levels);
+            }
+            ["span", value] => {
+                let span = line.whole(value)?;
+                if span > MAX_SPAN {
+                    return line.fail(format!("'span' can be at most {MAX_SPAN}"));
+                }
+                self.span = Some(span);
+            }
             ["stock", pairs @ ..] => {
                 let parsed = self.cost_pairs(line, pairs)?;
                 self.stock.extend(parsed);
@@ -453,10 +479,16 @@ impl Builder {
                     self.units[usize::from(unit.0)].cost = cost;
                 }
             }
-            ["place", what, x, y, dir] => self.place(line, what, x, y, dir, 1)?,
-            ["place", what, x, y, dir, "count", count] => {
-                let count = line.positive(count)?;
-                self.place(line, what, x, y, dir, count)?;
+            ["place", what, x, y, dir, options @ ..] => {
+                let (mut count, mut level) = (1, 0);
+                for pair in options.chunks(2) {
+                    match pair {
+                        ["count", value] => count = line.positive(value)?,
+                        ["level", value] => level = line.whole::<u32>(value)? as i32,
+                        _ => return line.fail(format!("place does not understand '{}'", pair[0])),
+                    }
+                }
+                self.place(line, what, Pos::at(line.whole(x)?, line.whole(y)?, level), dir, count)?;
             }
             ["resource", ..] | ["layer", ..] | ["unit", ..] | ["metric", ..] | ["belt", ..] => {}
             _ => return line.fail(format!("this statement isn't understood: '{}'", line.head())),
@@ -480,13 +512,13 @@ impl Builder {
         Ok(pairs)
     }
 
-    fn place(&mut self, line: &Line, what: &str, x: &str, y: &str, dir: &str, count: u32) -> Parsed<()> {
+    fn place(&mut self, line: &Line, what: &str, start: Pos, dir: &str, count: u32) -> Parsed<()> {
         let building = match self.belts.iter().position(|b| b.id == what) {
             Some(index) => Building::Belt(BeltId(index as u16)),
             None => Building::Unit(self.unit(line, what)?),
         };
         let dir = parse_dir(line, dir)?;
-        let mut pos = Pos::new(line.whole(x)?, line.whole(y)?);
+        let mut pos = start;
         for _ in 0..count {
             self.starter.push(Command::Place { pos, dir, building });
             pos = pos.step(dir);
@@ -823,6 +855,8 @@ impl Builder {
                 map_rules: self.map_rules,
                 belts: self.belts,
                 techs: self.techs,
+                levels: self.levels.unwrap_or(1),
+                span: self.span.unwrap_or(DEFAULT_SPAN),
             },
             worldgen: WorldGen { patches: self.patches, starter: self.starter, stock: self.stock },
         }

@@ -11,14 +11,19 @@ const TILE_FIT = 0.94;
 const ROTATE_EASE = 0.18;
 const BELT_TOP = 0.34;
 const ITEM_HEIGHT = 0.16;
+const LEVEL_HEIGHT = 1.6;
+const ABOVE_OPACITY = 0.2;
+const DECK_THICKNESS = 0.08;
+const RAIL_OFFSET = 0.36;
 const HAZE_BUCKETS = [0.15, 0.3, 0.45, 0.62];
 const SAND = 0xe3a76c, GRID = 0xb9824e;
-const STATUS_COLORS = { 2: 0xe05252, 3: 0xb9bdc2, 4: 0xf2b63c };
+const STATUS_COLORS = { 2: 0xe05252, 3: 0xb9bdc2, 4: 0xf2b63c, 6: 0xe05252 };
 // Edges are numbered from north, clockwise. The kit's corner piece opens on edge 2
 // and the one after it, and its straight piece runs north to south.
 const CORNER_BASE_EDGE = 2;
 const STRAIGHT_BELT_TURN = Math.PI / 2;
 
+const heightOf = (level) => level * LEVEL_HEIGHT;
 const quarterTurn = (steps) => -steps * Math.PI / 2;
 const facingYaw = (dir) => quarterTurn(dir - 1);
 
@@ -91,6 +96,10 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   grid.material.opacity = 0.35;
   grid.position.y = 0.02;
   scene.add(grid);
+  const levelGrid = new THREE.GridHelper(60, 60, 0xf2e6c8, 0xf2e6c8);
+  levelGrid.material.transparent = true;
+  levelGrid.material.opacity = 0.3;
+  scene.add(levelGrid);
 
   // --- Models
 
@@ -115,9 +124,11 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     const size = model.bounds.getSize(new THREE.Vector3());
     const center = model.bounds.getCenter(new THREE.Vector3());
     const scale = Math.min(1, TILE_FIT / Math.max(size.x, size.z));
-    const matrix = new THREE.Matrix4().makeScale(scale, scale, scale)
+    // Structural pieces reach exactly from one level to the next.
+    const upright = model.name.startsWith('structure') ? LEVEL_HEIGHT / size.y : scale;
+    const matrix = new THREE.Matrix4().makeScale(scale, upright, scale)
       .multiply(new THREE.Matrix4().makeTranslation(-center.x, -model.bounds.min.y, -center.z));
-    return { matrix, height: size.y * scale };
+    return { matrix, height: size.y * upright };
   }
   const fits = new Map();
   for (const model of models.values()) fits.set(model.name, fitOf(model, model.name.startsWith('conveyor')));
@@ -126,8 +137,17 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   scene.add(world);
   const modelBatches = new Map();
   for (const model of models.values()) {
-    modelBatches.set(model.name, model.parts.map((part) => (
-      { part, batch: makeBatch(world, part.geometry, part.material, { shadow: true, receive: true }) })));
+    modelBatches.set(model.name, model.parts.map((part) => {
+      const faint = part.material.clone();
+      faint.transparent = true;
+      faint.opacity = ABOVE_OPACITY;
+      faint.depthWrite = false;
+      return {
+        part,
+        batch: makeBatch(world, part.geometry, part.material, { shadow: true, receive: true }),
+        faintBatch: makeBatch(world, part.geometry, faint),
+      };
+    }));
   }
 
   // --- Simple shapes
@@ -151,6 +171,13 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   const markBatch = makeBatch(world, new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff }), { colored: true });
   const pipeBatch = makeBatch(world, new THREE.BoxGeometry(1, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x8ea0b8, metalness: 0.2, roughness: 0.6 }), { shadow: true });
 
+  const deckGeometry = new THREE.BoxGeometry(1, DECK_THICKNESS, 1);
+  const deckColor = 0x6d7a8c;
+  const deckBatch = makeBatch(world, deckGeometry, new THREE.MeshLambertMaterial({ color: deckColor }), { shadow: true, receive: true });
+  const faintDeckBatch = makeBatch(world, deckGeometry,
+    new THREE.MeshLambertMaterial({ color: deckColor, transparent: true, opacity: ABOVE_OPACITY, depthWrite: false }));
+  const railBatch = makeBatch(world, new THREE.BoxGeometry(0.07, 1, 0.07), new THREE.MeshLambertMaterial({ color: 0xe0b43c }), { shadow: true });
+
   const wires = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xe8c04a }));
   wires.frustumCulled = false;
   world.add(wires);
@@ -161,12 +188,14 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
 
   let yaw = Math.PI / 4, yawTarget = yaw;
   let viewWidth = 1, viewHeight = 1;
+  // The height the camera looks at, which follows the level being built on.
+  let focus = 0;
 
   function syncCamera(cam) {
     const offset = new THREE.Vector3(
       Math.sin(yaw) * Math.cos(PITCH), Math.sin(PITCH), Math.cos(yaw) * Math.cos(PITCH),
     ).multiplyScalar(CAMERA_DISTANCE);
-    const target = new THREE.Vector3(cam.x, 0, cam.y);
+    const target = new THREE.Vector3(cam.x, focus, cam.y);
     camera.position.copy(target).add(offset);
     camera.left = -viewWidth / 2 / cam.cell;
     camera.right = viewWidth / 2 / cam.cell;
@@ -181,21 +210,23 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   const ray = new THREE.Raycaster();
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   let lastCam = { x: 0, y: 0, cell: 48 };
-  function groundAt(clientX, clientY, cam = lastCam) {
+  function pointAt(clientX, clientY, height, cam) {
     syncCamera(cam);
     ray.setFromCamera(new THREE.Vector2(clientX / viewWidth * 2 - 1, 1 - clientY / viewHeight * 2), camera);
+    groundPlane.constant = -height;
     const hit = ray.ray.intersectPlane(groundPlane, new THREE.Vector3());
     return hit ? { x: hit.x, y: hit.z } : { x: cam.x, y: cam.y };
   }
+  const groundAt = (clientX, clientY, cam = lastCam) => pointAt(clientX, clientY, 0, cam);
 
   // --- Layout, rebuilt only when the buildings change
 
-  const buildingAt = (buildings, x, y) => buildings.get(x + ',' + y);
+  const buildingAt = (buildings, x, y, z) => buildings.get(x + ',' + y + ',' + z);
   const unitOf = (b) => pack.units[b.kind - beltCount];
 
   function feedsFrom(buildings, b, side) {
     const [dx, dy] = DIRS[side];
-    const neighbour = buildingAt(buildings, b.x + dx, b.y + dy);
+    const neighbour = buildingAt(buildings, b.x + dx, b.y + dy, b.z);
     if (!neighbour) return false;
     const toward = (side + 2) % 4;
     if (isBelt(neighbour.kind)) return neighbour.dir === toward;
@@ -225,34 +256,77 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   }
 
   let unitHeights = new Map();
-  function rebuildBuildings(buildings) {
-    const lists = new Map([...models.keys()].map((name) => [name, []]));
-    const arrows = [];
+  /** The next lift of the same kind along a lift's shaft, if nothing blocks it. */
+  function liftPartner(buildings, b, unit) {
+    const step = unit.down ? -1 : 1;
+    for (let distance = 1; distance <= unit.range; distance++) {
+      const other = buildingAt(buildings, b.x, b.y, b.z + step * distance);
+      if (other) return other.kind === b.kind ? other : null;
+    }
+    return null;
+  }
+
+  function fillPieces(batch, list, inner) {
+    const mesh = batch.resize(list.length);
+    list.forEach(({ b, yaw: angle }, index) => setInstance(mesh, index, b.x + 0.5, heightOf(b.z), b.y + 0.5, angle, inner));
+    batch.commit();
+  }
+
+  function fillDecks(batch, list) {
+    const mesh = batch.resize(list.length);
+    list.forEach((b, index) => {
+      place.makeTranslation(b.x + 0.5, heightOf(b.z) - DECK_THICKNESS / 2, b.y + 0.5);
+      mesh.setMatrixAt(index, place);
+    });
+    batch.commit();
+  }
+
+  function rebuildBuildings(buildings, level) {
+    const lists = new Map([...models.keys()].map((name) => [name, { solid: [], faint: [] }]));
+    const arrows = [], decks = { solid: [], faint: [] }, shafts = [];
     unitHeights = new Map();
     for (const b of buildings.values()) {
       const piece = pieceOf(buildings, b);
-      if (piece.model) lists.get(piece.model).push({ b, yaw: piece.yaw });
+      const above = b.z > level, pile = above ? 'faint' : 'solid';
+      if (piece.model) lists.get(piece.model)[pile].push({ b, yaw: piece.yaw });
+      if (b.z > 0) decks[pile].push(b);
+      const base = heightOf(b.z);
       if (isBelt(b.kind)) {
-        arrows.push({ x: b.x + 0.5, z: b.y + 0.5, y: BELT_TOP + 0.09, dir: b.dir });
+        if (!above) arrows.push({ x: b.x + 0.5, z: b.y + 0.5, y: base + BELT_TOP + 0.09, dir: b.dir });
       } else {
         const unit = unitOf(b);
-        unitHeights.set(b.x + ',' + b.y, piece.model ? fits.get(piece.model).height : 0.5);
+        unitHeights.set(b.x + ',' + b.y + ',' + b.z, piece.model ? fits.get(piece.model).height : 0.5);
+        if (unit.route === 'lift') {
+          const partner = liftPartner(buildings, b, unit);
+          if (partner) shafts.push({ x: b.x + 0.5, z: b.y + 0.5, from: Math.min(b.z, partner.z), to: Math.max(b.z, partner.z) });
+        }
+        if (above) continue;
         for (const port of unit.ports) {
           const dir = (b.dir + PORT_TURNS[port] + 4) % 4, [dx, dz] = DIRS[dir];
-          arrows.push({ x: b.x + 0.5 + dx * 0.42, z: b.y + 0.5 + dz * 0.42, y: 0.12, dir });
+          arrows.push({ x: b.x + 0.5 + dx * 0.42, z: b.y + 0.5 + dz * 0.42, y: base + 0.12, dir });
         }
       }
     }
 
     for (const [name, list] of lists) {
       const fit = fits.get(name).matrix;
-      for (const { part, batch } of modelBatches.get(name)) {
-        const mesh = batch.resize(list.length);
+      for (const { part, batch, faintBatch } of modelBatches.get(name)) {
         const inner = new THREE.Matrix4().multiplyMatrices(fit, part.matrix);
-        list.forEach(({ b, yaw: angle }, index) => setInstance(mesh, index, b.x + 0.5, 0, b.y + 0.5, angle, inner));
-        batch.commit();
+        fillPieces(batch, list.solid, inner);
+        fillPieces(faintBatch, list.faint, inner);
       }
     }
+    fillDecks(deckBatch, decks.solid);
+    fillDecks(faintDeckBatch, decks.faint);
+
+    const railMesh = railBatch.resize(shafts.length * 2);
+    shafts.forEach((shaft, index) => {
+      const bottom = heightOf(shaft.from), length = heightOf(shaft.to) - bottom;
+      const stretch = new THREE.Matrix4().makeScale(1, length, 1);
+      setInstance(railMesh, index * 2, shaft.x - RAIL_OFFSET, bottom + length / 2, shaft.z, 0, stretch);
+      setInstance(railMesh, index * 2 + 1, shaft.x + RAIL_OFFSET, bottom + length / 2, shaft.z, 0, stretch);
+    });
+    railBatch.commit();
 
     const arrowMesh = arrowBatch.resize(arrows.length);
     const identity = new THREE.Matrix4();
@@ -268,21 +342,26 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
       if (isBelt(b.kind)) continue;
       for (const [resource, reach] of unitOf(b).links) {
         if (reach === 0) continue;
-        for (let dx = -reach; dx <= reach; dx++) {
-          const spread = reach - Math.abs(dx);
-          for (let dy = -spread; dy <= spread; dy++) {
-            if (!dx && !dy) continue;
-            const other = buildingAt(buildings, b.x + dx, b.y + dy);
-            if (!other || isBelt(other.kind) || !unitOf(other).linked.has(resource)) continue;
-            // A link seen from both ends is only drawn once.
-            const otherReach = unitOf(other).links.find(([linked]) => linked === resource)[1];
-            if (otherReach >= Math.abs(dx) + Math.abs(dy) && (dx < 0 || (dx === 0 && dy < 0))) continue;
-            if (reach === 1) {
-              pipes.push({ x: b.x + 0.5 + dx / 2, z: b.y + 0.5 + dy / 2, along: dx !== 0 });
-            } else {
-              const fromHeight = Math.max(0.3, unitHeights.get(b.x + ',' + b.y) - 0.1);
-              const toHeight = Math.max(0.3, unitHeights.get(other.x + ',' + other.y) - 0.1);
-              segments.push(b.x + 0.5, fromHeight, b.y + 0.5, other.x + 0.5, toHeight, other.y + 0.5);
+        const climb = Math.min(reach, pack.levels - 1);
+        for (let dz = -climb; dz <= climb; dz++) {
+          const flat = reach - Math.abs(dz);
+          for (let dx = -flat; dx <= flat; dx++) {
+            const spread = flat - Math.abs(dx);
+            for (let dy = -spread; dy <= spread; dy++) {
+              if (!dx && !dy && !dz) continue;
+              const other = buildingAt(buildings, b.x + dx, b.y + dy, b.z + dz);
+              if (!other || isBelt(other.kind) || !unitOf(other).linked.has(resource)) continue;
+              // A link seen from both ends is only drawn once.
+              const otherReach = unitOf(other).links.find(([linked]) => linked === resource)[1];
+              const backward = dz < 0 || (dz === 0 && (dx < 0 || (dx === 0 && dy < 0)));
+              if (otherReach >= Math.abs(dx) + Math.abs(dy) + Math.abs(dz) && backward) continue;
+              if (reach === 1 && dz === 0) {
+                pipes.push({ x: b.x + 0.5 + dx / 2, y: heightOf(b.z) + 0.3, z: b.y + 0.5 + dy / 2, along: dx !== 0 });
+              } else {
+                const fromHeight = heightOf(b.z) + Math.max(0.3, unitHeights.get(b.x + ',' + b.y + ',' + b.z) - 0.1);
+                const toHeight = heightOf(other.z) + Math.max(0.3, unitHeights.get(other.x + ',' + other.y + ',' + other.z) - 0.1);
+                segments.push(b.x + 0.5, fromHeight, b.y + 0.5, other.x + 0.5, toHeight, other.y + 0.5);
+              }
             }
           }
         }
@@ -290,7 +369,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     }
     const pipeMesh = pipeBatch.resize(pipes.length);
     const identity = new THREE.Matrix4();
-    pipes.forEach((pipe, index) => setInstance(pipeMesh, index, pipe.x, 0.3, pipe.z, pipe.along ? 0 : Math.PI / 2, identity));
+    pipes.forEach((pipe, index) => setInstance(pipeMesh, index, pipe.x, pipe.y, pipe.z, pipe.along ? 0 : Math.PI / 2, identity));
     pipeBatch.commit();
     wires.geometry.dispose();
     wires.geometry = new THREE.BufferGeometry();
@@ -327,22 +406,23 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     });
   }
 
-  function updateItems(items) {
+  function updateItems(allItems, level) {
+    const items = allItems.filter((it) => it.z <= level);
     const mesh = itemBatch.resize(items.length);
     items.forEach((it, index) => {
-      place.makeTranslation(it.x, BELT_TOP + ITEM_HEIGHT / 2, it.y);
+      place.makeTranslation(it.x, heightOf(it.z) + BELT_TOP + ITEM_HEIGHT / 2, it.y);
       mesh.setMatrixAt(index, place);
       mesh.setColorAt(index, itemColors[it.item]);
     });
     itemBatch.commit();
   }
 
-  function updateMarks(buildings) {
+  function updateMarks(buildings, level) {
     const marked = [];
-    for (const b of buildings.values()) if (STATUS_COLORS[b.status]) marked.push(b);
+    for (const b of buildings.values()) if (STATUS_COLORS[b.status] && b.z <= level) marked.push(b);
     const mesh = markBatch.resize(marked.length);
     marked.forEach((b, index) => {
-      place.makeTranslation(b.x + 0.5, (unitHeights.get(b.x + ',' + b.y) ?? 1) + 0.25, b.y + 0.5);
+      place.makeTranslation(b.x + 0.5, heightOf(b.z) + (unitHeights.get(b.x + ',' + b.y + ',' + b.z) ?? 1) + 0.25, b.y + 0.5);
       mesh.setMatrixAt(index, place);
       mesh.setColorAt(index, color.set(STATUS_COLORS[b.status]));
     });
@@ -406,21 +486,23 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     rangeGroup.add(tile);
   }
 
-  function updatePointer({ hover, tool, rotation, buildings, selected }) {
+  function updatePointer({ hover, tool, rotation, buildings, selected, level, unsupported }) {
     selectTile.visible = !!selected;
-    if (selected) selectTile.position.set(selected.x + 0.5, 0.06, selected.y + 0.5);
+    if (selected) selectTile.position.set(selected.x + 0.5, heightOf(selected.z) + 0.06, selected.y + 0.5);
 
     const active = hover && tool.id !== 'move';
     hoverTile.visible = !!active;
     ghost.visible = rangeGroup.visible = false;
     if (!active) return;
-    hoverTile.position.set(hover.x + 0.5, 0.06, hover.y + 0.5);
-    hoverTile.material = tool.id === 'erase' ? eraseMaterial : hoverMaterial;
-    if (tool.id === 'erase' || tool.id === 'inspect' || buildings.has(hover.x + ',' + hover.y)) return;
+    const base = heightOf(level);
+    hoverTile.position.set(hover.x + 0.5, base + 0.06, hover.y + 0.5);
+    const refused = tool.id === 'erase' || (tool.id !== 'inspect' && unsupported);
+    hoverTile.material = refused ? eraseMaterial : hoverMaterial;
+    if (refused || tool.id === 'inspect' || buildings.has(hover.x + ',' + hover.y + ',' + level)) return;
 
     if (ghostTool !== tool) buildGhost(tool);
     ghost.visible = true;
-    ghost.position.set(hover.x + 0.5, 0, hover.y + 0.5);
+    ghost.position.set(hover.x + 0.5, base, hover.y + 0.5);
     ghost.rotation.y = facingYaw(rotation) + (tool.belt ? STRAIGHT_BELT_TURN : 0);
     rangeGroup.visible = true;
     rangeGroup.position.copy(ghost.position);
@@ -436,6 +518,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     for (const b of buildings.values()) {
       hash = Math.imul(hash, 31) + b.x | 0;
       hash = Math.imul(hash, 31) + b.y | 0;
+      hash = Math.imul(hash, 31) + b.z | 0;
       hash = Math.imul(hash, 31) + b.dir * 7 + b.kind | 0;
     }
     return hash;
@@ -445,8 +528,8 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
 
   return {
     groundAt,
-    cellAt(clientX, clientY) {
-      const point = groundAt(clientX, clientY);
+    cellAt(clientX, clientY, level) {
+      const point = pointAt(clientX, clientY, heightOf(level), lastCam);
       return { x: Math.floor(point.x), y: Math.floor(point.y) };
     },
     resize(width, height) {
@@ -464,6 +547,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     },
     render(state) {
       yaw += (yawTarget - yaw) * ROTATE_EASE;
+      focus += (heightOf(state.level) - focus) * ROTATE_EASE;
       lastCam = state.cam;
       const target = syncCamera(state.cam);
 
@@ -476,12 +560,15 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
       grid.position.x = Math.round(state.cam.x);
       grid.position.z = Math.round(state.cam.y);
 
-      const hash = hashBuildings(state.buildings);
-      if (hash !== builtHash) { builtHash = hash; rebuildBuildings(state.buildings); }
+      levelGrid.visible = state.level > 0;
+      levelGrid.position.set(Math.round(state.cam.x), heightOf(state.level) + 0.01, Math.round(state.cam.y));
+
+      const hash = Math.imul(hashBuildings(state.buildings), 31) + state.level | 0;
+      if (hash !== builtHash) { builtHash = hash; rebuildBuildings(state.buildings, state.level); }
       if (state.ground.size !== groundCount) { groundCount = state.ground.size; rebuildGround(state.ground); }
       updateHaze(state.haze);
-      updateItems(state.items);
-      updateMarks(state.buildings);
+      updateItems(state.items, state.level);
+      updateMarks(state.buildings, state.level);
       updatePointer(state);
       renderer.render(scene, camera);
     },

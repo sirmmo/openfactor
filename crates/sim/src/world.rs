@@ -44,6 +44,12 @@ pub enum Reject {
     ResearchBusy,
     /// A research it depends on hasn't finished.
     MissingRequirement,
+    /// Below the ground or above the top level.
+    NoSuchLevel,
+    /// Nothing on the level below is close enough to hold it up.
+    Unsupported,
+    /// Something on the level above would lose its only support.
+    CarriesLoad,
 }
 
 /// A command that had no effect. Rejection is deterministic like everything else.
@@ -85,6 +91,8 @@ pub enum Status {
     Full,
     /// Its network output hasn't been used yet.
     Standby,
+    /// A lift with no other end.
+    Unlinked,
 }
 
 /// One network a unit belongs to.
@@ -107,6 +115,9 @@ pub struct Inspection {
     pub job: Option<(usize, u32)>,
     pub held: Vec<(ItemId, u64)>,
     pub networks: Vec<NetworkView>,
+    /// For a lift: the level it sends to, and the level it receives from.
+    pub sends_to: Option<i32>,
+    pub receives_from: Option<i32>,
 }
 
 #[derive(Clone, Debug)]
@@ -233,8 +244,9 @@ fn stat(stats: &mut Stats, item: ItemId) -> &mut ItemStats {
     stats.entry(item).or_default()
 }
 
+/// The map under a position, whatever level it is on.
 fn layer_at(layers: &[Layer], layer: LayerId, pos: Pos) -> u64 {
-    layers[usize::from(layer.0)].get(&pos).copied().unwrap_or(0)
+    layers[usize::from(layer.0)].get(&pos.ground()).copied().unwrap_or(0)
 }
 
 fn subtract(map: &mut BTreeMap<ItemId, u64>, item: ItemId, amount: u64) {
@@ -246,6 +258,7 @@ fn subtract(map: &mut BTreeMap<ItemId, u64>, item: ItemId, amount: u64) {
 }
 
 fn take_from_tile(layers: &mut [Layer], layer: LayerId, pos: Pos, amount: u64) {
+    let pos = pos.ground();
     let tiles = &mut layers[usize::from(layer.0)];
     let value = tiles.get_mut(&pos).expect("checked before taking");
     *value -= amount;
@@ -520,6 +533,9 @@ impl World {
     }
 
     fn place(&mut self, pos: Pos, dir: Dir, building: Building) -> Result<(), Reject> {
+        if pos.z < 0 || pos.z >= self.content.levels as i32 {
+            return Err(Reject::NoSuchLevel);
+        }
         if self.tiles.contains_key(&pos) {
             return Err(Reject::Occupied);
         }
@@ -540,7 +556,7 @@ impl World {
                 }
                 let layers = &self.shared.layers;
                 let allowed = definition.place_on.is_empty()
-                    || definition.place_on.iter().any(|&layer| layer_at(layers, layer, pos) > 0);
+                    || (pos.z == 0 && definition.place_on.iter().any(|&layer| layer_at(layers, layer, pos) > 0));
                 if !allowed {
                     return Err(Reject::NoResource);
                 }
@@ -553,6 +569,9 @@ impl World {
                 })
             }
         };
+        if !self.is_supported(pos, None) {
+            return Err(Reject::Unsupported);
+        }
         let cost = self.cost_of(building);
         if !self.shared.can_afford(cost) {
             return Err(Reject::CantAfford);
@@ -566,6 +585,28 @@ impl World {
         map.insert(id, Entity { pos, dir, kind, targets: [None; 3], nets: Vec::new() });
         self.topology_dirty = true;
         Ok(())
+    }
+
+    /// Whether something at `pos` would be held up, not counting a building
+    /// at `ignoring`. Anything on the level below within the span will do.
+    fn is_supported(&self, pos: Pos, ignoring: Option<Pos>) -> bool {
+        pos.z == 0
+            || self.within_span(pos.shifted(-1)).any(|below| Some(below) != ignoring && self.tiles.contains_key(&below))
+    }
+
+    /// Every position on `center`'s level within the span of it.
+    fn within_span(&self, center: Pos) -> impl Iterator<Item = Pos> {
+        let span = self.content.span as i32;
+        (-span..=span).flat_map(move |dx| {
+            let spread = span - dx.abs();
+            (-spread..=spread).map(move |dy| Pos::at(center.x + dx, center.y + dy, center.z))
+        })
+    }
+
+    /// Whether removing the building at `pos` would leave something above it unsupported.
+    fn carries_load(&self, pos: Pos) -> bool {
+        self.within_span(pos.shifted(1))
+            .any(|above| self.tiles.contains_key(&above) && !self.is_supported(above, Some(pos)))
     }
 
     fn cost_of(&self, building: Building) -> &Cost {
@@ -606,7 +647,13 @@ impl World {
     }
 
     fn remove(&mut self, pos: Pos) -> Result<(), Reject> {
-        let id = self.tiles.remove(&pos).ok_or(Reject::NothingToRemove)?;
+        if !self.tiles.contains_key(&pos) {
+            return Err(Reject::NothingToRemove);
+        }
+        if self.carries_load(pos) {
+            return Err(Reject::CarriesLoad);
+        }
+        let id = self.tiles.remove(&pos).expect("checked above");
         let entity = self
             .machines
             .remove(&id)
@@ -692,11 +739,34 @@ impl World {
         None
     }
 
+    /// The next lift of the same kind up (or down) the shaft, if the way is clear.
+    fn lift_partner(&self, start: Pos, unit: UnitId, range: u32, down: bool) -> Option<EntityId> {
+        let step = if down { -1 } else { 1 };
+        for height in 1..=range.min(self.content.levels) as i32 {
+            if let Some(&id) = self.tiles.get(&start.shifted(step * height)) {
+                let same = matches!(self.machines.get(&id), Some(Entity { kind: Kind::Machine(m), .. }) if m.unit == unit);
+                return same.then_some(id);
+            }
+        }
+        None
+    }
+
+    /// Where a tunnel or lift hands its items on to, if there's a next piece.
+    fn passage_partner(&self, entity: &Entity, unit: UnitId, route: Route) -> Option<EntityId> {
+        match route {
+            Route::Tunnel { range } => self.tunnel_partner(entity, unit, range),
+            Route::Lift { range, down } => self.lift_partner(entity.pos, unit, range, down),
+            Route::Split | Route::Filter => None,
+        }
+    }
+
     /// Which ports can send to the tile next to them, in `PORTS` order.
     fn adjacent_ports(&self, entity: &Entity, machine: &Machine) -> [bool; 3] {
         let unit = self.content.unit(machine.unit);
         match unit.route {
-            Some(Route::Tunnel { range }) => [self.tunnel_partner(entity, machine.unit, range).is_none(), false, false],
+            Some(route @ (Route::Tunnel { .. } | Route::Lift { .. })) => {
+                [self.passage_partner(entity, machine.unit, route).is_none(), false, false]
+            }
             Some(_) => [true; 3],
             None => {
                 let mut used = [false; 3];
@@ -844,11 +914,9 @@ impl World {
                     Kind::Belt(_) => return found,
                 };
                 let unit = self.content.unit(machine.unit);
-                if let Some(Route::Tunnel { range }) = unit.route {
-                    if let Some(partner) = self.tunnel_partner(entity, machine.unit, range) {
-                        found[0] = Some(Target::Entity(partner));
-                        return found;
-                    }
+                if let Some(partner) = unit.route.and_then(|route| self.passage_partner(entity, machine.unit, route)) {
+                    found[0] = Some(Target::Entity(partner));
+                    return found;
                 }
                 let used = self.adjacent_ports(entity, machine);
                 for (index, port) in PORTS.iter().enumerate() {
@@ -883,15 +951,20 @@ impl World {
             let index_at: BTreeMap<Pos, usize> =
                 members.iter().enumerate().map(|(index, member)| (member.1, index)).collect();
             let mut parents: Vec<usize> = (0..members.len()).collect();
+            let top = self.content.levels as i32 - 1;
             for (index, &(_, pos, reach)) in members.iter().enumerate() {
                 let reach = reach as i32;
-                for dx in -reach..=reach {
-                    let spread = reach - dx.abs();
-                    for dy in -spread..=spread {
-                        if let Some(&other) = index_at.get(&Pos::new(pos.x + dx, pos.y + dy)) {
-                            let (a, b) = (find(&mut parents, index), find(&mut parents, other));
-                            // The older member stays the root, so numbering is stable.
-                            parents[a.max(b)] = a.min(b);
+                // A step up or down counts the same as a step along the ground.
+                for dz in -reach.min(top)..=reach.min(top) {
+                    let flat = reach - dz.abs();
+                    for dx in -flat..=flat {
+                        let spread = flat - dx.abs();
+                        for dy in -spread..=spread {
+                            if let Some(&other) = index_at.get(&Pos::at(pos.x + dx, pos.y + dy, pos.z + dz)) {
+                                let (a, b) = (find(&mut parents, index), find(&mut parents, other));
+                                // The older member stays the root, so numbering is stable.
+                                parents[a.max(b)] = a.min(b);
+                            }
                         }
                     }
                 }
@@ -935,7 +1008,7 @@ impl World {
     /// Where a routing unit should send `item` next, if anywhere can take it.
     fn route_port(&self, entity: &Entity, machine: &Machine, route: Route, item: ItemId) -> Option<(usize, Target)> {
         let allowed = |port: usize| match route {
-            Route::Split | Route::Tunnel { .. } => true,
+            Route::Split | Route::Tunnel { .. } | Route::Lift { .. } => true,
             Route::Filter => match machine.setting {
                 Some(chosen) if chosen == item.0 => port == 0,
                 Some(_) => port != 0,
@@ -1157,6 +1230,12 @@ impl World {
         if machine.job.is_some() {
             return Status::Working;
         }
+        if let Some(Route::Lift { range, down }) = unit.route {
+            let linked = [down, !down].iter().any(|&way| self.lift_partner(entity.pos, machine.unit, range, way).is_some());
+            if !linked {
+                return Status::Unlinked;
+            }
+        }
         if unit.route.is_some() {
             return Status::Idle;
         }
@@ -1215,6 +1294,7 @@ impl World {
                 machine.bins.iter().map(|(&item, &count)| (item, count)).collect(),
             ),
         };
+        let (sends_to, receives_from) = self.lift_ends(entity);
         Some(Inspection {
             building,
             dir: entity.dir,
@@ -1223,7 +1303,27 @@ impl World {
             job,
             held,
             networks: entity.nets.iter().map(view).collect(),
+            sends_to,
+            receives_from,
         })
+    }
+
+    /// The levels a lift sends to and receives from.
+    fn lift_ends(&self, entity: &Entity) -> (Option<i32>, Option<i32>) {
+        let machine = match &entity.kind {
+            Kind::Machine(machine) => machine,
+            Kind::Belt(_) => return (None, None),
+        };
+        match self.content.unit(machine.unit).route {
+            Some(Route::Lift { range, down }) => {
+                let level = |way| {
+                    let partner = self.lift_partner(entity.pos, machine.unit, range, way)?;
+                    Some(self.machines[&partner].pos.z)
+                };
+                (level(down), level(!down))
+            }
+            _ => (None, None),
+        }
     }
 
     /// Every non-zero map tile as (position, layer, value).
@@ -1376,6 +1476,8 @@ impl World {
     /// Covers everything that affects the simulation. Names and sprites are
     /// left out, so a cosmetic difference between packs is not a desync.
     fn hash_content(&self, h: &mut Hasher) {
+        h.write(u64::from(self.content.levels));
+        h.write(u64::from(self.content.span));
         h.write(self.content.belts.len() as u64);
         for belt in &self.content.belts {
             h.write_str(&belt.id);
@@ -1407,6 +1509,11 @@ impl World {
                 Some(Route::Tunnel { range }) => {
                     h.write(3);
                     h.write(u64::from(range));
+                }
+                Some(Route::Lift { range, down }) => {
+                    h.write(4);
+                    h.write(u64::from(range));
+                    h.write(u64::from(down));
                 }
             }
             h.write(unit.links.len() as u64);
@@ -1500,6 +1607,7 @@ fn hash_rule(h: &mut Hasher, rule: &Rule) {
 fn hash_pos(h: &mut Hasher, pos: Pos) {
     h.write_i32(pos.x);
     h.write_i32(pos.y);
+    h.write_i32(pos.z);
 }
 
 fn hash_kind(h: &mut Hasher, kind: &Kind) {

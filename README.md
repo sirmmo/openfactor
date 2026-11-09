@@ -13,7 +13,7 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 
 ## Decisions
 
-- **View:** top-down 2D and a 3D view of the same grid, with stacked layers later.
+- **View:** top-down 2D and 3D views of the same world, which can stack up to eight levels.
 - **Multiplayer:** small co-op (2-8 players). The server orders commands and every
   client runs the same simulation. Federation between worlds comes later.
 - **Priority:** programmable platform first (data packs, external API, WASM mods),

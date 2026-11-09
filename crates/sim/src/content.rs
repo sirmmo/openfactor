@@ -22,6 +22,11 @@ pub struct Content {
     /// Belt tiers. The first is always the built-in `belt`.
     pub(crate) belts: Vec<BeltDef>,
     pub(crate) techs: Vec<TechDef>,
+    /// How many levels can be built on. 1 is a flat world.
+    pub(crate) levels: u32,
+    /// How far, counted along the grid, something above the ground can be
+    /// from the nearest building on the level below it.
+    pub(crate) span: u32,
 }
 
 /// One entry in the research tree. Paid for from the shared stock when it starts.
@@ -163,6 +168,9 @@ pub enum Route {
     Filter,
     /// Sends to the next matching tunnel ahead, within `range` tiles, over anything between.
     Tunnel { range: u32 },
+    /// Sends to the next lift of the same kind straight up (or down), within
+    /// `range` levels. The shaft between them must be empty.
+    Lift { range: u32, down: bool },
 }
 
 /// Membership of a network. Two members connect when either one's `reach`
@@ -289,6 +297,14 @@ impl Content {
 
     pub fn tech_id(&self, id: &str) -> Option<TechId> {
         self.techs.iter().position(|t| t.id == id).map(|i| TechId(i as u16))
+    }
+
+    pub fn levels(&self) -> u32 {
+        self.levels
+    }
+
+    pub fn span(&self) -> u32 {
+        self.span
     }
 
     pub fn belts(&self) -> &[BeltDef] {

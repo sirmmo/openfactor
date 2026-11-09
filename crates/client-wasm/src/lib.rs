@@ -84,15 +84,15 @@ impl Game {
                 Building::Unit(_) => self.world.status(pos).map_or(0, status_code),
                 Building::Belt(_) => 0,
             };
-            out.extend([pos.x, pos.y, dir_code(dir), self.building_code(building), status]);
+            out.extend([pos.x, pos.y, pos.z, dir_code(dir), self.building_code(building), status]);
         }
-        finish_count(&mut out, mark, 5);
+        finish_count(&mut out, mark, 6);
 
         let mark = reserve_count(&mut out);
         for (pos, dir, offset, item) in self.world.belt_items() {
-            out.extend([pos.x, pos.y, dir_code(dir), offset as i32, i32::from(item.0)]);
+            out.extend([pos.x, pos.y, pos.z, dir_code(dir), offset as i32, i32::from(item.0)]);
         }
-        finish_count(&mut out, mark, 5);
+        finish_count(&mut out, mark, 6);
         self.snapshot = out;
     }
 
@@ -115,8 +115,9 @@ impl Game {
             Status::NoNetwork(item) => i32::from(item.0),
             _ => -1,
         };
+        let level = |value: Option<i32>| value.map_or("null".to_string(), |z| z.to_string());
         format!(
-            r#"{{"kind":{},"dir":{},"status":{},"missing":{},"setting":{},"job":{},"held":{},"networks":{}}}"#,
+            r#"{{"kind":{},"dir":{},"status":{},"missing":{},"setting":{},"job":{},"held":{},"networks":{},"sendsTo":{},"receivesFrom":{}}}"#,
             self.building_code(view.building),
             dir_code(view.dir),
             status_code(view.status),
@@ -124,7 +125,9 @@ impl Game {
             setting,
             job,
             pairs(held),
-            pairs(networks)
+            pairs(networks),
+            level(view.sends_to),
+            level(view.receives_from)
         )
     }
 }
@@ -150,6 +153,9 @@ fn reject_code(reason: Reject) -> i32 {
         Reject::CantAfford => 4,
         Reject::ResearchBusy => 5,
         Reject::MissingRequirement => 6,
+        Reject::NoSuchLevel => 8,
+        Reject::Unsupported => 9,
+        Reject::CarriesLoad => 10,
         _ => 7,
     }
 }
@@ -162,6 +168,7 @@ fn status_code(status: Status) -> i32 {
         Status::Conditions => 3,
         Status::Full => 4,
         Status::Standby => 5,
+        Status::Unlinked => 6,
     }
 }
 
@@ -255,23 +262,24 @@ fn pack_json(pack: &Pack) -> String {
         .units()
         .iter()
         .map(|unit| {
-            let (route, range) = match unit.route {
-                None => ("null", 0),
-                Some(Route::Split) => (r#""split""#, 0),
-                Some(Route::Filter) => (r#""filter""#, 0),
-                Some(Route::Tunnel { range }) => (r#""tunnel""#, range),
+            let (route, range, down) = match unit.route {
+                None => ("null", 0, false),
+                Some(Route::Split) => (r#""split""#, 0, false),
+                Some(Route::Filter) => (r#""filter""#, 0, false),
+                Some(Route::Tunnel { range }) => (r#""tunnel""#, range, false),
+                Some(Route::Lift { range, down }) => (r#""lift""#, range, down),
             };
             let links: Vec<String> = unit.links.iter().map(|l| format!("[{},{}]", l.resource.0, l.reach)).collect();
             let rules: Vec<String> = unit.rules.iter().map(json_rule).collect();
             let mut ports: Vec<i32> = match unit.route {
-                Some(Route::Tunnel { .. }) => vec![0],
+                Some(Route::Tunnel { .. } | Route::Lift { .. }) => vec![0],
                 Some(_) => vec![0, 1, 2],
                 None => unit.outputs.iter().map(|&(_, port)| port_code(port)).collect(),
             };
             ports.sort_unstable();
             ports.dedup();
             format!(
-                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{},"model":{}}}"#,
+                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"down":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{},"model":{}}}"#,
                 json_string(&unit.id),
                 json_string(&unit.name),
                 unit.sprite,
@@ -281,6 +289,7 @@ fn pack_json(pack: &Pack) -> String {
                 unit.accepts_items(),
                 route,
                 range,
+                down,
                 links.join(","),
                 rules.join(","),
                 ports,
@@ -327,7 +336,9 @@ fn pack_json(pack: &Pack) -> String {
         })
         .collect();
     format!(
-        r#"{{"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
+        r#"{{"levels":{},"span":{},"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
+        content.levels(),
+        content.span(),
         belts.join(","),
         units.join(","),
         resources.join(","),
@@ -363,9 +374,9 @@ pub extern "C" fn of_pack_json_len() -> u32 {
 
 /// Queues a placement. `kind` numbers the belt tiers first, then the pack's units.
 #[no_mangle]
-pub extern "C" fn of_place(x: i32, y: i32, dir: i32, kind: i32) {
+pub extern "C" fn of_place(x: i32, y: i32, z: i32, dir: i32, kind: i32) {
     let dir = DIRS[dir.rem_euclid(4) as usize];
-    let pos = Pos::new(x, y);
+    let pos = Pos::at(x, y, z);
     with_game(|game| {
         let building = game.building_from_code(kind);
         game.queued.push(Command::Place { pos, dir, building });
@@ -374,16 +385,16 @@ pub extern "C" fn of_place(x: i32, y: i32, dir: i32, kind: i32) {
 
 /// Queues a setting: a rule index, a resource for a filter, or negative for the default.
 #[no_mangle]
-pub extern "C" fn of_configure(x: i32, y: i32, value: i32) {
+pub extern "C" fn of_configure(x: i32, y: i32, z: i32, value: i32) {
     let setting = (value >= 0).then_some(value as u16);
-    with_game(|game| game.queued.push(Command::Configure { pos: Pos::new(x, y), setting }));
+    with_game(|game| game.queued.push(Command::Configure { pos: Pos::at(x, y, z), setting }));
 }
 
 /// Describes the building at a tile as JSON. Read `of_inspect_len` bytes from here.
 #[no_mangle]
-pub extern "C" fn of_inspect(x: i32, y: i32) -> *const u8 {
+pub extern "C" fn of_inspect(x: i32, y: i32, z: i32) -> *const u8 {
     with_game(|game| {
-        game.inspection = game.inspection_json(Pos::new(x, y));
+        game.inspection = game.inspection_json(Pos::at(x, y, z));
         game.inspection.as_ptr()
     })
 }
@@ -394,8 +405,8 @@ pub extern "C" fn of_inspect_len() -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn of_remove(x: i32, y: i32) {
-    with_game(|game| game.queued.push(Command::Remove { pos: Pos::new(x, y) }));
+pub extern "C" fn of_remove(x: i32, y: i32, z: i32) {
+    with_game(|game| game.queued.push(Command::Remove { pos: Pos::at(x, y, z) }));
 }
 
 /// Applies queued edits and advances `ticks` ticks. Returns how many edits were rejected.
@@ -419,8 +430,8 @@ pub extern "C" fn of_step(ticks: u32) -> u32 {
 }
 
 /// Writes the view as four counted lists of i32 records: ground tiles (x, y, layer),
-/// haze tiles (x, y, layer, strength 0..=255), buildings (x, y, dir, kind, status)
-/// and belt items (x, y, dir, offset, item).
+/// haze tiles (x, y, layer, strength 0..=255), buildings (x, y, z, dir, kind, status)
+/// and belt items (x, y, z, dir, offset, item).
 #[no_mangle]
 pub extern "C" fn of_snapshot() -> *const i32 {
     with_game(|game| {
@@ -535,19 +546,77 @@ mod tests {
             let unit = game.world.content().unit_id("workshop").expect("the base pack defines it");
             game.building_code(Building::Unit(unit))
         });
-        of_place(100, 100, 1, kind);
-        of_configure(100, 100, 0);
+        of_place(100, 100, 0, 1, kind);
+        of_configure(100, 100, 0, 0);
         assert_eq!(of_step(1), 0);
-        of_inspect(100, 100);
+        of_inspect(100, 100, 0);
         let json = with_game(|game| game.inspection.clone());
         assert!(json.contains(&format!(r#""kind":{kind}"#)), "{json}");
         assert!(json.contains(r#""setting":0"#), "{json}");
-        of_inspect(-100, -100);
+        of_inspect(-100, -100, 0);
         assert_eq!(with_game(|game| game.inspection.clone()), "null");
 
-        of_configure(100, 100, 2);
+        of_configure(100, 100, 0, 2);
         assert_eq!(of_step(1), 1);
         assert_eq!(of_last_reject(), 3, "the circuit recipe needs research");
+    }
+
+    #[test]
+    fn levels_are_part_of_the_bindings() {
+        of_reset();
+        let (belt, pillar) = with_game(|game| {
+            let pillar = game.world.content().unit_id("pillar").expect("the base pack defines it");
+            (0, game.building_code(Building::Unit(pillar)))
+        });
+        // Too far from anything on the ground to stand up.
+        of_place(100, 100, 1, 1, belt);
+        assert_eq!(of_step(1), 1);
+        assert_eq!(of_last_reject(), 9);
+        with_game(|game| {
+            let elevation = game.world.content().tech_id("elevation").expect("the base pack defines it");
+            assert!(game.pack_json.contains(r#""levels":4,"span":3"#));
+            assert!(game.pack_json.contains(r#""route":"lift","range":3,"down":true"#), "{}", game.pack_json);
+            assert_eq!(game.world.researched(elevation), false);
+        });
+        of_place(100, 100, 0, 1, pillar);
+        assert_eq!(of_step(1), 1);
+        assert_eq!(of_last_reject(), 3, "the pillar needs research");
+    }
+
+    /// The browser check replays exactly these calls and compares the printed hash.
+    #[test]
+    fn the_starter_line_can_be_carried_over_a_bridge() {
+        of_reset();
+        of_step(1);
+        let (routing, elevation, hoist, chute) = with_game(|game| {
+            let content = game.world.content();
+            let tech = |id: &str| u32::from(content.tech_id(id).expect("the base pack defines it").0);
+            let code = |id: &str| game.building_code(Building::Unit(content.unit_id(id).expect("the base pack defines it")));
+            (tech("routing"), tech("elevation"), code("hoist"), code("chute"))
+        });
+        for tech in [routing, elevation] {
+            // Give the line time to deliver what the research costs.
+            of_step(1800);
+            of_research(tech);
+            assert_eq!(of_step(1), 0);
+            of_step(of_research_left());
+            assert_eq!(of_researched(tech), 1);
+        }
+        of_remove(12, 2, 0);
+        of_remove(17, 2, 0);
+        assert_eq!(of_step(1), 0);
+        of_place(12, 2, 0, 1, hoist);
+        of_place(12, 2, 1, 1, hoist);
+        for x in 13..=16 {
+            of_place(x, 2, 1, 1, 0);
+        }
+        of_place(17, 2, 1, 1, chute);
+        of_place(17, 2, 0, 1, chute);
+        assert_eq!(of_step(1), 0);
+        let before = of_stock(resource("ironPlate"));
+        of_step(3600);
+        assert!(of_stock(resource("ironPlate")) > before + 50, "plates reach the depot over the bridge");
+        println!("bridge hash {:08x}{:08x}", of_hash_hi(), of_hash_lo());
     }
 
     #[test]
