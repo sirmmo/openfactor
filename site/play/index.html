@@ -89,6 +89,17 @@
   .stats-table td { padding: 2px 0; font-family: var(--mono); font-size: 12px; text-align: right; }
   .stats-table td:first-child { font-family: inherit; font-size: 13px; text-align: left; }
   .stats-table .name { display: flex; align-items: center; gap: 6px; }
+  .about { color: var(--ink); margin: 6px 0 2px; }
+  .facts { margin: 4px 0 0; padding-left: 16px; color: var(--dim); font-size: 13px; }
+  .facts li { margin: 2px 0; }
+  .recipe-text { margin: 6px 0 0; font-size: 13px; }
+  .recipe-text b { font-weight: 600; }
+  .price { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .price .amount { font-size: 12px; }
+  .price .have { color: var(--dim); font-size: 11px; font-family: var(--mono); }
+  .price .short .have, .price .short { color: #ff8a80; }
+  #card { top: auto; bottom: calc(112px + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 200px); }
+  .r-card .about { font-size: 12px; color: var(--dim); margin: 4px 0 0; }
   #status { position: fixed; left: 50%; bottom: calc(112px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent);
     border-radius: 6px; padding: 6px 12px; max-width: calc(100% - 32px); }
@@ -133,6 +144,7 @@
 <aside class="panel" id="inspector" hidden>
   <header><canvas class="icon" id="i-icon" width="16" height="16"></canvas><span id="i-name"></span>
     <button class="close" id="i-close" aria-label="Close">&times;</button></header>
+  <p class="about" id="i-about"></p>
   <p id="i-status"></p>
   <div class="meter" id="i-meter" hidden><i id="i-progress"></i></div>
   <div id="i-choices"></div>
@@ -142,6 +154,15 @@
 <aside class="panel" id="stats" hidden>
   <header><span>Production</span><button class="close" id="s-close" aria-label="Close">&times;</button></header>
   <div id="s-body"></div>
+</aside>
+
+<aside class="panel" id="card" aria-label="About the selected tool" hidden>
+  <header><canvas class="icon" id="c-icon" width="16" height="16"></canvas><span id="c-name"></span>
+    <button class="close" id="c-close" aria-label="Hide (H shows it again)">&times;</button></header>
+  <p class="about" id="c-about"></p>
+  <h3>Cost</h3>
+  <div class="price" id="c-cost"></div>
+  <div id="c-body"></div>
 </aside>
 
 <div id="status" role="status" hidden></div>
@@ -201,6 +222,8 @@
   // Calls can grow wasm memory, so take the buffer only after the last call.
   const packPointer = of.of_pack_json(), packLength = of.of_pack_json_len();
   const pack = JSON.parse(new TextDecoder().decode(new Uint8Array(of.memory.buffer, packPointer, packLength)));
+  const D = await import('./describe.js?v=1');
+  const techUnlockList = D.unlocksByTech(pack);
   const beltCount = pack.belts.length;
   const isBelt = (kind) => kind < beltCount;
   const unitOf = (b) => pack.units[b.kind - beltCount];
@@ -245,9 +268,9 @@
 
   const TOOLS = [
     ...pack.belts.map((belt, index) => (
-      { id: 'belt:' + index, kind: index, label: belt.name, group: 'Logistics', belt: true, sprite: beltIcon(belt), tint: null, cost: belt.cost, lock: belt.lock })),
+      { id: 'belt:' + index, kind: index, label: belt.name, group: 'Logistics', belt, about: belt.about, sprite: beltIcon(belt), tint: null, cost: belt.cost, lock: belt.lock })),
     ...pack.units.map((unit, index) => (
-      { id: 'unit:' + unit.id, kind: beltCount + index, label: unit.name, group: unit.group, unit, sprite: unit.sprite, tint: unit.tint, cost: unit.cost, lock: unit.lock })),
+      { id: 'unit:' + unit.id, kind: beltCount + index, label: unit.name, group: unit.group, unit, about: unit.about, sprite: unit.sprite, tint: unit.tint, cost: unit.cost, lock: unit.lock })),
   ];
 
   const isOpen = (lock) => lock === null || of.of_researched(lock) === 1;
@@ -290,7 +313,11 @@
       }
       if (index < 9) { const k = document.createElement('kbd'); k.textContent = index + 1; b.append(k); }
       b.setAttribute('aria-pressed', t === tool);
-      b.addEventListener('click', () => selectTool(t));
+      b.addEventListener('click', () => { if (t === tool) cardClosed = false; selectTool(t); });
+      b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') showCard(t); });
+      b.addEventListener('pointerleave', () => showCard(tool));
+      b.addEventListener('focus', () => showCard(t));
+      b.addEventListener('blur', () => showCard(tool));
       toolbar.append(b);
       buttons.set(t, b);
     });
@@ -301,7 +328,87 @@
   }
   function refreshAffordable() {
     for (const [t, b] of buttons) b.classList.toggle('cant', !affordable(t.cost));
+    refreshCardCost();
   }
+
+  // The card explaining a build tool: what it is, what it costs, what it does.
+  // Narrow screens start with it hidden; H or tapping the selected tool shows it.
+  let cardClosed = window.innerWidth < 700, cardTool = null, cardChips = [];
+  const stockOf = (item) => of.of_stock(item) >>> 0;
+  function factList(items) {
+    const ul = document.createElement('ul');
+    ul.className = 'facts';
+    for (const text of items) { const li = document.createElement('li'); li.textContent = text; ul.append(li); }
+    return ul;
+  }
+  // What a unit or belt does, as DOM nodes, for the card and the inspector.
+  function describeTool(def, isBeltDef) {
+    const out = [];
+    if (isBeltDef) {
+      out.push(heading('What it does'), factList(D.beltFacts(pack, def)));
+      return out;
+    }
+    const rules = def.rules;
+    if (rules.length) {
+      out.push(heading(rules.length > 1 ? 'Recipes' : 'Recipe'));
+      for (const rule of rules) {
+        const text = D.recipeText(pack, rule, def);
+        const p = document.createElement('p');
+        p.className = 'recipe-text';
+        if (rules.length > 1) { const b = document.createElement('b'); b.textContent = D.recipeName(pack, rule) + '. '; p.append(b); }
+        p.append(text.line + '.');
+        if (!isOpen(rule.lock)) p.style.opacity = .6;
+        out.push(p);
+        if (text.notes.length) out.push(factList(text.notes));
+      }
+    }
+    const facts = D.unitFacts(pack, def);
+    if (facts.length) out.push(heading('Good to know'), factList(facts));
+    return out;
+  }
+  function showCard(t) {
+    const card = $('card');
+    const buildTool = t && (t.unit || t.belt);
+    if (!buildTool || cardClosed || selected || !$('stats').hidden) { card.hidden = true; return; }
+    card.hidden = false;
+    if (cardTool === t) return;
+    cardTool = t;
+    $('c-name').textContent = t.label;
+    paintIcon($('c-icon'), t.sprite, t.tint);
+    $('c-about').textContent = t.about;
+    $('c-about').hidden = !t.about;
+    const price = $('c-cost');
+    price.replaceChildren();
+    cardChips = t.cost.map(([item, count]) => {
+      const chip = amountChip(['l', item, count]);
+      chip.firstChild.title = '';
+      chip.lastChild.textContent = D.amount(pack, item, count);
+      const have = document.createElement('span');
+      have.className = 'have';
+      chip.append(have);
+      price.append(chip);
+      return { chip, have, item, count };
+    });
+    if (!t.cost.length) price.textContent = 'Free';
+    const body = $('c-body');
+    body.replaceChildren(...describeTool(t.unit || t.belt, !t.unit));
+    if (t.cost.length) body.append(factList([D.REFUND_NOTE]));
+    refreshCardCost();
+  }
+  function refreshCardCost() {
+    if ($('card').hidden) return;
+    for (const { chip, have, item, count } of cardChips) {
+      const held = stockOf(item);
+      chip.classList.toggle('short', held < count);
+      have.textContent = held < count ? '(have ' + held.toLocaleString('en') + ')' : '';
+    }
+  }
+  function toggleCard() {
+    cardClosed = !cardClosed;
+    if (!cardClosed && selected) closeInspector();
+    showCard(tool);
+  }
+  $('c-close').addEventListener('click', () => { cardClosed = true; showCard(tool); });
   function selectGroup(name) {
     group = name;
     for (const [other, b] of groupButtons) b.setAttribute('aria-pressed', other === name);
@@ -312,6 +419,7 @@
     tool = t;
     for (const [other, b] of buttons) b.setAttribute('aria-pressed', other === t);
     for (const [other, b] of actionButtons) b.setAttribute('aria-pressed', other === t);
+    showCard(t);
     if (t.unit && t.unit.route === 'lift') {
       say(t.label + ': build one at each end of the shaft, on different levels. Z and C change level.', 5000);
     }
@@ -484,13 +592,17 @@
     $('i-name').textContent = (unit ? unit.name : pack.belts[view.kind].name) + (cell.z > 0 ? ' · level ' + cell.z : '');
     if (unit) paintIcon($('i-icon'), unit.sprite, unit.tint);
     else paintIcon($('i-icon'), beltIcon(pack.belts[view.kind]), null);
+    const about = unit ? unit.about : pack.belts[view.kind].about;
+    $('i-about').textContent = about;
+    $('i-about').hidden = !about;
+    $('card').hidden = true;
     renderChoices();
     $('inspector').hidden = false;
     $('stats').hidden = true;
     $('stats-toggle').setAttribute('aria-expanded', false);
     refreshInspector();
   }
-  function closeInspector() { selected = null; $('inspector').hidden = true; }
+  function closeInspector() { selected = null; $('inspector').hidden = true; showCard(tool); }
   $('i-close').addEventListener('click', closeInspector);
 
   function refreshInspector() {
@@ -619,6 +731,12 @@
       note.className = 'note';
       note.textContent = STATE_NOTES[state] + ' · ' + Math.round(tech.time / 60) + ' s';
       card.append(name, note);
+      if (tech.about) {
+        const about = document.createElement('p');
+        about.className = 'about';
+        about.textContent = tech.about;
+        card.append(about);
+      }
       const costs = document.createElement('div');
       costs.className = 'costs';
       const chips = tech.cost.map(([item, amount]) => {
@@ -635,6 +753,12 @@
         unlocks.append(image);
       }
       card.append(unlocks);
+      if (techUnlockList[index].length) {
+        const names = document.createElement('p');
+        names.className = 'about';
+        names.textContent = 'Unlocks ' + D.list(techUnlockList[index].map((u) => u.name)) + '.';
+        card.append(names);
+      }
       let meter = null, button = null;
       if (state === 'active') {
         const bar = document.createElement('div');
@@ -762,6 +886,7 @@
     stats.hidden = !stats.hidden;
     $('stats-toggle').setAttribute('aria-expanded', !stats.hidden);
     if (!stats.hidden) { $('inspector').hidden = true; selected = null; refreshStats(); }
+    showCard(tool);
   }
   $('stats-toggle').addEventListener('click', toggleStats);
   $('s-close').addEventListener('click', toggleStats);
@@ -896,6 +1021,7 @@
     if (use3d && (lower === 'q' || lower === 'e')) return view3d.rotateView(lower === 'q' ? -1 : 1);
     if (!$('levels').hidden && (lower === 'z' || lower === 'c')) return setLevel(level + (lower === 'c' ? 1 : -1));
     if (lower === 'p') return toggleStats();
+    if (lower === 'h') return toggleCard();
     if (lower === 't') return toggleResearch();
     if (lower === 'escape') {
       if (!research.hidden) return toggleResearch();

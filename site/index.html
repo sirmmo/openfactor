@@ -35,6 +35,15 @@
   table { border-collapse: collapse; width: 100%; font-size: .94rem; }
   th, td { text-align: left; padding: .4rem .7rem .4rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--dim); font-weight: 600; }
+  .catalogue h3 { font-size: 1.05rem; margin: 2rem 0 .4rem; }
+  .entry { border-top: 1px solid var(--line); padding: .7rem 0 .5rem; }
+  .entry h4 { margin: 0; font-size: 1rem; }
+  .entry p { margin: .2rem 0; }
+  .entry .cost { font-size: .92rem; }
+  .entry .cost b, .entry .meta { color: var(--dim); font-weight: 600; }
+  .entry ul { margin: .3rem 0 0; padding-left: 1.2rem; font-size: .92rem; color: var(--dim); }
+  .entry li { margin: .1rem 0; }
+  .entry .recipe { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -63,6 +72,7 @@
     <tr><td>Click a building, or <kbd>I</kbd></td><td>Inspect it: status, recipe or filter choice, contents and networks</td></tr>
     <tr><td><kbd>P</kbd></td><td>Production totals and stock</td></tr>
     <tr><td><kbd>T</kbd></td><td>Research tree</td></tr>
+    <tr><td><kbd>H</kbd></td><td>Show or hide the card describing the selected building: what it does, its recipes and what it costs. Hover a tool to preview its card</td></tr>
     <tr><td><kbd>V</kbd></td><td>Switch between the 2D and 3D views. <kbd>Q</kbd> and <kbd>E</kbd> turn the 3D camera</td></tr>
     <tr><td><kbd>Z</kbd> and <kbd>C</kbd></td><td>Down and up a level, once Elevated logistics is researched. Tools only act on the level you are on</td></tr>
     <tr><td><kbd>R</kbd></td><td>Rotate. Dragging a belt steers it automatically</td></tr>
@@ -73,6 +83,8 @@
 
   <h2>How the base pack works</h2>
   <p>Ground holds iron, copper, coal, stone or tungsten; water and oil are pumped into pipes. Plates and bricks become gears, wire and circuits, then steel, carbide and plastic, then motors and controllers. An assembly line combines those with bricks into automata, the end of the chain.</p>
+  <p>Every building, resource and research is listed below, with its cost, written out from the pack itself; the game shows the same text on each building's card.</p>
+  <div class="catalogue" id="catalogue">
   <div class="scroll"><table>
     <tr><th>Section</th><th>Buildings</th></tr>
     <tr><td>Logistics</td><td><b>Belt</b> and the twice-as-fast <b>Express belt</b>. <b>Splitter</b>: shares items between its front and sides. <b>Sorter</b>: pick a resource in its inspector and it goes straight on while everything else leaves by the sides. <b>Tunnel</b>: sends items to the next tunnel facing the same way within 5 tiles, past anything in between. <b>Hoist</b> and <b>Chute</b>: build one at each end of a shaft, up to 3 levels apart, with nothing between them. Items go in the first and leave from the front of the last. <b>Pillar</b>: holds up what is built above it. <b>Depot</b>: stores anything.</td></tr>
@@ -80,6 +92,7 @@
     <tr><td>Production</td><td><b>Coal furnace</b>: burns coal, needs no power, makes smog. <b>Arc furnace</b>: clean and fast, and the only source of steel and carbide. <b>Workshop</b>: basic parts, unpowered. <b>Assembly line</b>: fast, makes every part. <b>Refinery</b>: oil and water into plastic, with tar out of its left side. If tar backs up the refinery stops, so give it somewhere to go.</td></tr>
     <tr><td>Utilities</td><td><b>Steam plant</b>: coal and water. <b>Tar burner</b>: turns the refinery's waste into power. <b>Solar panel</b>: small, free and clean. <b>Power pole</b>: connects anything within 5 steps. <b>Pipe</b>: carries water and oil between neighbours.</td></tr>
   </table></div>
+  </div>
   <p>Several recipes can run in one machine. Left on Automatic, a machine runs the first it has inputs for; choosing one in the inspector makes it accept only that recipe's inputs.</p>
   <p>Coal furnaces, steam plants and tar burners foul the air around them. Smog clears slowly by itself, but coal furnaces packed together stop until it thins, so spread them out or move to arc furnaces.</p>
   <p>A square marker on a machine means trouble: red for a shortage on its network, amber for output with nowhere to go, grey for map conditions such as smog.</p>
@@ -132,6 +145,10 @@ place miner 2 2 east</code></pre>
     <tr><td><code>… routes tunnel [range &lt;n&gt;]</code></td><td>Sends to the next tunnel of the same unit facing the same way within range, or else out of its front.</td></tr>
     <tr><td><code>… links &lt;R&gt; [reach &lt;n&gt;]</code></td><td>Joins that resource's network. Two members connect when either one's reach covers the other, counted in grid steps. Using <code>network</code> in a rule links a unit automatically, with reach 0.</td></tr>
   </table></div>
+  <h3>Descriptions</h3>
+  <p><code>describe &lt;id&gt; "…"</code> gives a belt, unit, research or resource the sentence players see on its card, in the inspector, in the research tree and in the catalogue above. Write what it is for; recipes, costs, placement and requirements are worked out from the rest of the pack and added automatically. Descriptions are cosmetic, so they don't change the state hash.</p>
+<pre><code>describe furnace "Smelts ore with coal. Needs no power, but fouls the air."
+describe routing "Splitters and tunnels, to share lines and pass belts under each other."</code></pre>
   <h3>Levels</h3>
   <div class="scroll"><table>
     <tr><td><code>levels &lt;n&gt;</code></td><td>How many levels can be built on, up to 8. The default is 1, a flat world.</td></tr>
@@ -222,5 +239,63 @@ python3 -m http.server --directory site</code></pre>
   <p>OpenFactor's code is free software under the <a href="https://github.com/sirmmo/openfactor/blob/main/COPYING">GNU General Public License, version 2 or later</a>.</p>
   <p>Art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> (<a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>) and <a href="https://kenney.nl/assets/factory-kit">Factory Kit</a> (<a href="play/assets/models/factory-kit-LICENSE.txt">CC0</a>) by Kenney. The 3D view uses <a href="https://threejs.org">three.js</a> (<a href="play/vendor/three-LICENSE.txt">MIT</a>).</p>
 </main>
+<script type="module">
+  // Builds the catalogue from the base pack inside the game's own WebAssembly,
+  // using the same wording as the in-game cards.
+  import * as D from './play/describe.js?v=1';
+  const el = (tag, text, className) => {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  };
+  try {
+    const source = await fetch('play/openfactor.wasm');
+    if (!source.ok) throw new Error('HTTP ' + source.status);
+    const { instance } = await WebAssembly.instantiate(await source.arrayBuffer(), {});
+    const of = instance.exports;
+    const pointer = of.of_pack_json(), length = of.of_pack_json_len();
+    const pack = JSON.parse(new TextDecoder().decode(new Uint8Array(of.memory.buffer, pointer, length)));
+    const out = [];
+    const entry = (name, about, cost, lines, recipes = []) => {
+      const box = el('div', undefined, 'entry');
+      box.append(el('h4', name));
+      if (about) box.append(el('p', about));
+      if (cost) { const p = el('p', undefined, 'cost'); p.append(el('b', 'Cost: '), cost); box.append(p); }
+      const ul = el('ul');
+      for (const r of recipes) { const li = el('li', r.line + '.', 'recipe'); ul.append(li); for (const n of r.notes) ul.append(el('li', n)); }
+      for (const line of lines) ul.append(el('li', line));
+      if (ul.children.length) box.append(ul);
+      return box;
+    };
+    const groups = new Map([['Logistics', []]]);
+    pack.belts.forEach((belt) => groups.get('Logistics').push(entry(belt.name, belt.about, D.costText(pack, belt.cost), D.beltFacts(pack, belt))));
+    for (const unit of pack.units) {
+      if (!groups.has(unit.group)) groups.set(unit.group, []);
+      const recipes = unit.rules.map((rule) => {
+        const text = D.recipeText(pack, rule, unit);
+        return unit.rules.length > 1 ? { line: D.recipeName(pack, rule) + '. ' + text.line, notes: text.notes } : text;
+      });
+      groups.get(unit.group).push(entry(unit.name, unit.about, D.costText(pack, unit.cost), D.unitFacts(pack, unit), recipes));
+    }
+    for (const [name, entries] of groups) out.push(el('h3', name), ...entries);
+    out.push(el('p', D.REFUND_NOTE));
+
+    out.push(el('h3', 'Research'));
+    const unlocks = D.unlocksByTech(pack);
+    pack.techs.forEach((tech, index) => {
+      const lines = [];
+      if (tech.requires.length) lines.push('Needs ' + D.list(tech.requires.map((t) => pack.techs[t].name)) + ' first.');
+      lines.push('Takes ' + D.seconds(tech.time) + ' once started.');
+      if (unlocks[index].length) lines.push('Unlocks ' + D.list(unlocks[index].map((u) => u.name)) + '.');
+      out.push(entry(tech.name, tech.about, D.costText(pack, tech.cost), lines));
+    });
+    out.push(el('h3', 'Resources'));
+    for (const resource of pack.resources) out.push(entry(resource.name, resource.about, '', []));
+    document.getElementById('catalogue').replaceChildren(...out);
+  } catch (error) {
+    console.warn('Catalogue not built:', error);
+  }
+</script>
 </body>
 </html>

@@ -34,6 +34,8 @@ pub struct Content {
 pub struct TechDef {
     pub id: String,
     pub name: String,
+    /// Player-facing explanation, from `describe`. Cosmetic.
+    pub description: String,
     pub requires: Vec<TechId>,
     pub cost: Cost,
     /// Ticks from starting to finishing.
@@ -44,6 +46,8 @@ pub struct TechDef {
 pub struct BeltDef {
     pub id: String,
     pub name: String,
+    /// Player-facing explanation, from `describe`. Cosmetic.
+    pub description: String,
     /// Distance an item moves per tick, in 1/`TILE` of a tile.
     pub speed: u32,
     /// Which set of belt art to draw.
@@ -60,6 +64,8 @@ pub struct BeltDef {
 pub struct ResourceDef {
     pub id: String,
     pub name: String,
+    /// Player-facing explanation, from `describe`. Cosmetic.
+    pub description: String,
     pub sprite: u32,
     /// Colour blended over the sprite, as 0xRRGGBB.
     pub tint: Option<u32>,
@@ -105,6 +111,8 @@ pub struct MapRule {
 pub struct UnitDef {
     pub id: String,
     pub name: String,
+    /// Player-facing explanation, from `describe`. Cosmetic.
+    pub description: String,
     pub sprite: u32,
     /// Colour blended over the sprite, as 0xRRGGBB.
     pub tint: Option<u32>,

@@ -412,7 +412,7 @@ fn map_rules_and_metrics_are_part_of_the_state_hash() {
 
 #[test]
 fn pack_mistakes_name_the_line() {
-    let cases: [(&str, usize, &str); 35] = [
+    let cases: [(&str, usize, &str); 40] = [
         ("resource a\nunit u\ncost u", 3, "pairs of a resource"),
         ("resource a\nunit u\ncost u a 1 a 2", 3, "listed twice"),
         ("resource a\ncost nothing a 1", 2, "unknown unit"),
@@ -448,6 +448,11 @@ fn pack_mistakes_name_the_line() {
         ("span 99", 1, "at most 16"),
         ("levels 0", 1, "at least 1"),
         ("unit u\nplace u 0 0 east height 2", 2, "does not understand 'height'"),
+        ("describe nothing \"x\"", 1, "isn't a belt, unit, research or resource"),
+        ("unit u\ndescribe u", 2, "expected 'describe"),
+        ("unit u\ndescribe u \"  \"", 2, "is empty"),
+        ("unit u\ndescribe u \"a\"\ndescribe u \"b\"", 3, "described twice"),
+        ("resource u\nunit u\ndescribe u \"a\"", 3, "more than one thing"),
     ];
     for (text, line, fragment) in cases {
         let error = Pack::parse(text).unwrap_err();
@@ -461,6 +466,34 @@ fn declarations_can_follow_the_rules_that_use_them() {
     let text = "unitRule u\na out 1\nend\nresource a # trailing comment\nunit u // another\n";
     let pack = Pack::parse(text).unwrap();
     assert_eq!(pack.content.units()[0].outputs, vec![(ItemId(0), Port::Front)]);
+}
+
+#[test]
+fn everything_a_player_builds_or_researches_can_be_described() {
+    let text = "describe gold \"Shiny.\"\ndescribe belt \"Moves things.\"\ndescribe u \"A unit.\"\n\
+                describe t \"Learn it.\"\nresource gold\nunit u\nresearch t\nunlocks u\nend";
+    let pack = Pack::parse(text).unwrap();
+    let content = &pack.content;
+    assert_eq!(content.resources()[0].description, "Shiny.");
+    assert_eq!(content.belts()[0].description, "Moves things.");
+    assert_eq!(content.units()[0].description, "A unit.");
+    assert_eq!(content.techs()[0].description, "Learn it.");
+    let plain = World::new(&Pack::parse("resource gold\nunit u\nresearch t\nunlocks u\nend").unwrap());
+    assert_eq!(World::new(&pack).state_hash(), plain.state_hash());
+}
+
+#[test]
+fn every_element_of_the_base_pack_is_described() {
+    let pack = Pack::parse(BASE_PACK).unwrap();
+    let content = &pack.content;
+    let missing: Vec<&str> = (content.belts().iter().map(|b| (&b.id, &b.description)))
+        .chain(content.units().iter().map(|u| (&u.id, &u.description)))
+        .chain(content.techs().iter().map(|t| (&t.id, &t.description)))
+        .chain(content.resources().iter().map(|r| (&r.id, &r.description)))
+        .filter(|(_, description)| description.is_empty())
+        .map(|(id, _)| id.as_str())
+        .collect();
+    assert!(missing.is_empty(), "not described: {missing:?}");
 }
 
 #[test]

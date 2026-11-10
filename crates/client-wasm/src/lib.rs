@@ -5,7 +5,7 @@
 
 use openfactor_sim::{
     BeltId, Building, Command, Dir, ItemId, MetricId, Pack, Port, Pos, Reject, Route, Rule, Scope, Status,
-    TechId, UnitId, World,
+    TechId, Test, UnitId, World,
 };
 use std::cell::RefCell;
 
@@ -212,7 +212,9 @@ fn json_amounts(list: &[openfactor_sim::Amount]) -> String {
                 Scope::Local(item) => ("l", item.0),
                 Scope::Global(item) => ("g", item.0),
                 Scope::Network(item) => ("n", item.0),
-                Scope::Map { layer, .. } => ("m", layer.0),
+                Scope::Map { layer, radius } => {
+                    return format!(r#"["m",{},{},{radius}]"#, layer.0, entry.amount);
+                }
             };
             format!(r#"["{scope}",{id},{}]"#, entry.amount)
         })
@@ -221,13 +223,32 @@ fn json_amounts(list: &[openfactor_sim::Amount]) -> String {
 }
 
 fn json_rule(rule: &Rule) -> String {
+    let conditions: Vec<String> = rule
+        .conditions
+        .iter()
+        .map(|c| {
+            let test = match c.test {
+                Test::AtLeast => "atLeast",
+                Test::AtMost => "atMost",
+                Test::Greater => "greater",
+                Test::Less => "less",
+                Test::Is => "is",
+            };
+            format!(r#"[{},"{test}",{}]"#, c.layer.0, c.value)
+        })
+        .collect();
+    let sides: Vec<String> = rule.sides.iter().map(|&(item, port)| format!("[{},{}]", item.0, port_code(port))).collect();
+    let logs: Vec<String> = rule.logs.iter().map(|(metric, amount)| format!("[{},{amount}]", metric.0)).collect();
     format!(
-        r#"{{"name":{},"rate":{},"in":{},"out":{},"lock":{}}}"#,
+        r#"{{"name":{},"rate":{},"in":{},"out":{},"lock":{},"when":[{}],"sides":[{}],"logs":[{}]}}"#,
         json_string(&rule.name),
         rule.rate,
         json_amounts(&rule.takes),
         json_amounts(&rule.gives),
-        json_lock(rule.locked_by)
+        json_lock(rule.locked_by),
+        conditions.join(","),
+        sides.join(","),
+        logs.join(",")
     )
 }
 
@@ -247,8 +268,9 @@ fn pack_json(pack: &Pack) -> String {
         .iter()
         .map(|b| {
             format!(
-                r#"{{"name":{},"speed":{},"style":{},"cost":{},"lock":{},"model":{},"corner":{}}}"#,
+                r#"{{"name":{},"about":{},"speed":{},"style":{},"cost":{},"lock":{},"model":{},"corner":{}}}"#,
                 json_string(&b.name),
+                json_string(&b.description),
                 b.speed,
                 b.style,
                 json_cost(&b.cost),
@@ -279,9 +301,10 @@ fn pack_json(pack: &Pack) -> String {
             ports.sort_unstable();
             ports.dedup();
             format!(
-                r#"{{"id":{},"name":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"down":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{},"model":{}}}"#,
+                r#"{{"id":{},"name":{},"about":{},"sprite":{},"tint":{},"group":{},"sends":{},"accepts":{},"route":{},"range":{},"down":{},"links":[{}],"rules":[{}],"ports":{:?},"cost":{},"lock":{},"delivers":{},"storesAny":{},"placeOn":{:?},"model":{}}}"#,
                 json_string(&unit.id),
                 json_string(&unit.name),
+                json_string(&unit.description),
                 unit.sprite,
                 json_tint(unit.tint),
                 json_string(&unit.group),
@@ -296,6 +319,8 @@ fn pack_json(pack: &Pack) -> String {
                 json_cost(&unit.cost),
                 json_lock(unit.locked_by),
                 unit.delivers,
+                unit.stores_any,
+                unit.place_on.iter().map(|layer| layer.0).collect::<Vec<u16>>(),
                 json_name(&unit.model)
             )
         })
@@ -303,7 +328,15 @@ fn pack_json(pack: &Pack) -> String {
     let resources: Vec<String> = content
         .resources()
         .iter()
-        .map(|r| format!(r#"{{"name":{},"sprite":{},"tint":{}}}"#, json_string(&r.name), r.sprite, json_tint(r.tint)))
+        .map(|r| {
+            format!(
+                r#"{{"name":{},"about":{},"sprite":{},"tint":{}}}"#,
+                json_string(&r.name),
+                json_string(&r.description),
+                r.sprite,
+                json_tint(r.tint)
+            )
+        })
         .collect();
     let layers: Vec<String> = content
         .layers()
@@ -327,8 +360,9 @@ fn pack_json(pack: &Pack) -> String {
         .map(|tech| {
             let requires: Vec<u16> = tech.requires.iter().map(|required| required.0).collect();
             format!(
-                r#"{{"name":{},"requires":{:?},"cost":{},"time":{}}}"#,
+                r#"{{"name":{},"about":{},"requires":{:?},"cost":{},"time":{}}}"#,
                 json_string(&tech.name),
+                json_string(&tech.description),
                 requires,
                 json_cost(&tech.cost),
                 tech.time
@@ -532,11 +566,13 @@ mod tests {
     #[test]
     fn pack_json_lists_the_content() {
         let json = with_game(|game| game.pack_json.clone());
-        assert!(json.contains(r#""id":"depot","name":"Depot","sprite":58"#));
-        assert!(json.contains(r#""name":"Express belt","speed":32,"style":1"#));
+        assert!(json.contains(r#""id":"depot","name":"Depot","about":"Accepts anything."#));
+        assert!(json.contains(r#""name":"Express belt","about":"A belt that carries"#));
+        assert!(json.contains(r#""name":"Gear","about":"The basic moving part.","sprite":114"#));
+        assert!(json.contains(r#""placeOn":[0, 1, 2, 3]"#), "{json}");
         assert!(json.contains(r#""name":"iron ground","sprites":[3, 32]"#));
         assert!(json.contains(r#""route":"tunnel","range":5"#));
-        assert!(json.contains(r#""name":"Electricity","requires":[1, 2]"#), "{json}");
+        assert!(json.contains(r#""name":"Electricity","about":"Steam power, pumps, pipes and poles: the start of powered machines.","requires":[1, 2]"#), "{json}");
     }
 
     #[test]

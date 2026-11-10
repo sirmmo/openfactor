@@ -265,7 +265,7 @@ impl Builder {
                 _ => return line.fail(format!("resource does not understand '{}'", pair[0])),
             }
         }
-        self.resources.push(ResourceDef { id: id.to_string(), name, sprite, tint });
+        self.resources.push(ResourceDef { id: id.to_string(), name, description: String::new(), sprite, tint });
         Ok(())
     }
 
@@ -331,6 +331,7 @@ impl Builder {
         let mut belt = BeltDef {
             id: id.to_string(),
             name: id.to_string(),
+            description: String::new(),
             speed: DEFAULT_BELT_SPEED,
             style: 0,
             model: None,
@@ -373,6 +374,7 @@ impl Builder {
         let mut unit = UnitDef {
             id: id.to_string(),
             name: id.to_string(),
+            description: String::new(),
             sprite: 0,
             tint: None,
             group: "Buildings".to_string(),
@@ -490,7 +492,7 @@ impl Builder {
                 }
                 self.place(line, what, Pos::at(line.whole(x)?, line.whole(y)?, level), dir, count)?;
             }
-            ["resource", ..] | ["layer", ..] | ["unit", ..] | ["metric", ..] | ["belt", ..] => {}
+            ["resource", ..] | ["layer", ..] | ["unit", ..] | ["metric", ..] | ["belt", ..] | ["describe", ..] => {}
             _ => return line.fail(format!("this statement isn't understood: '{}'", line.head())),
         }
         Ok(())
@@ -750,6 +752,7 @@ impl Builder {
             }
             self.techs.push(TechDef {
                 name: id.clone(),
+                description: String::new(),
                 id,
                 requires: Vec::new(),
                 cost: Vec::new(),
@@ -799,6 +802,31 @@ impl Builder {
                 blocks[index].header.fail(format!("research '{id}' can never start: its requirements form a loop"))
             }
             None => Ok(()),
+        }
+    }
+
+    /// `describe <id> "text"` gives a belt, unit, research or resource its explanation.
+    fn describe(&mut self, line: &Line) -> Parsed<()> {
+        let (id, text) = match line.strs().as_slice() {
+            ["describe", id, text] => (id.to_string(), text.trim().to_string()),
+            _ => return line.fail("expected 'describe <name> \"what it is\"'"),
+        };
+        if text.is_empty() {
+            return line.fail(format!("the description of '{id}' is empty"));
+        }
+        let mut slots: Vec<&mut String> = Vec::new();
+        slots.extend(self.belts.iter_mut().filter(|b| b.id == id).map(|b| &mut b.description));
+        slots.extend(self.units.iter_mut().filter(|u| u.id == id).map(|u| &mut u.description));
+        slots.extend(self.techs.iter_mut().filter(|t| t.id == id).map(|t| &mut t.description));
+        slots.extend(self.resources.iter_mut().filter(|r| r.id == id).map(|r| &mut r.description));
+        match slots.as_mut_slice() {
+            [] => line.fail(format!("'{id}' isn't a belt, unit, research or resource, so it can't be described")),
+            [slot] if !slot.is_empty() => line.fail(format!("'{id}' is described twice")),
+            [slot] => {
+                **slot = text;
+                Ok(())
+            }
+            _ => line.fail(format!("'{id}' names more than one thing, so the description would be ambiguous")),
         }
     }
 
@@ -871,6 +899,7 @@ impl Pack {
         builder.belts.push(BeltDef {
             id: BELT.to_string(),
             name: "Belt".to_string(),
+            description: String::new(),
             speed: DEFAULT_BELT_SPEED,
             style: 0,
             model: None,
@@ -903,6 +932,10 @@ impl Pack {
             builder.add_rule(block)?;
         }
         builder.add_research(&research)?;
+        // Last, so research can be described too.
+        for line in top.iter().filter(|l| l.head() == "describe") {
+            builder.describe(line)?;
+        }
         Ok(builder.finish())
     }
 }
