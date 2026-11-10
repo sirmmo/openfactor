@@ -1516,6 +1516,14 @@
     requestAnimationFrame(frame);
   }
   if (!resume()) say('Deliver items to a depot to pay for buildings and research.', 7000);
+
+  // In browsers with WebMCP, an AI agent can look at and build the factory too.
+  const agentTools = {
+    of, pack, D, beltCount, rejectText: REJECT_TEXT, statusText: STATUS_TEXT, inspect,
+    refresh: readSnapshot, ground: () => ground, buildings: () => buildings, haze: () => haze,
+    notify: (text) => say(text, 4000),
+  };
+  import('./webmcp.js?v=1').then((m) => m.registerTools(agentTools)).catch((error) => console.warn('WebMCP unavailable:', error));
   if (new URLSearchParams(location.search).get('view') === '3d') toggle3d();
   requestAnimationFrame(frame);
 })();

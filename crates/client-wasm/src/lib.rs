@@ -276,7 +276,8 @@ fn pack_json(pack: &Pack) -> String {
         .iter()
         .map(|b| {
             format!(
-                r#"{{"name":{},"about":{},"speed":{},"style":{},"cost":{},"lock":{},"model":{},"corner":{}}}"#,
+                r#"{{"id":{},"name":{},"about":{},"speed":{},"style":{},"cost":{},"lock":{},"model":{},"corner":{}}}"#,
+                json_string(&b.id),
                 json_string(&b.name),
                 json_string(&b.description),
                 b.speed,
@@ -338,7 +339,8 @@ fn pack_json(pack: &Pack) -> String {
         .iter()
         .map(|r| {
             format!(
-                r#"{{"name":{},"about":{},"sprite":{},"tint":{}}}"#,
+                r#"{{"id":{},"name":{},"about":{},"sprite":{},"tint":{}}}"#,
+                json_string(&r.id),
                 json_string(&r.name),
                 json_string(&r.description),
                 r.sprite,
@@ -368,7 +370,8 @@ fn pack_json(pack: &Pack) -> String {
         .map(|tech| {
             let requires: Vec<u16> = tech.requires.iter().map(|required| required.0).collect();
             format!(
-                r#"{{"name":{},"about":{},"requires":{:?},"cost":{},"time":{}}}"#,
+                r#"{{"id":{},"name":{},"about":{},"requires":{:?},"cost":{},"time":{}}}"#,
+                json_string(&tech.id),
                 json_string(&tech.name),
                 json_string(&tech.description),
                 requires,
@@ -648,7 +651,7 @@ mod tests {
     fn pack_json_lists_the_content() {
         let json = with_game(|game| game.pack_json.clone());
         assert!(json.contains(r#""id":"depot","name":"Depot","about":"Accepts anything."#));
-        assert!(json.contains(r#""name":"Express belt","about":"A belt that carries"#));
+        assert!(json.contains(r#""id":"express","name":"Express belt","about":"A belt that carries"#));
         assert!(json.contains(r#""name":"Gear","about":"The basic moving part.","sprite":114"#));
         assert!(json.contains(r#""placeOn":[0, 1, 2, 3]"#), "{json}");
         assert!(json.contains(r#""name":"iron ground","sprites":[3, 32]"#));

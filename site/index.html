@@ -226,6 +226,22 @@ let bytes = world.save();
 let copy = World::load(&amp;pack, &amp;bytes)?;
 assert_eq!(copy.state_hash(), world.state_hash());</code></pre>
 
+  <h2>AI agents (WebMCP)</h2>
+  <p>The play page offers its controls to AI agents through <a href="https://webmachinelearning.github.io/webmcp/">WebMCP</a>, the proposed browser API that lets a page give tools to an agent running in the browser. An agent can do what a player can and nothing more: it pays the same costs, is refused for the same reasons, and the page says what it did.</p>
+  <div class="scroll"><table>
+    <tr><th>Tool</th><th>What it does</th></tr>
+    <tr><td><code>openfactor_overview</code></td><td>Time, shared stock, research progress, building counts and buildings with problems. Read only.</td></tr>
+    <tr><td><code>openfactor_catalogue</code></td><td>Every building, research and resource with descriptions, costs, recipes and placement rules. Read only.</td></tr>
+    <tr><td><code>openfactor_look</code></td><td>Ground, smog and buildings in an area of up to 48 by 48 tiles on one level. Read only.</td></tr>
+    <tr><td><code>openfactor_inspect</code></td><td>One building's status, recipe, contents and networks. Read only.</td></tr>
+    <tr><td><code>openfactor_build</code></td><td>Builds one building or a straight row of them, reporting each as built or refused with the reason.</td></tr>
+    <tr><td><code>openfactor_remove</code></td><td>Removes everything in a rectangle and refunds it.</td></tr>
+    <tr><td><code>openfactor_configure</code></td><td>Chooses a machine's recipe or a sorter's resource.</td></tr>
+    <tr><td><code>openfactor_research</code></td><td>Starts a research.</td></tr>
+    <tr><td><code>openfactor_wait</code></td><td>Runs the factory forward by up to 120 seconds and reports how the stock changed.</td></tr>
+  </table></div>
+  <p>The tools are registered with <code>document.modelContext</code>, or with the older <code>navigator.modelContext</code> that polyfills provide. Browsers only offer the API on secure pages, so it needs the game served over HTTPS (or from localhost).</p>
+
   <h2>Building from source</h2>
 <pre><code>cargo test --workspace
 rustup target add wasm32-unknown-unknown

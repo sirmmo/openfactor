@@ -18,6 +18,12 @@ saves, co-op sync and integrations all depend on this, so don't break it.
   client runs the same simulation. Federation between worlds comes later.
 - **Priority:** programmable platform first (data packs, external API, WASM mods),
   polish as a game second.
+- **Saves:** `World::save` / `World::load` capture the whole state as bytes. The
+  browser autosaves and can export and import `.ofsave` files; co-op late join
+  will use the same snapshot.
+- **Agents:** the play page registers WebMCP tools (`document.modelContext`) so an
+  AI agent in the browser can look at and build the factory under the same rules
+  as a player.
 
 ## Milestones
 
