@@ -72,6 +72,7 @@
     <tr><td>Click a building, or <kbd>I</kbd></td><td>Inspect it: status, recipe or filter choice, contents and networks</td></tr>
     <tr><td><kbd>P</kbd></td><td>Production totals and stock</td></tr>
     <tr><td><kbd>T</kbd></td><td>Research tree</td></tr>
+    <tr><td><kbd>G</kbd></td><td>Game: save to a file, load from a file, or start over. The factory also saves itself in the browser every 30 seconds and when you leave, and is back when you return</td></tr>
     <tr><td><kbd>H</kbd></td><td>Show or hide the card describing the selected building: what it does, its recipes and what it costs. Hover a tool to preview its card</td></tr>
     <tr><td><kbd>V</kbd></td><td>Switch between the 2D and 3D views. <kbd>Q</kbd> and <kbd>E</kbd> turn the 3D camera</td></tr>
     <tr><td><kbd>Z</kbd> and <kbd>C</kbd></td><td>Down and up a level, once Elevated logistics is researched. Tools only act on the level you are on</td></tr>
@@ -217,7 +218,13 @@ let pack = Pack::parse(include_str!("base.gbx"))?;
 let mut world = World::new(&amp;pack);
 
 world.step(&amp;pack.worldgen.starter);
-println!("{:016x}", world.state_hash());</code></pre>
+println!("{:016x}", world.state_hash());
+
+// A save is the whole state as bytes. Loading checks it was made with the
+// same rules, and the loaded world continues exactly as the original would.
+let bytes = world.save();
+let copy = World::load(&amp;pack, &amp;bytes)?;
+assert_eq!(copy.state_hash(), world.state_hash());</code></pre>
 
   <h2>Building from source</h2>
 <pre><code>cargo test --workspace

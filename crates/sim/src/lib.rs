@@ -21,7 +21,7 @@ pub use content::{
 };
 pub use gbx::PackError;
 pub use world::{
-    Building, Command, Inspection, ItemStats, MetricValue, NetworkView, Reject, Rejected, Status,
+    Building, Command, Inspection, ItemStats, LoadError, MetricValue, NetworkView, Reject, Rejected, Status,
     World,
 };
 

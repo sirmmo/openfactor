@@ -99,6 +99,8 @@
   .price .have { color: var(--dim); font-size: 11px; font-family: var(--mono); }
   .price .short .have, .price .short { color: #ff8a80; }
   #card { top: auto; bottom: calc(112px + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - 200px); }
+  .game-actions { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  .panel .note { color: var(--dim); font-size: 12px; }
   .r-card .about { font-size: 12px; color: var(--dim); margin: 4px 0 0; }
   #status { position: fixed; left: 50%; bottom: calc(112px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent);
@@ -149,6 +151,18 @@
   <div class="meter" id="i-meter" hidden><i id="i-progress"></i></div>
   <div id="i-choices"></div>
   <div id="i-live"></div>
+</aside>
+
+<aside class="panel" id="game" aria-label="Saves" hidden>
+  <header><span>Game</span><button class="close" id="g-close" aria-label="Close">&times;</button></header>
+  <p id="g-autosave" class="about"></p>
+  <div class="game-actions">
+    <button id="g-export">Save to a file</button>
+    <button id="g-import">Load from a file</button>
+    <button id="g-reset">Start over</button>
+  </div>
+  <p class="note">Saves hold the whole factory: buildings, belts, stock and research. A file can be loaded on any browser with the same rules.</p>
+  <input type="file" id="g-file" accept=".ofsave,.json,application/json" hidden>
 </aside>
 
 <aside class="panel" id="stats" hidden>
@@ -369,7 +383,7 @@
   function showCard(t) {
     const card = $('card');
     const buildTool = t && (t.unit || t.belt);
-    if (!buildTool || cardClosed || selected || !$('stats').hidden) { card.hidden = true; return; }
+    if (!buildTool || cardClosed || selected || !$('stats').hidden || !$('game').hidden) { card.hidden = true; return; }
     card.hidden = false;
     if (cardTool === t) return;
     cardTool = t;
@@ -464,23 +478,12 @@
   const rotateButton = document.createElement('button');
   rotateButton.addEventListener('click', () => rotate());
   groupbar.append(rotateButton);
-  const resetButton = document.createElement('button');
-  resetButton.textContent = 'Reset';
-  let resetArmed = 0;
-  resetButton.addEventListener('click', () => {
-    if (resetArmed) {
-      clearTimeout(resetArmed); resetArmed = 0;
-      resetButton.textContent = 'Reset';
-      of.of_reset();
-      closeInspector();
-      setLevel(0);
-      progress = '';
-      return;
-    }
-    resetButton.textContent = 'Really reset?';
-    resetArmed = setTimeout(() => { resetArmed = 0; resetButton.textContent = 'Reset'; }, 3000);
-  });
-  groupbar.append(resetButton);
+  const gameButton = document.createElement('button');
+  gameButton.id = 'game-toggle';
+  gameButton.setAttribute('aria-expanded', false);
+  gameButton.innerHTML = 'Game<kbd>G</kbd>';
+  gameButton.addEventListener('click', () => toggleGame());
+  groupbar.append(gameButton);
 
   function showRotation() { rotateButton.innerHTML = 'Facing ' + DIR_NAMES[rotation] + '<kbd>R</kbd>'; }
   function rotate() { rotation = (rotation + 1) % 4; showRotation(); }
@@ -885,10 +888,161 @@
     const stats = $('stats');
     stats.hidden = !stats.hidden;
     $('stats-toggle').setAttribute('aria-expanded', !stats.hidden);
-    if (!stats.hidden) { $('inspector').hidden = true; selected = null; refreshStats(); }
+    if (!stats.hidden) { $('inspector').hidden = true; selected = null; closeGame(); refreshStats(); }
     showCard(tool);
   }
   $('stats-toggle').addEventListener('click', toggleStats);
+
+  // Saves. The factory is saved in this browser every half minute and when the
+  // page is hidden, and comes back when the page opens. Files carry the same data.
+  const SAVE_KEY = 'openfactor.autosave.v1', UNLOADABLE_KEY = 'openfactor.autosave.unloadable';
+  const SAVE_FORMAT = 'openfactor-save', AUTOSAVE_MS = 30000;
+  const LOAD_TEXT = {
+    1: 'That save is damaged or isn’t an OpenFactor save.',
+    2: 'That save comes from a newer version of OpenFactor. Reload the page to update.',
+    3: 'That save was made with different rules, so it can’t be loaded here.',
+  };
+  let lastSaved = null, lastSaveFailed = false;
+
+  function toBase64(bytes) {
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(text);
+  }
+  function fromBase64(text) {
+    const raw = atob(text);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return bytes;
+  }
+  function saveRecord() {
+    const pointer = of.of_save(), length = of.of_save_len();
+    const bytes = new Uint8Array(of.memory.buffer, pointer, length).slice();
+    return { format: SAVE_FORMAT, version: 1, pack: 'base', tick: of.of_tick(), savedAt: new Date().toISOString(), world: toBase64(bytes) };
+  }
+  // Returns 0 when loaded, or a LOAD_TEXT code.
+  function loadRecord(record) {
+    if (!record || record.format !== SAVE_FORMAT || typeof record.world !== 'string') return 1;
+    let bytes;
+    try { bytes = fromBase64(record.world); } catch { return 1; }
+    const pointer = of.of_load_buffer(bytes.length);
+    new Uint8Array(of.memory.buffer, pointer, bytes.length).set(bytes);
+    const code = of.of_load();
+    if (code === 0) afterWorldChange();
+    return code;
+  }
+  function afterWorldChange() {
+    closeInspector();
+    setLevel(0);
+    progress = '';
+    refreshProgress();
+  }
+  function autosave() {
+    if (of.of_tick() === 0) return;
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(saveRecord()));
+      lastSaved = Date.now();
+      lastSaveFailed = false;
+    } catch {
+      lastSaveFailed = true;
+    }
+    refreshGame();
+  }
+  function resume() {
+    let text = null;
+    try { text = localStorage.getItem(SAVE_KEY); } catch { return false; }
+    if (!text) return false;
+    let record = null;
+    try { record = JSON.parse(text); } catch { /* handled below */ }
+    const code = loadRecord(record);
+    if (code === 0) {
+      lastSaved = Date.parse(record.savedAt) || null;
+      say('Welcome back. Your factory is as you left it at tick ' + of.of_tick().toLocaleString('en') + '.', 5000);
+      return true;
+    }
+    // Keep it aside rather than overwrite it with the next autosave.
+    try { localStorage.setItem(UNLOADABLE_KEY, text); localStorage.removeItem(SAVE_KEY); } catch { /* nothing more to do */ }
+    say(LOAD_TEXT[code] + ' Starting a new factory; the old save is kept in this browser.', 8000);
+    return false;
+  }
+
+  function ago(ms) {
+    const seconds = Math.round((Date.now() - ms) / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 90) return seconds + ' seconds ago';
+    return Math.round(seconds / 60) + ' minutes ago';
+  }
+  function refreshGame() {
+    if ($('game').hidden) return;
+    $('g-autosave').textContent = lastSaveFailed
+      ? 'This browser won’t let the game save. Use “Save to a file” to keep your factory.'
+      : lastSaved ? 'Saved in this browser ' + ago(lastSaved) + '. It saves itself every 30 seconds.'
+      : 'The factory saves itself in this browser every 30 seconds.';
+  }
+  function closeGame() {
+    $('game').hidden = true;
+    gameButton.setAttribute('aria-expanded', false);
+    disarmReset();
+  }
+  function toggleGame() {
+    if (!$('game').hidden) { closeGame(); showCard(tool); return; }
+    $('game').hidden = false;
+    gameButton.setAttribute('aria-expanded', true);
+    $('inspector').hidden = true; selected = null;
+    $('stats').hidden = true; $('stats-toggle').setAttribute('aria-expanded', false);
+    showCard(tool);
+    refreshGame();
+  }
+  $('g-close').addEventListener('click', () => { closeGame(); showCard(tool); });
+
+  $('g-export').addEventListener('click', () => {
+    const record = saveRecord();
+    const blob = new Blob([JSON.stringify(record)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'openfactor-tick-' + record.tick + '.ofsave';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    say('Saved to ' + link.download + '.');
+  });
+  $('g-import').addEventListener('click', () => $('g-file').click());
+  $('g-file').addEventListener('change', async () => {
+    const file = $('g-file').files[0];
+    $('g-file').value = '';
+    if (!file) return;
+    let record = null;
+    try { record = JSON.parse(await file.text()); } catch { /* reported below */ }
+    const code = loadRecord(record);
+    if (code !== 0) return say(LOAD_TEXT[code], 6000);
+    say('Loaded ' + file.name + ': tick ' + of.of_tick().toLocaleString('en') + '.', 4000);
+    autosave();
+  });
+
+  let resetArmed = 0;
+  function disarmReset() {
+    clearTimeout(resetArmed); resetArmed = 0;
+    $('g-reset').textContent = 'Start over';
+  }
+  $('g-reset').addEventListener('click', () => {
+    if (!resetArmed) {
+      $('g-reset').textContent = 'Really start over? Your factory will be lost';
+      resetArmed = setTimeout(disarmReset, 4000);
+      return;
+    }
+    disarmReset();
+    of.of_reset();
+    afterWorldChange();
+    try { localStorage.removeItem(SAVE_KEY); } catch { /* nothing saved anyway */ }
+    lastSaved = null;
+    closeGame();
+    showCard(tool);
+    say('A new factory.');
+  });
+  setInterval(autosave, AUTOSAVE_MS);
+  addEventListener('pagehide', autosave);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autosave(); });
   $('s-close').addEventListener('click', toggleStats);
 
   function resize() {
@@ -1022,9 +1176,11 @@
     if (!$('levels').hidden && (lower === 'z' || lower === 'c')) return setLevel(level + (lower === 'c' ? 1 : -1));
     if (lower === 'p') return toggleStats();
     if (lower === 'h') return toggleCard();
+    if (lower === 'g') return toggleGame();
     if (lower === 't') return toggleResearch();
     if (lower === 'escape') {
       if (!research.hidden) return toggleResearch();
+      if (!$('game').hidden) { closeGame(); return showCard(tool); }
       return closeInspector();
     }
     if (e.key === 'Tab') {
@@ -1341,6 +1497,7 @@
     refreshStats();
     refreshInspector();
     refreshResearch();
+    refreshGame();
   }
 
   let previous = performance.now(), accumulated = 0, nextHud = 0;
@@ -1358,7 +1515,7 @@
     if (now >= nextHud) { updateHud(); nextHud = now + 250; }
     requestAnimationFrame(frame);
   }
-  say('Deliver items to a depot to pay for buildings and research.', 7000);
+  if (!resume()) say('Deliver items to a depot to pay for buildings and research.', 7000);
   if (new URLSearchParams(location.search).get('view') === '3d') toggle3d();
   requestAnimationFrame(frame);
 })();

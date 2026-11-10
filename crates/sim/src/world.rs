@@ -4,6 +4,9 @@ use crate::hash::Hasher;
 use crate::{BeltId, Dir, EntityId, ItemId, LayerId, MetricId, Pos, TechId, Tick, UnitId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+mod save;
+pub use save::LoadError;
+
 /// How many items a routing unit holds while passing them on.
 const ROUTE_BUFFER: u64 = 2;
 const PORTS: [Port; 3] = [Port::Front, Port::Left, Port::Right];

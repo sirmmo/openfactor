@@ -24,7 +24,11 @@ fn belts(xs: std::ops::RangeInclusive<i32>, y: i32) -> Vec<Command> {
 }
 
 fn pack(mine: u32, smelt: u32, assemble: u32, extra: &str) -> Pack {
-    let text = format!(
+    Pack::parse(&pack_text(mine, smelt, assemble, extra)).unwrap()
+}
+
+fn pack_text(mine: u32, smelt: u32, assemble: u32, extra: &str) -> String {
+    format!(
         r#"
         resource ore
         resource plate
@@ -56,8 +60,7 @@ fn pack(mine: u32, smelt: u32, assemble: u32, extra: &str) -> Pack {
         end
         {extra}
         "#
-    );
-    Pack::parse(&text).unwrap()
+    )
 }
 
 const ONE_ORE: &str = "patch oreField at 0 0 size 1 1 amount 1000000";
@@ -545,15 +548,20 @@ fn random_commands(rng: &mut Rng) -> Vec<Command> {
     commands
 }
 
-fn fuzz_world() -> World {
-    let extra = r#"
+const FUZZ_EXTRA: &str = r#"
         patch oreField at 0 0 size 14 14 amount 1000000
         mapRule drain
             rate 7
             map oreField in 1
         end
     "#;
-    World::new(&pack(3, 5, 7, extra))
+
+fn fuzz_pack_text() -> String {
+    pack_text(3, 5, 7, FUZZ_EXTRA)
+}
+
+fn fuzz_world() -> World {
+    World::new(&Pack::parse(&fuzz_pack_text()).unwrap())
 }
 
 fn command_log(seed: u64, ticks: usize) -> Vec<Vec<Command>> {
@@ -1615,6 +1623,108 @@ fn level_fuzz_replays_identically_and_conserves_items() {
             assert_eq!(first.step(commands), second.step(commands));
             assert_eq!(first.state_hash(), second.state_hash());
             assert_conserved(&first);
+        }
+    }
+}
+
+// Saves.
+
+/// Runs `log`, saving and loading at every `every` ticks, and checks the loaded
+/// copy matches the original and keeps matching for the next `ahead` ticks.
+fn check_saves(pack: &Pack, log: &[Vec<Command>], every: usize, ahead: usize) -> World {
+    let mut world = World::new(pack);
+    for (tick, commands) in log.iter().enumerate() {
+        world.step(commands);
+        if tick % every != every - 1 {
+            continue;
+        }
+        let bytes = world.save();
+        let mut copy = World::load(pack, &bytes).unwrap();
+        assert_eq!(copy.state_hash(), world.state_hash(), "tick {}", world.tick());
+        assert_eq!(copy.save(), bytes, "saving a loaded world gives the same bytes");
+        let mut original = world.clone();
+        for commands in log.iter().skip(tick + 1).take(ahead) {
+            assert_eq!(original.step(commands), copy.step(commands));
+            assert_eq!(original.state_hash(), copy.state_hash(), "tick {}", original.tick());
+        }
+    }
+    world
+}
+
+#[test]
+fn a_saved_world_loads_and_continues_identically() {
+    let fuzz = fuzz_world();
+    let fuzz_pack = Pack::parse(&fuzz_pack_text()).unwrap();
+    assert_eq!(World::new(&fuzz_pack).state_hash(), fuzz.state_hash());
+    for seed in 1..=4 {
+        check_saves(&fuzz_pack, &command_log(0x51ED_270B_9A3C_4E1F_u64.wrapping_mul(seed), 1500), 250, 120);
+        let mut rng = Rng(0xA076_1D64_78BD_642F_u64.wrapping_mul(seed));
+        let log: Vec<Vec<Command>> = (0..1500).map(|_| infra_fuzz_commands(&mut rng)).collect();
+        check_saves(&infra(""), &log, 250, 120);
+    }
+}
+
+#[test]
+fn saves_keep_levels_research_and_the_base_pack_running() {
+    let base = Pack::parse(BASE_PACK).unwrap();
+    let mut log: Vec<Vec<Command>> = vec![base.worldgen.starter.clone()];
+    log.resize(4000, Vec::new());
+    let routing = base.content.tech_id("routing").unwrap();
+    log[1900].push(Command::Research { tech: routing });
+    // Saved at 2100 with the research running, which finishes at 2500.
+    let world = check_saves(&base, &log, 700, 300);
+    assert!(world.researched(routing));
+
+    let floors_pack = Pack::parse(FLOORS).unwrap();
+    let (_, u) = floors();
+    let mut log: Vec<Vec<Command>> = vec![vec![
+        unit3(0, 0, 0, u.miner),
+        unit3(1, 0, 0, u.hoist),
+        unit3(1, 0, 1, u.hoist),
+        belt3(2, 0, 1, Dir::East),
+        unit3(3, 0, 1, u.chute),
+        unit3(3, 0, 0, u.chute),
+        unit3(4, 0, 0, u.bin),
+    ]];
+    log.resize(900, Vec::new());
+    let world = check_saves(&floors_pack, &log, 150, 100);
+    assert!(world.stock(p(4, 0), ORE) > 100);
+}
+
+#[test]
+fn damaged_or_foreign_saves_are_refused_without_panicking() {
+    let pack = Pack::parse(&fuzz_pack_text()).unwrap();
+    let mut world = World::new(&pack);
+    for commands in &command_log(99, 800) {
+        world.step(commands);
+    }
+    let bytes = world.save();
+    for end in 0..bytes.len() {
+        assert!(World::load(&pack, &bytes[..end]).is_err(), "cut at {end}");
+    }
+    let mut longer = bytes.clone();
+    longer.push(0);
+    assert!(matches!(World::load(&pack, &longer), Err(LoadError::Damaged(_))));
+    let mut newer = bytes.clone();
+    newer[4] = 2;
+    assert_eq!(World::load(&pack, &newer).unwrap_err(), LoadError::Version(2));
+    let other = Pack::parse(&fuzz_pack_text().replace("rate 7", "rate 8")).unwrap();
+    assert_eq!(World::load(&other, &bytes).unwrap_err(), LoadError::OtherPack);
+    let renamed = Pack::parse(&format!("{}\ndescribe ore \"Rocks.\"", fuzz_pack_text())).unwrap();
+    assert!(World::load(&renamed, &bytes).is_ok(), "descriptions are cosmetic");
+
+    // Flipped bytes either fail to load or load into a world that still runs.
+    let mut rng = Rng(12345);
+    for _ in 0..3000 {
+        let mut damaged = bytes.clone();
+        for _ in 0..=rng.below(3) {
+            let at = 13 + rng.below(damaged.len() as u64 - 13) as usize;
+            damaged[at] ^= 1 << rng.below(8);
+        }
+        if let Ok(mut loaded) = World::load(&pack, &damaged) {
+            for _ in 0..20 {
+                loaded.step(&[]);
+            }
         }
     }
 }

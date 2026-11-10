@@ -4,7 +4,7 @@
 //! only valid until the next call, because wasm memory can move when it grows.
 
 use openfactor_sim::{
-    BeltId, Building, Command, Dir, ItemId, MetricId, Pack, Port, Pos, Reject, Route, Rule, Scope, Status,
+    BeltId, Building, Command, Dir, ItemId, LoadError, MetricId, Pack, Port, Pos, Reject, Route, Rule, Scope, Status,
     TechId, Test, UnitId, World,
 };
 use std::cell::RefCell;
@@ -13,6 +13,7 @@ const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
 const DIRS: [Dir; 4] = [Dir::North, Dir::East, Dir::South, Dir::West];
 
 struct Game {
+    pack: Pack,
     world: World,
     queued: Vec<Command>,
     snapshot: Vec<i32>,
@@ -20,6 +21,10 @@ struct Game {
     inspection: String,
     /// Why the latest refused edit was refused, as a `reject_code`.
     last_reject: i32,
+    /// The latest `of_save`.
+    saved: Vec<u8>,
+    /// Where the page writes a save for `of_load`.
+    incoming: Vec<u8>,
 }
 
 impl Game {
@@ -32,6 +37,9 @@ impl Game {
             pack_json: pack_json(&pack),
             inspection: String::new(),
             last_reject: 0,
+            saved: Vec::new(),
+            incoming: Vec::new(),
+            pack,
         }
     }
 
@@ -534,6 +542,51 @@ pub extern "C" fn of_metric(metric: u32) -> u32 {
     with_game(|game| game.world.metric(MetricId(metric as u16)).total as u32)
 }
 
+/// Saves the world. Read `of_save_len` bytes from here. Edits queued since
+/// the last `of_step` aren't included, so save between steps.
+#[no_mangle]
+pub extern "C" fn of_save() -> *const u8 {
+    with_game(|game| {
+        game.saved = game.world.save();
+        game.saved.as_ptr()
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn of_save_len() -> u32 {
+    with_game(|game| game.saved.len() as u32)
+}
+
+/// Room for a save of `len` bytes, for the page to copy one into before `of_load`.
+#[no_mangle]
+pub extern "C" fn of_load_buffer(len: u32) -> *mut u8 {
+    with_game(|game| {
+        game.incoming = vec![0; len as usize];
+        game.incoming.as_mut_ptr()
+    })
+}
+
+/// Replaces the world with the save in the load buffer. Returns 0 if it
+/// loaded, 1 if the save is damaged, 2 if it comes from a newer version and
+/// 3 if it was made with other rules. On failure the world is unchanged.
+#[no_mangle]
+pub extern "C" fn of_load() -> i32 {
+    with_game(|game| {
+        let bytes = std::mem::take(&mut game.incoming);
+        match World::load(&game.pack, &bytes) {
+            Ok(world) => {
+                game.world = world;
+                game.queued.clear();
+                game.last_reject = 0;
+                0
+            }
+            Err(LoadError::Damaged(_)) => 1,
+            Err(LoadError::Version(_)) => 2,
+            Err(LoadError::OtherPack) => 3,
+        }
+    })
+}
+
 #[no_mangle]
 pub extern "C" fn of_hash_hi() -> u32 {
     with_game(|game| (game.world.state_hash() >> 32) as u32)
@@ -550,6 +603,34 @@ mod tests {
 
     fn resource(name: &str) -> u32 {
         with_game(|game| game.world.content().resource_id(name).expect("the base pack defines it").0 as u32)
+    }
+
+    fn load_bytes(bytes: &[u8]) -> i32 {
+        let pointer = of_load_buffer(bytes.len() as u32);
+        // SAFETY: the buffer was just allocated with exactly this length.
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), pointer, bytes.len()) };
+        of_load()
+    }
+
+    fn saved_bytes() -> Vec<u8> {
+        let pointer = of_save();
+        // SAFETY: of_save keeps the bytes alive until the next call.
+        unsafe { std::slice::from_raw_parts(pointer, of_save_len() as usize) }.to_vec()
+    }
+
+    #[test]
+    fn a_save_loads_back_into_the_same_world() {
+        of_reset();
+        of_step(900);
+        let hash = (of_hash_hi(), of_hash_lo());
+        let bytes = saved_bytes();
+        of_step(500);
+        assert_ne!((of_hash_hi(), of_hash_lo()), hash);
+        assert_eq!(load_bytes(&bytes), 0);
+        assert_eq!((of_hash_hi(), of_hash_lo(), of_tick()), (hash.0, hash.1, 900));
+        assert_eq!(load_bytes(&bytes[..bytes.len() / 2]), 1);
+        assert_eq!(load_bytes(b"nonsense"), 1);
+        assert_eq!(of_tick(), 900, "a failed load leaves the world alone");
     }
 
     #[test]
