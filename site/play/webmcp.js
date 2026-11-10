@@ -63,8 +63,12 @@ export function makeTools(game) {
     if (z < 0 || z >= pack.levels) throw new ToolError('level must be from 0 to ' + (pack.levels - 1));
     return z;
   }
+  // In someone else's shared game, edits go to the host's browser.
+  const remote = () => !!(game.remote && game.remote());
+  const SENT = 'sent';
   // Applies queued edits in one tick and reports whether they were refused.
   function commit() {
+    if (remote()) return SENT;
     const refused = of.of_step(1);
     game.refresh();
     return refused > 0 ? game.rejectText[of.of_last_reject()] || 'Refused.' : null;
@@ -261,8 +265,9 @@ export function makeTools(game) {
       for (let i = 0; i < count; i++, x += dx, y += dy) {
         of.of_place(x, y, z, dir, kind);
         const refused = commit();
-        results.push(refused ? { x, y, refused } : { x, y, built: true });
+        results.push(refused === SENT ? { x, y, sentToHost: true } : refused ? { x, y, refused } : { x, y, built: true });
       }
+      if (remote()) return { sentToHost: count, note: 'This is a shared game run by the host. Check the result with openfactor_look.' };
       const built = results.filter((r) => r.built).length;
       game.notify('An assistant built ' + built + ' × ' + kindName(kind) + (built < count ? ' (' + (count - built) + ' refused)' : '') + '.');
       return { built, refused: count - built, results };
@@ -295,7 +300,7 @@ export function makeTools(game) {
       for (const b of targets) {
         of.of_remove(b.x, b.y, b.z);
         const reason = commit();
-        if (reason) refused.push({ x: b.x, y: b.y, refused: reason }); else removed++;
+        if (reason && reason !== SENT) refused.push({ x: b.x, y: b.y, refused: reason }); else removed++;
       }
       if (removed) game.notify('An assistant removed ' + removed + ' building' + (removed === 1 ? '' : 's') + '.');
       return { removed, refused };
@@ -330,7 +335,7 @@ export function makeTools(game) {
       }
       of.of_configure(x, y, z, reset ? -1 : value);
       const refused = commit();
-      return refused ? { refused } : { done: true };
+      return refused === SENT ? { sentToHost: true } : refused ? { refused } : { done: true };
     },
   });
 
@@ -345,6 +350,7 @@ export function makeTools(game) {
       if (index < 0) throw new ToolError('No research called "' + input.research + '".');
       of.of_research(index);
       const refused = commit();
+      if (refused === SENT) return { sentToHost: true };
       if (!refused) game.notify('An assistant started researching ' + pack.techs[index].name + '.');
       return refused ? { refused } : { started: pack.techs[index].name, seconds: pack.techs[index].time / D.TICKS_PER_SECOND };
     },
@@ -358,6 +364,7 @@ export function makeTools(game) {
     execute: (input = {}) => {
       const seconds = int(input, 'seconds');
       if (seconds < 1 || seconds > MAX_WAIT_SECONDS) throw new ToolError('seconds must be 1 to ' + MAX_WAIT_SECONDS);
+      if (remote()) throw new ToolError('In a shared game only the host’s browser moves time on.');
       const before = stock();
       of.of_step(seconds * D.TICKS_PER_SECOND);
       game.refresh();

@@ -25,6 +25,8 @@ struct Game {
     saved: Vec<u8>,
     /// Where the page writes a save for `of_load`.
     incoming: Vec<u8>,
+    /// The edits the latest `of_step` applied, as `command_record`s.
+    applied: Vec<i32>,
 }
 
 impl Game {
@@ -39,6 +41,7 @@ impl Game {
             last_reject: 0,
             saved: Vec::new(),
             incoming: Vec::new(),
+            applied: Vec::new(),
             pack,
         }
     }
@@ -102,6 +105,17 @@ impl Game {
         }
         finish_count(&mut out, mark, 6);
         self.snapshot = out;
+    }
+
+    /// A command as six numbers, in the form the `of_place`, `of_remove`,
+    /// `of_configure` and `of_research` calls take: so a peer can repeat it.
+    fn command_record(&self, command: Command) -> [i32; 6] {
+        match command {
+            Command::Place { pos, dir, building } => [0, pos.x, pos.y, pos.z, dir_code(dir), self.building_code(building)],
+            Command::Remove { pos } => [1, pos.x, pos.y, pos.z, 0, 0],
+            Command::Configure { pos, setting } => [2, pos.x, pos.y, pos.z, setting.map_or(-1, i32::from), 0],
+            Command::Research { tech } => [3, i32::from(tech.0), 0, 0, 0, 0],
+        }
     }
 
     /// The building at `pos` as JSON text, or `null`.
@@ -461,6 +475,7 @@ pub extern "C" fn of_step(ticks: u32) -> u32 {
         let mut rejected = 0;
         if ticks > 0 {
             let commands = std::mem::take(&mut game.queued);
+            game.applied = commands.iter().flat_map(|&command| game.command_record(command)).collect();
             let refused = game.world.step(&commands);
             rejected = refused.len() as u32;
             if let Some(last) = refused.last() {
@@ -472,6 +487,20 @@ pub extern "C" fn of_step(ticks: u32) -> u32 {
         }
         rejected
     })
+}
+
+/// The edits the latest `of_step` applied, in order, six numbers each:
+/// `0 x y z dir kind` placed, `1 x y z 0 0` removed, `2 x y z setting 0`
+/// configured (-1 for the default) and `3 tech 0 0 0 0` research started.
+/// Read `of_applied_len` numbers from here.
+#[no_mangle]
+pub extern "C" fn of_applied() -> *const i32 {
+    with_game(|game| game.applied.as_ptr())
+}
+
+#[no_mangle]
+pub extern "C" fn of_applied_len() -> u32 {
+    with_game(|game| game.applied.len() as u32)
 }
 
 /// Writes the view as four counted lists of i32 records: ground tiles (x, y, layer),
@@ -619,6 +648,46 @@ mod tests {
         let pointer = of_save();
         // SAFETY: of_save keeps the bytes alive until the next call.
         unsafe { std::slice::from_raw_parts(pointer, of_save_len() as usize) }.to_vec()
+    }
+
+    #[test]
+    fn applied_edits_replay_into_an_identical_world() {
+        of_reset();
+        let workshop = with_game(|game| {
+            let unit = game.world.content().unit_id("workshop").expect("the base pack defines it");
+            game.building_code(Building::Unit(unit))
+        });
+        let script: Vec<Box<dyn Fn()>> = vec![
+            Box::new(|| {}),
+            Box::new(move || of_place(30, 30, 0, 2, workshop)),
+            Box::new(|| of_configure(30, 30, 0, 1)),
+            Box::new(|| of_research(0)),
+            Box::new(|| of_remove(9, 2, 0)),
+            Box::new(|| of_place(9, 2, 0, 1, 0)),
+        ];
+        let mut batches = Vec::new();
+        for (index, edit) in script.iter().enumerate() {
+            edit();
+            of_step(1 + index as u32 * 40);
+            let records = with_game(|game| game.applied.clone());
+            batches.push((1 + index as u32 * 40, records));
+        }
+        let host = (of_hash_hi(), of_hash_lo());
+        assert!(batches[0].1.len() > 6, "the starter buildings are recorded");
+
+        of_reset();
+        for (ticks, records) in &batches {
+            for r in records.chunks(6) {
+                match r[0] {
+                    0 => of_place(r[1], r[2], r[3], r[4], r[5]),
+                    1 => of_remove(r[1], r[2], r[3]),
+                    2 => of_configure(r[1], r[2], r[3], r[4]),
+                    _ => of_research(r[1] as u32),
+                }
+            }
+            of_step(*ticks);
+        }
+        assert_eq!((of_hash_hi(), of_hash_lo()), host);
     }
 
     #[test]

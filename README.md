@@ -14,8 +14,10 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 ## Decisions
 
 - **View:** top-down 2D and 3D views of the same world, which can stack up to eight levels.
-- **Multiplayer:** small co-op (2-8 players). The server orders commands and every
-  client runs the same simulation. Federation between worlds comes later.
+- **Multiplayer:** small co-op (2-8 players). The host's browser orders commands and
+  sends each batch of ticks to the guests over WebRTC (PeerJS for introductions);
+  every client runs the same simulation and compares state hashes. Late joiners
+  start from a save. Federation between worlds comes later.
 - **Priority:** programmable platform first (data packs, external API, WASM mods),
   polish as a game second.
 - **Saves:** `World::save` / `World::load` capture the whole state as bytes. The
@@ -29,7 +31,7 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 
 1. Headless sim with replay tests (done).
 2. **Browser client with a build and render loop (first version in `site/play`).**
-3. Two browsers in one world, with late join and desync detection.
+3. **Two browsers in one world, with late join and desync detection (first version, browser to browser).**
 4. GlassBox-style rule packs (first version in `packs/`), then an in-game
    inspector and editor, and the external API.
 5. WASM mods, then federation.
@@ -55,4 +57,5 @@ See [COPYING](COPYING).
 
 Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory) and
 [Factory Kit](https://kenney.nl/assets/factory-kit) by Kenney (CC0). The 3D view uses
-[three.js](https://threejs.org) (MIT), vendored in `site/play/vendor`.
+[three.js](https://threejs.org) (MIT) and playing together uses [PeerJS](https://peerjs.com) (MIT),
+both vendored in `site/play/vendor`.

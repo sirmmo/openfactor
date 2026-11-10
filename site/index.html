@@ -226,6 +226,11 @@ let bytes = world.save();
 let copy = World::load(&amp;pack, &amp;bytes)?;
 assert_eq!(copy.state_hash(), world.state_hash());</code></pre>
 
+  <h2>Playing together</h2>
+  <p>In the Game panel (<kbd>G</kbd>), <b>Host a game</b> gives a six-letter code and an invite link. Friends open the link, or type the code under <b>Join</b>, and build in your factory with you; everyone sees where the others are pointing.</p>
+  <p>The host's browser runs the game. It steps the world and sends each batch of ticks, with the edits made in it, straight to every guest over WebRTC. Guests send their edits to the host and run the same ticks, so every copy stays identical; they compare state hashes once a second and fetch a fresh copy if they ever differ. A player who joins late starts from a save of the host's world. Browsers find each other through the free <a href="https://peerjs.com/">PeerJS</a> broker; the game itself never passes through a server.</p>
+  <p>Keep the host's tab open and visible: if it is hidden the browser pauses it, and the game pauses for everyone. When the host leaves, guests go back to their own factories, which were saved when they joined. Some strict networks block direct connections between browsers; there is no relay server yet to work around that.</p>
+
   <h2>AI agents (WebMCP)</h2>
   <p>The play page offers its controls to AI agents through <a href="https://webmachinelearning.github.io/webmcp/">WebMCP</a>, the proposed browser API that lets a page give tools to an agent running in the browser. An agent can do what a player can and nothing more: it pays the same costs, is refused for the same reasons, and the page says what it did.</p>
   <div class="scroll"><table>
@@ -253,14 +258,14 @@ python3 -m http.server --directory site</code></pre>
   <ol>
     <li>Headless simulation with replay tests (done).</li>
     <li>Browser client with a build and render loop (first version live).</li>
-    <li>Two browsers in one world, with late join and desync detection.</li>
+    <li>Two browsers in one world, with late join and desync detection (first version live, browser to browser).</li>
     <li>GlassBox-style rule packs (first version live), an in-game inspector and editor, and the external API.</li>
     <li>WASM mods, then federation between worlds.</li>
   </ol>
 
   <h2>Licence and credits</h2>
   <p>OpenFactor's code is free software under the <a href="https://github.com/sirmmo/openfactor/blob/main/COPYING">GNU General Public License, version 2 or later</a>.</p>
-  <p>Art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> (<a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>) and <a href="https://kenney.nl/assets/factory-kit">Factory Kit</a> (<a href="play/assets/models/factory-kit-LICENSE.txt">CC0</a>) by Kenney. The 3D view uses <a href="https://threejs.org">three.js</a> (<a href="play/vendor/three-LICENSE.txt">MIT</a>).</p>
+  <p>Art is <a href="https://kenney.nl/assets/tiny-factory">Tiny Factory</a> (<a href="play/assets/tiny-factory-LICENSE.txt">CC0</a>) and <a href="https://kenney.nl/assets/factory-kit">Factory Kit</a> (<a href="play/assets/models/factory-kit-LICENSE.txt">CC0</a>) by Kenney. The 3D view uses <a href="https://threejs.org">three.js</a> (<a href="play/vendor/three-LICENSE.txt">MIT</a>), and playing together uses <a href="https://peerjs.com">PeerJS</a> (<a href="play/vendor/peerjs-LICENSE.txt">MIT</a>).</p>
 </main>
 <script type="module">
   // Builds the catalogue from the base pack inside the game's own WebAssembly,
