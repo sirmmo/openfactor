@@ -110,7 +110,47 @@
   #status { position: fixed; left: 50%; bottom: calc(112px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent);
     border-radius: 6px; padding: 6px 12px; max-width: calc(100% - 32px); }
+  #newgame { position: fixed; inset: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--ground); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; z-index: 6; }
+  #newgame header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  #newgame h2 { font-size: 16px; margin: 0; }
+  #newgame header .close { margin-left: auto; min-height: 32px; padding: 2px 10px; }
+  .ng-body { display: flex; gap: 16px; padding: 14px; overflow: auto; flex: 1; }
+  .ng-packs { display: flex; flex-direction: column; gap: 8px; width: 260px; flex: none; }
+  .ng-packs button { text-align: left; display: block; }
+  .ng-packs button b { display: block; }
+  .ng-packs button span { color: var(--dim); font-size: 12px; }
+  .ng-packs button[aria-pressed="true"] span { color: #3b2f10; }
+  .ng-detail { flex: 1; min-width: 0; }
+  .ng-detail h3 { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); margin: 16px 0 6px; font-weight: 600; }
+  .ng-starts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ng-starts button { flex: 1 1 200px; text-align: left; }
+  .ng-starts button span, .ng-puzzle span { display: block; color: var(--dim); font-size: 12px; }
+  .ng-puzzle { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 6px; }
+  .ng-puzzle div { flex: 1; min-width: 0; }
+  .ng-puzzle .best { font: 12px var(--mono); color: #7bd389; white-space: nowrap; }
+  .ng-puzzle .clock { font: 12px var(--mono); color: var(--dim); white-space: nowrap; }
+  #puzzle { position: fixed; left: 12px; top: calc(60px + env(safe-area-inset-top, 0px)); width: 280px; max-width: calc(100% - 24px);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  #puzzle.solved { border-color: #4f9d5d; }
+  #puzzle.failed { border-color: #e05252; }
+  #puzzle header { display: flex; align-items: baseline; gap: 8px; font-weight: 600; }
+  #puzzle header .close { margin-left: auto; min-height: 28px; padding: 0 8px; }
+  #p-clock { font: 12px var(--mono); color: var(--dim); margin-left: auto; }
+  #p-about { color: var(--dim); font-size: 12px; margin: 4px 0; }
+  #p-goals { list-style: none; padding: 0; margin: 6px 0 0; font-size: 13px; }
+  #p-goals li { margin: 6px 0; }
+  #p-goals .count { float: right; font: 12px var(--mono); color: var(--dim); }
+  #p-goals li.done { color: #7bd389; }
+  #p-result { margin: 8px 0 0; font-weight: 600; }
+  #p-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #p-actions button { min-height: 32px; padding: 4px 10px; }
+  #p-show { position: fixed; left: 12px; top: calc(60px + env(safe-area-inset-top, 0px)); }
+  .chip.sandbox { color: #7bd389; }
   @media (max-width: 560px) {
+    .ng-body { flex-direction: column; }
+    .ng-packs { width: auto; }
+    #puzzle { top: auto; bottom: calc(116px + env(safe-area-inset-bottom, 0px)); width: auto; right: 12px; }
     button kbd { display: none; }
     #dock .bar { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; }
     #dock button { flex: none; }
@@ -133,6 +173,8 @@
     <div class="chip"><span>level</span> <b id="level">0</b></div>
     <button id="level-up" aria-label="One level up">&#9650;<kbd>C</kbd></button>
   </div>
+  <div class="chip" id="pack-chip" title="The rules in play"></div>
+  <div class="chip sandbox" id="sandbox-chip" title="Everything is unlocked and free" hidden>Sandbox</div>
   <div class="spacer" id="hud-spacer"></div>
   <button class="chip" id="t-chip" hidden></button>
   <div class="chip" title="Hash of the full simulation state"><span>state</span> <b id="hash">-</b></div>
@@ -163,6 +205,7 @@
   <header><span>Game</span><button class="close" id="g-close" aria-label="Close">&times;</button></header>
   <p id="g-autosave" class="about"></p>
   <div class="game-actions">
+    <button id="g-new">New game: rules and puzzles<kbd>N</kbd></button>
     <button id="g-export">Save to a file</button>
     <button id="g-import">Load from a file</button>
     <button id="g-reset">Start over</button>
@@ -182,6 +225,26 @@
   </div>
   <input type="file" id="g-file" accept=".ofsave,.json,application/json" hidden>
 </aside>
+
+<section id="newgame" aria-label="New game" hidden>
+  <header><h2>New game</h2><span class="note" id="ng-note"></span>
+    <button class="close" id="ng-close" aria-label="Close">&times;</button></header>
+  <div class="ng-body">
+    <div class="ng-packs" id="ng-packs"></div>
+    <div class="ng-detail" id="ng-detail"></div>
+  </div>
+  <input type="file" id="ng-file" accept=".gbx,.txt,text/plain" hidden>
+</section>
+
+<aside id="puzzle" aria-label="Puzzle" hidden>
+  <header><span id="p-name"></span><span id="p-clock"></span>
+    <button class="close" id="p-hide" aria-label="Hide the puzzle">&minus;</button></header>
+  <p id="p-about"></p>
+  <ul id="p-goals"></ul>
+  <p id="p-result" hidden></p>
+  <div id="p-actions"></div>
+</aside>
+<button id="p-show" hidden>Puzzle</button>
 
 <aside class="panel" id="stats" hidden>
   <header><span>Production</span><button class="close" id="s-close" aria-label="Close">&times;</button></header>
@@ -252,6 +315,37 @@
     return;
   }
 
+  // Which rules to run. A different pack means a fresh page, so everything
+  // built from the pack below is built once: the choice, and a save or a game
+  // to join with it, are handed over in session storage.
+  const readText = (pointer, length) => new TextDecoder().decode(new Uint8Array(of.memory.buffer, pointer, length).slice());
+  const CATALOG = JSON.parse(readText(of.of_catalog(), of.of_catalog_len()));
+  const SAVE_KEY = 'openfactor.autosave.v1', BOOT_KEY = 'openfactor.boot';
+  let boot = null;
+  try { boot = JSON.parse(sessionStorage.getItem(BOOT_KEY)); sessionStorage.removeItem(BOOT_KEY); } catch { boot = null; }
+  let ownSave = null;
+  try { ownSave = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { ownSave = null; }
+  // Starts `start` (-1 free play, -2 sandbox, or a puzzle) with pack `id`, or with `text` for 'custom'.
+  function selectPack(id, text, start = -1) {
+    if (id === 'custom') {
+      const bytes = new TextEncoder().encode(String(text || ''));
+      new Uint8Array(of.memory.buffer, of.of_text_buffer(bytes.length), bytes.length).set(bytes);
+      return of.of_new(-1, start);
+    }
+    const index = CATALOG.findIndex((p) => p.id === id);
+    return index < 0 ? 1 : of.of_new(index, start);
+  }
+  const wanted = boot || (ownSave && ownSave.pack ? { pack: ownSave.pack, text: ownSave.packText } : null);
+  let bootError = '';
+  if (wanted && wanted.pack !== 'base' && selectPack(wanted.pack, wanted.text, wanted.start ?? -1) !== 0) {
+    bootError = readText(of.of_error(), of.of_error_len());
+  } else if (wanted && wanted.pack === 'base' && (wanted.start ?? -1) !== -1) {
+    selectPack('base', null, wanted.start);
+  }
+  const packIndex = of.of_pack_index();
+  const packId = packIndex >= 0 ? CATALOG[packIndex].id : 'custom';
+  const packText = packId === 'custom' ? String(wanted.text) : null;
+
   // Calls can grow wasm memory, so take the buffer only after the last call.
   const packPointer = of.of_pack_json(), packLength = of.of_pack_json_len();
   const pack = JSON.parse(new TextDecoder().decode(new Uint8Array(of.memory.buffer, packPointer, packLength)));
@@ -306,8 +400,12 @@
       { id: 'unit:' + unit.id, kind: beltCount + index, label: unit.name, group: unit.group, unit, about: unit.about, sprite: unit.sprite, tint: unit.tint, cost: unit.cost, lock: unit.lock })),
   ];
 
-  const isOpen = (lock) => lock === null || of.of_researched(lock) === 1;
-  const affordable = (cost) => cost.every(([item, amount]) => (of.of_stock(item) >>> 0) >= amount);
+  // In a sandbox everything is open and free; a puzzle may allow only some buildings.
+  const sandbox = () => of.of_sandbox() === 1;
+  let puzzleState = null, puzzleOnly = null;
+  const isOpen = (lock) => lock === null || sandbox() || of.of_researched(lock) === 1;
+  const allowed = (t) => !puzzleOnly || puzzleOnly.has((t.unit || t.belt).id);
+  const affordable = (cost) => sandbox() || cost.every(([item, amount]) => (of.of_stock(item) >>> 0) >= amount);
   const GROUPS = [...new Set(TOOLS.map((t) => t.group))];
   const ACTIONS = [
     { id: 'inspect', label: 'Inspect', key: 'I' },
@@ -330,7 +428,7 @@
   // Toolbar: one row for the open section's tools, one for sections and actions.
   const toolbar = $('tools'), groupbar = $('groups');
   const buttons = new Map(), groupButtons = new Map();
-  const groupTools = () => TOOLS.filter((t) => t.group === group && isOpen(t.lock));
+  const groupTools = () => TOOLS.filter((t) => t.group === group && isOpen(t.lock) && allowed(t));
 
   function renderTools() {
     toolbar.replaceChildren();
@@ -338,7 +436,7 @@
     groupTools().forEach((t, index) => {
       const b = document.createElement('button');
       b.append(icon(t.sprite, t.tint), t.label);
-      if (t.cost.length) {
+      if (t.cost.length && !sandbox()) {
         const costs = document.createElement('span');
         costs.className = 'costs';
         for (const [item, amount] of t.cost) costs.append(amountChip(['l', item, amount]));
@@ -357,7 +455,7 @@
   }
   // Sections with nothing researched yet stay out of the way.
   function refreshGroups() {
-    for (const [name, b] of groupButtons) b.hidden = !TOOLS.some((t) => t.group === name && isOpen(t.lock));
+    for (const [name, b] of groupButtons) b.hidden = !TOOLS.some((t) => t.group === name && isOpen(t.lock) && allowed(t));
   }
   function refreshAffordable() {
     for (const [t, b] of buttons) b.classList.toggle('cant', !affordable(t.cost));
@@ -423,6 +521,7 @@
       return { chip, have, item, count };
     });
     if (!t.cost.length) price.textContent = 'Free';
+    if (sandbox()) { price.textContent = 'Free in the sandbox'; cardChips = []; }
     const body = $('c-body');
     body.replaceChildren(...describeTool(t.unit || t.belt, !t.unit));
     if (t.cost.length) body.append(factList([D.REFUND_NOTE]));
@@ -914,7 +1013,7 @@
 
   // Saves. The factory is saved in this browser every half minute and when the
   // page is hidden, and comes back when the page opens. Files carry the same data.
-  const SAVE_KEY = 'openfactor.autosave.v1', UNLOADABLE_KEY = 'openfactor.autosave.unloadable';
+  const UNLOADABLE_KEY = 'openfactor.autosave.unloadable';
   const SAVE_FORMAT = 'openfactor-save', AUTOSAVE_MS = 30000;
   const LOAD_TEXT = {
     1: 'That save is damaged or isn’t an OpenFactor save.',
@@ -937,11 +1036,27 @@
   function saveRecord() {
     const pointer = of.of_save(), length = of.of_save_len();
     const bytes = new Uint8Array(of.memory.buffer, pointer, length).slice();
-    return { format: SAVE_FORMAT, version: 1, pack: 'base', tick: of.of_tick(), savedAt: new Date().toISOString(), world: toBase64(bytes) };
+    const record = { format: SAVE_FORMAT, version: 1, pack: packId, tick: of.of_tick(), savedAt: new Date().toISOString(), world: toBase64(bytes) };
+    if (packText !== null) record.packText = packText;
+    return record;
   }
-  // Returns 0 when loaded, or a LOAD_TEXT code.
-  function loadRecord(record) {
+  const samePack = (id, text) => (id || 'base') === packId && (packId !== 'custom' || text === packText);
+  // Opens the page afresh with other rules. Nothing is saved over on the way out.
+  let leaving = false;
+  function restartWith(plan) {
+    leaving = true;
+    try { sessionStorage.setItem(BOOT_KEY, JSON.stringify(plan)); } catch { /* starts with the saved game */ }
+    location.reload();
+  }
+  // Returns 0 when loaded, or a LOAD_TEXT code. A save made with another of the
+  // built-in packs, or carrying its own rules, reloads the page with those rules.
+  function loadRecord(record, switchPack = false) {
     if (!record || record.format !== SAVE_FORMAT || typeof record.world !== 'string') return 1;
+    if (switchPack && !samePack(record.pack, record.packText)) {
+      if (record.pack === 'custom' ? typeof record.packText !== 'string' : !CATALOG.some((p) => p.id === (record.pack || 'base'))) return 3;
+      restartWith({ pack: record.pack || 'base', text: record.packText, record });
+      return -1;
+    }
     let bytes;
     try { bytes = fromBase64(record.world); } catch { return 1; }
     const pointer = of.of_load_buffer(bytes.length);
@@ -955,12 +1070,21 @@
     setLevel(0);
     progress = '';
     refreshProgress();
+    puzzleKey = '';
+    puzzleHidden = false;
+    refreshPuzzle();
+    refreshGroups();
+    renderTools();
+    cardTool = null;
+    showCard(tool);
   }
   // Set once playing together is ready. A guest's copy belongs to the host.
   let together = null;
+  // Reloaded to join a game with the host's rules: this browser's own save stays as it is.
+  let rejoining = !!(boot && boot.join);
   const isGuest = () => together !== null && together.role === 'guest';
   function autosave() {
-    if (of.of_tick() === 0 || isGuest()) return;
+    if (of.of_tick() === 0 || isGuest() || leaving || rejoining) return;
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(saveRecord()));
       lastSaved = Date.now();
@@ -1039,7 +1163,8 @@
     if (!file) return;
     let record = null;
     try { record = JSON.parse(await file.text()); } catch { /* reported below */ }
-    const code = loadRecord(record);
+    const code = loadRecord(record, true);
+    if (code === -1) return say('Loading ' + file.name + ' with its own rules…', 0);
     if (code !== 0) return say(LOAD_TEXT[code], 6000);
     say('Loaded ' + file.name + ': tick ' + of.of_tick().toLocaleString('en') + '.', 4000);
     autosave();
@@ -1065,6 +1190,228 @@
     showCard(tool);
     say('A new factory.');
   });
+
+  // A new game: choose the rules, then free play, a sandbox or a puzzle.
+  const BEST_KEY = 'openfactor.best.';
+  const clock = (ticks) => {
+    const seconds = Math.floor(ticks / D.TICKS_PER_SECOND);
+    return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+  };
+  const bestOf = (id, puzzle) => { try { return Number(localStorage.getItem(BEST_KEY + id + '.' + puzzle)) || null; } catch { return null; } };
+  function goalText(info, [kind, id, n]) {
+    const name = (list) => (list[id] ? list[id].name : '?');
+    if (kind === 'deliver') return 'Deliver ' + D.amount(info, id, n);
+    if (kind === 'make') return 'Make ' + D.amount(info, id, n);
+    if (kind === 'stock') return 'Have ' + D.amount(info, id, n) + ' in stock';
+    if (kind === 'metric') return name(info.metrics) + ': ' + n.toLocaleString('en');
+    return 'Research ' + name(info.techs);
+  }
+  let chosenPack = packId, customText = packId === 'custom' ? packText : null, customInfo = packId === 'custom' ? pack : null;
+  function packInfo(id) {
+    if (id === packId) return pack;
+    if (id === 'custom') return customInfo;
+    return CATALOG.find((p) => p.id === id);
+  }
+  function renderNewGame() {
+    const list = $('ng-packs');
+    list.replaceChildren();
+    const entries = [...CATALOG.map((p) => ({ id: p.id, title: p.title, summary: p.summary }))];
+    if (customInfo) entries.push({ id: 'custom', title: customInfo.title, summary: 'Your own rules, loaded from a file.' });
+    for (const entry of entries) {
+      const b = document.createElement('button');
+      const title = document.createElement('b'), summary = document.createElement('span');
+      title.textContent = entry.title + (samePack(entry.id, entry.id === 'custom' ? customText : undefined) ? ' (playing)' : '');
+      summary.textContent = entry.summary;
+      b.append(title, summary);
+      b.setAttribute('aria-pressed', entry.id === chosenPack);
+      b.addEventListener('click', () => { chosenPack = entry.id; renderNewGame(); });
+      list.append(b);
+    }
+    const own = document.createElement('button');
+    own.innerHTML = '<b>Your own rules…</b><span>Load a .gbx rule pack from a file.</span>';
+    own.addEventListener('click', () => $('ng-file').click());
+    list.append(own);
+
+    const info = packInfo(chosenPack);
+    const detail = $('ng-detail');
+    detail.replaceChildren();
+    if (!info) return;
+    const head = document.createElement('p');
+    head.className = 'about';
+    head.textContent = info.summary || '';
+    const starts = document.createElement('div');
+    starts.className = 'ng-starts';
+    const startButton = (title, note, start) => {
+      const b = document.createElement('button');
+      const t = document.createElement('b'), n = document.createElement('span');
+      t.textContent = title; n.textContent = note;
+      b.append(t, n);
+      b.disabled = isGuest();
+      b.addEventListener('click', () => startGame(chosenPack, start));
+      return b;
+    };
+    starts.append(startButton('Free play', 'The usual map and stock. Build whatever you like.', -1),
+      startButton('Sandbox', 'Everything unlocked and free, to try designs.', -2));
+    const h = (text) => { const e = document.createElement('h3'); e.textContent = text; return e; };
+    detail.append(head, h('Start'), starts);
+    const groups = [
+      ['Campaign: one factory, one goal after another', info.puzzles.map((p, i) => [p, i]).filter(([p]) => !p.fresh)],
+      ['Rounds: a fresh map every time', info.puzzles.map((p, i) => [p, i]).filter(([p]) => p.fresh)],
+    ];
+    for (const [title, puzzles] of groups) {
+      if (!puzzles.length) continue;
+      detail.append(h(title));
+      for (const [puzzle, index] of puzzles) {
+        const b = document.createElement('button');
+        b.className = 'ng-puzzle';
+        b.disabled = isGuest();
+        const text = document.createElement('div');
+        const name = document.createElement('b'), about = document.createElement('span');
+        name.textContent = puzzle.name;
+        about.textContent = puzzle.about + ' Goals: ' + puzzle.goals.map((g) => goalText(info, g)).join('; ') + '.';
+        text.append(name, about);
+        b.append(text);
+        if (puzzle.limit) { const c = document.createElement('span'); c.className = 'clock'; c.textContent = '⏱ ' + clock(puzzle.limit); b.append(c); }
+        const best = bestOf(chosenPack, puzzle.id);
+        if (best) { const c = document.createElement('span'); c.className = 'best'; c.textContent = '★ ' + clock(best); c.title = 'Your best time'; b.append(c); }
+        b.addEventListener('click', () => startGame(chosenPack, index));
+        detail.append(b);
+      }
+    }
+  }
+  function openNewGame() {
+    chosenPack = packId === 'custom' && !customInfo ? 'base' : packId;
+    $('ng-note').textContent = isGuest() ? 'The host chooses the game while you’re in theirs.'
+      : 'Starting replaces the factory saved in this browser. Save it to a file first to keep it.';
+    renderNewGame();
+    $('newgame').hidden = false;
+    closeGame();
+  }
+  function closeNewGame() { $('newgame').hidden = true; }
+  $('g-new').addEventListener('click', openNewGame);
+  $('ng-close').addEventListener('click', closeNewGame);
+  $('ng-file').addEventListener('change', async () => {
+    const file = $('ng-file').files[0];
+    $('ng-file').value = '';
+    if (!file) return;
+    const text = await file.text();
+    // Check the pack by starting it, then put back the game in play.
+    const keep = saveRecord();
+    const bytes = new TextEncoder().encode(text);
+    new Uint8Array(of.memory.buffer, of.of_text_buffer(bytes.length), bytes.length).set(bytes);
+    if (of.of_new(-1, -1) !== 0) return say(file.name + ': ' + readText(of.of_error(), of.of_error_len()), 9000);
+    const info = JSON.parse(readText(of.of_pack_json(), of.of_pack_json_len()));
+    selectPack(packId, packText, -1);
+    loadRecord(keep);
+    customText = text; customInfo = info; chosenPack = 'custom';
+    renderNewGame();
+  });
+  function startGame(id, start) {
+    if (isGuest()) return;
+    const text = id === 'custom' ? customText : null;
+    try { localStorage.removeItem(SAVE_KEY); } catch { /* nothing saved */ }
+    if (!samePack(id, text)) {
+      const plan = { pack: id, text, start, host: together && together.role === 'host' ? together.code : null };
+      if (!plan.host) return restartWith(plan);
+      // Give guests a moment to hear where the game is going.
+      together.moving({ pack: id, text });
+      leaving = true;
+      say('Switching rules; everyone follows…', 0);
+      return setTimeout(() => restartWith(plan), 400);
+    }
+    if (selectPack(id, text, start) !== 0) return say('Those rules couldn’t start.');
+    afterWorldChange();
+    lastSaved = null;
+    closeNewGame();
+    say(start === -2 ? 'A sandbox: everything is unlocked and free.' : start >= 0 ? pack.puzzles[start].name + '. Good luck!' : 'A new factory.', 4000);
+  }
+
+  // The running puzzle: its goals, its clock, and what to do once it's over.
+  let puzzleHidden = false, puzzleKey = '';
+  function readPuzzle() {
+    const state = JSON.parse(readText(of.of_puzzle(), of.of_puzzle_len()));
+    return state && pack.puzzles[state.puzzle] ? state : null;
+  }
+  function refreshPuzzle() {
+    puzzleState = readPuzzle();
+    const def = puzzleState && pack.puzzles[puzzleState.puzzle];
+    const only = def && def.only.length ? new Set(def.only) : null;
+    if (String(only && [...only]) !== String(puzzleOnly && [...puzzleOnly])) {
+      puzzleOnly = only;
+      refreshGroups();
+      if (!groupTools().length) selectGroup(GROUPS.find((name) => !groupButtons.get(name).hidden) || group);
+      else renderTools();
+    }
+    $('sandbox-chip').hidden = !sandbox();
+    const box = $('puzzle');
+    $('p-show').hidden = !def || !puzzleHidden;
+    box.hidden = !def || puzzleHidden;
+    if (!def) return;
+    const now = of.of_tick();
+    const elapsed = (puzzleState.solved ?? now) - puzzleState.started;
+    box.classList.toggle('solved', puzzleState.solved !== null);
+    box.classList.toggle('failed', puzzleState.failed);
+    $('p-clock').textContent = def.limit && puzzleState.solved === null
+      ? '⏱ ' + clock(Math.max(0, def.limit - elapsed)) + ' left' : clock(elapsed);
+    const key = puzzleState.puzzle + ':' + puzzleState.started + ':' + puzzleState.solved + ':' + puzzleState.failed;
+    const goals = $('p-goals');
+    if (key !== puzzleKey) {
+      $('p-name').textContent = def.name;
+      $('p-about').textContent = def.about;
+      goals.replaceChildren(...def.goals.map((goal) => {
+        const li = document.createElement('li');
+        const count = document.createElement('span');
+        count.className = 'count';
+        const meter = document.createElement('div');
+        meter.className = 'meter';
+        meter.append(document.createElement('i'));
+        li.append(count, goalText(pack, goal), meter);
+        return li;
+      }));
+      renderPuzzleEnd(def, elapsed, key);
+      puzzleKey = key;
+    }
+    puzzleState.progress.forEach(([done, needed], i) => {
+      const li = goals.children[i];
+      if (!li) return;
+      li.classList.toggle('done', done >= needed);
+      li.querySelector('.count').textContent = done.toLocaleString('en') + ' / ' + needed.toLocaleString('en');
+      li.querySelector('.meter i').style.width = Math.min(100, (100 * done) / needed) + '%';
+    });
+  }
+  function renderPuzzleEnd(def, elapsed, key) {
+    const result = $('p-result'), actions = $('p-actions');
+    actions.replaceChildren();
+    result.hidden = puzzleState.solved === null && !puzzleState.failed;
+    const button = (text, action) => {
+      const b = document.createElement('button');
+      b.textContent = text;
+      b.disabled = isGuest();
+      b.addEventListener('click', action);
+      actions.append(b);
+    };
+    if (puzzleState.solved !== null) {
+      const previous = bestOf(packId, def.id);
+      const record = !previous || elapsed < previous;
+      if (record && key !== puzzleKey && !isGuest()) { try { localStorage.setItem(BEST_KEY + packId + '.' + def.id, String(elapsed)); } catch { /* not kept */ } }
+      result.textContent = 'Solved in ' + clock(elapsed) + (record ? ', your best yet!' : ' (best ' + clock(previous) + ')');
+      const next = pack.puzzles[puzzleState.puzzle + 1];
+      if (next) button('Next: ' + next.name, () => (next.fresh ? startGame(packId, puzzleState.puzzle + 1) : beginNext(puzzleState.puzzle + 1)));
+      if (def.fresh) button('Play again', () => startGame(packId, puzzleState.puzzle));
+      if (key !== puzzleKey) say(def.name + ': solved!', 4000);
+    } else if (puzzleState.failed) {
+      result.textContent = 'Time’s up.';
+      button('Try again', () => startGame(packId, puzzleState.puzzle));
+    }
+    button('Other puzzles', openNewGame);
+  }
+  function beginNext(index) {
+    of.of_begin(index);
+    say(pack.puzzles[index].name + '. The factory carries on.', 4000);
+  }
+  $('p-hide').addEventListener('click', () => { puzzleHidden = true; refreshPuzzle(); });
+  $('p-show').addEventListener('click', () => { puzzleHidden = false; refreshPuzzle(); });
+  $('pack-chip').textContent = pack.title;
   setInterval(autosave, AUTOSAVE_MS);
   addEventListener('pagehide', autosave);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autosave(); });
@@ -1202,8 +1549,10 @@
     if (lower === 'p') return toggleStats();
     if (lower === 'h') return toggleCard();
     if (lower === 'g') return toggleGame();
+    if (lower === 'n') return $('newgame').hidden ? openNewGame() : closeNewGame();
     if (lower === 't') return toggleResearch();
     if (lower === 'escape') {
+      if (!$('newgame').hidden) return closeNewGame();
       if (!research.hidden) return toggleResearch();
       if (!$('game').hidden) { closeGame(); return showCard(tool); }
       return closeInspector();
@@ -1538,6 +1887,7 @@
     refreshInspector();
     refreshResearch();
     refreshGame();
+    refreshPuzzle();
   }
 
   let previous = performance.now(), accumulated = 0, nextHud = 0;
@@ -1556,26 +1906,56 @@
     if (together) together.pointer(pan ? null : hover, now);
     requestAnimationFrame(frame);
   }
-  if (!resume()) say('Deliver items to a depot to pay for buildings and research.', 7000);
+  if (bootError) say('Those rules couldn’t start (' + bootError + '), so here is the factory instead.', 9000);
+  else if (boot && boot.record) {
+    const code = loadRecord(boot.record);
+    say(code === 0 ? 'Loaded: tick ' + of.of_tick().toLocaleString('en') + '.' : LOAD_TEXT[code], 5000);
+    if (code === 0) autosave();
+  } else if (boot && (boot.start !== undefined || boot.join)) {
+    refreshPuzzle();
+  } else if (!resume()) {
+    say('Deliver items to a depot to pay for buildings and research.', 7000);
+    // A first visit chooses what to play, unless it came to join someone.
+    if (!ownSave && !new URLSearchParams(location.search).get('join')) openNewGame();
+  }
+  refreshPuzzle();
 
   // Playing together.
   const BEFORE_JOIN_KEY = 'openfactor.autosave.beforejoin';
-  together = (await import('./together.js?v=1')).createSession({
+  together = (await import('./together.js?v=2')).createSession({
     of,
     say,
     replaced: afterWorldChange,
     changed: () => { refreshTogether(); refreshGame(); },
+    packInfo: () => ({ pack: packId, text: packText }),
+    // The host plays other rules: reload with them and join again.
+    follow: (info, code, delay) => {
+      if (samePack(info.pack, info.text)) return false;
+      if (info.pack === 'custom' ? typeof info.text !== 'string' : !CATALOG.some((p) => p.id === info.pack)) return false;
+      say('The host is playing ' + (info.pack === 'custom' ? 'their own rules' : CATALOG.find((p) => p.id === info.pack).title) + '. Switching…', 0);
+      leaving = true;
+      setTimeout(() => restartWith({ pack: info.pack, text: info.text, join: code }), delay);
+      return true;
+    },
     beforeJoin: () => {
+      if (rejoining) return;
       autosave();
       try { const own = localStorage.getItem(SAVE_KEY); if (own) localStorage.setItem(BEFORE_JOIN_KEY, own); } catch { /* nothing to keep */ }
     },
     leaveToOwn: () => {
-      of.of_reset();
-      afterWorldChange();
+      rejoining = false;
+      let own = null;
       try {
-        const own = localStorage.getItem(BEFORE_JOIN_KEY);
+        own = localStorage.getItem(BEFORE_JOIN_KEY);
         if (own) { localStorage.setItem(SAVE_KEY, own); localStorage.removeItem(BEFORE_JOIN_KEY); }
       } catch { /* starts fresh */ }
+      let record = null;
+      try { record = JSON.parse(own); } catch { record = null; }
+      // Your own factory may have other rules than the host's.
+      if (record && !samePack(record.pack, record.packText)) { leaving = true; location.reload(); return; }
+      if (!record && packId !== 'base') { leaving = true; location.reload(); return; }
+      of.of_reset();
+      afterWorldChange();
       resume();
     },
   });
@@ -1624,6 +2004,10 @@
   if (joinCode) {
     history.replaceState(null, '', location.pathname);
     together.join(joinCode);
+  } else if (boot && boot.join) {
+    together.join(boot.join, { retries: 8 });
+  } else if (boot && boot.host) {
+    together.host(boot.host);
   }
 
   // In browsers with WebMCP, an AI agent can look at and build the factory too.
@@ -1632,8 +2016,22 @@
     refresh: readSnapshot, ground: () => ground, buildings: () => buildings, haze: () => haze,
     notify: (text) => say(text, 4000),
     remote: isGuest,
+    puzzle: () => {
+      const state = readPuzzle();
+      if (!state) return null;
+      const def = pack.puzzles[state.puzzle];
+      const elapsed = (state.solved ?? of.of_tick()) - state.started;
+      return {
+        name: def.name, about: def.about,
+        goals: def.goals.map((goal, i) => ({ goal: goalText(pack, goal), done: state.progress[i][0], needed: state.progress[i][1] })),
+        seconds: Math.floor(elapsed / D.TICKS_PER_SECOND),
+        secondsLeft: def.limit && state.solved === null ? Math.max(0, Math.ceil((def.limit - elapsed) / D.TICKS_PER_SECOND)) : null,
+        solved: state.solved !== null, timeUp: state.failed,
+        onlyBuildings: def.only,
+      };
+    },
   };
-  import('./webmcp.js?v=1').then((m) => m.registerTools(agentTools)).catch((error) => console.warn('WebMCP unavailable:', error));
+  import('./webmcp.js?v=2').then((m) => m.registerTools(agentTools)).catch((error) => console.warn('WebMCP unavailable:', error));
   if (new URLSearchParams(location.search).get('view') === '3d') toggle3d();
   requestAnimationFrame(frame);
 })();

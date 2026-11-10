@@ -4,16 +4,33 @@
 //! only valid until the next call, because wasm memory can move when it grows.
 
 use openfactor_sim::{
-    BeltId, Building, Command, Dir, ItemId, LoadError, MetricId, Pack, Port, Pos, Reject, Route, Rule, Scope, Status,
-    TechId, Test, UnitId, World,
+    BeltId, Building, Command, Dir, Goal, ItemId, LoadError, MetricId, Pack, Port, Pos, Reject, Route, Rule, Scope,
+    Start, Status, TechId, Test, UnitId, World,
 };
 use std::cell::RefCell;
 
 const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
+/// The packs built into the game, in the order they are offered.
+const PACKS: [(&str, &str); 5] = [
+    ("base", BASE_PACK),
+    ("tutorial", include_str!("../../../packs/tutorial.gbx")),
+    ("farm", include_str!("../../../packs/farm.gbx")),
+    ("chips", include_str!("../../../packs/chips.gbx")),
+    ("network", include_str!("../../../packs/network.gbx")),
+];
 const DIRS: [Dir; 4] = [Dir::North, Dir::East, Dir::South, Dir::West];
 
 struct Game {
     pack: Pack,
+    /// Which built-in pack, or -1 for one the page supplied.
+    pack_index: i32,
+    start: Start,
+    /// Text the page writes for `of_new` with a pack of its own.
+    text: Vec<u8>,
+    /// Why the latest `of_new` failed.
+    error: String,
+    puzzle_json: String,
+    catalog: String,
     world: World,
     queued: Vec<Command>,
     snapshot: Vec<i32>,
@@ -32,9 +49,20 @@ struct Game {
 impl Game {
     fn new() -> Game {
         let pack = Pack::parse(BASE_PACK).expect("the base pack is checked by a test");
+        Game::with(pack, 0, Start::Free)
+    }
+
+    fn with(pack: Pack, pack_index: i32, start: Start) -> Game {
+        let (world, starter) = World::start(&pack, start);
         Game {
-            world: World::new(&pack),
-            queued: pack.worldgen.starter.clone(),
+            pack_index,
+            start,
+            text: Vec::new(),
+            error: String::new(),
+            puzzle_json: String::new(),
+            catalog: String::new(),
+            world,
+            queued: starter,
             snapshot: Vec::new(),
             pack_json: pack_json(&pack),
             inspection: String::new(),
@@ -115,6 +143,7 @@ impl Game {
             Command::Remove { pos } => [1, pos.x, pos.y, pos.z, 0, 0],
             Command::Configure { pos, setting } => [2, pos.x, pos.y, pos.z, setting.map_or(-1, i32::from), 0],
             Command::Research { tech } => [3, i32::from(tech.0), 0, 0, 0, 0],
+            Command::Begin { puzzle } => [4, i32::from(puzzle), 0, 0, 0, 0],
         }
     }
 
@@ -178,6 +207,7 @@ fn reject_code(reason: Reject) -> i32 {
         Reject::NoSuchLevel => 8,
         Reject::Unsupported => 9,
         Reject::CarriesLoad => 10,
+        Reject::NotInPuzzle => 11,
         _ => 7,
     }
 }
@@ -394,8 +424,46 @@ fn pack_json(pack: &Pack) -> String {
             )
         })
         .collect();
+    let puzzles: Vec<String> = content
+        .puzzles()
+        .iter()
+        .map(|puzzle| {
+            let goals: Vec<String> = puzzle
+                .goals
+                .iter()
+                .map(|goal| match *goal {
+                    Goal::Deliver(item, n) => format!(r#"["deliver",{},{n}]"#, item.0),
+                    Goal::Make(item, n) => format!(r#"["make",{},{n}]"#, item.0),
+                    Goal::Stock(item, n) => format!(r#"["stock",{},{n}]"#, item.0),
+                    Goal::Metric(metric, n) => format!(r#"["metric",{},{n}]"#, metric.0),
+                    Goal::Research(tech) => format!(r#"["research",{},1]"#, tech.0),
+                })
+                .collect();
+            let only: Vec<String> = puzzle
+                .only
+                .iter()
+                .map(|building| match building {
+                    Building::Belt(belt) => json_string(&content.belts()[usize::from(belt.0)].id),
+                    Building::Unit(unit) => json_string(&content.units()[usize::from(unit.0)].id),
+                })
+                .collect();
+            format!(
+                r#"{{"id":{},"name":{},"about":{},"fresh":{},"limit":{},"only":[{}],"goals":[{}]}}"#,
+                json_string(&puzzle.id),
+                json_string(&puzzle.name),
+                json_string(&puzzle.description),
+                puzzle.fresh.is_some(),
+                puzzle.limit.map_or("null".to_string(), |limit| limit.to_string()),
+                only.join(","),
+                goals.join(",")
+            )
+        })
+        .collect();
     format!(
-        r#"{{"levels":{},"span":{},"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
+        r#"{{"title":{},"summary":{},"puzzles":[{}],"levels":{},"span":{},"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
+        json_string(content.title()),
+        json_string(content.summary()),
+        puzzles.join(","),
         content.levels(),
         content.span(),
         belts.join(","),
@@ -415,9 +483,136 @@ fn with_game<T>(f: impl FnOnce(&mut Game) -> T) -> T {
     GAME.with(|game| f(&mut game.borrow_mut()))
 }
 
+/// Starts the same game again: the same pack, begun the same way.
 #[no_mangle]
 pub extern "C" fn of_reset() {
-    with_game(|game| *game = Game::new());
+    with_game(|game| {
+        let fresh = Game::with(game.pack.clone(), game.pack_index, game.start);
+        *game = fresh;
+    });
+}
+
+fn start_code(start: i32) -> Start {
+    match start {
+        -2 => Start::Sandbox,
+        n if n >= 0 => Start::Puzzle(n as u16),
+        _ => Start::Free,
+    }
+}
+
+/// The built-in packs as JSON: each one's pack JSON with its `id` added. Read `of_catalog_len` bytes from here.
+#[no_mangle]
+pub extern "C" fn of_catalog() -> *const u8 {
+    with_game(|game| {
+        let packs: Vec<String> = PACKS
+            .iter()
+            .map(|(id, text)| {
+                let pack = Pack::parse(text).expect("built-in packs are checked by a test");
+                format!(r#"{{"id":{},{}"#, json_string(id), &pack_json(&pack)[1..])
+            })
+            .collect();
+        game.catalog = format!("[{}]", packs.join(","));
+        game.catalog.as_ptr()
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn of_catalog_len() -> u32 {
+    with_game(|game| game.catalog.len() as u32)
+}
+
+/// Room for `len` bytes of pack text, for `of_new` with pack -1.
+#[no_mangle]
+pub extern "C" fn of_text_buffer(len: u32) -> *mut u8 {
+    with_game(|game| {
+        game.text = vec![0; len as usize];
+        game.text.as_mut_ptr()
+    })
+}
+
+/// Starts a new game with built-in pack `pack`, or with the text in the
+/// text buffer if `pack` is -1. `start` is -1 for free play, -2 for a sandbox
+/// or a puzzle's index. Returns 0, or 1 if the pack has a problem, which
+/// `of_error` then describes. On failure the game is unchanged.
+#[no_mangle]
+pub extern "C" fn of_new(pack: i32, start: i32) -> i32 {
+    with_game(|game| {
+        let text = match usize::try_from(pack).ok().and_then(|index| PACKS.get(index)) {
+            Some((_, text)) => text.to_string(),
+            None if pack == -1 => String::from_utf8_lossy(&game.text).into_owned(),
+            None => {
+                game.error = "there is no such pack".to_string();
+                return 1;
+            }
+        };
+        match Pack::parse(&text) {
+            Ok(parsed) => {
+                *game = Game::with(parsed, pack, start_code(start));
+                0
+            }
+            Err(error) => {
+                game.error = error.to_string();
+                1
+            }
+        }
+    })
+}
+
+/// Why the latest `of_new` failed. Read `of_error_len` bytes from here.
+#[no_mangle]
+pub extern "C" fn of_error() -> *const u8 {
+    with_game(|game| game.error.as_ptr())
+}
+
+#[no_mangle]
+pub extern "C" fn of_error_len() -> u32 {
+    with_game(|game| game.error.len() as u32)
+}
+
+/// The built-in pack in play, or -1 for one the page supplied.
+#[no_mangle]
+pub extern "C" fn of_pack_index() -> i32 {
+    with_game(|game| game.pack_index)
+}
+
+/// 1 if everything is unlocked and free.
+#[no_mangle]
+pub extern "C" fn of_sandbox() -> u32 {
+    with_game(|game| u32::from(game.world.is_sandbox()))
+}
+
+/// Queues the start of a puzzle that carries on in this factory.
+#[no_mangle]
+pub extern "C" fn of_begin(puzzle: u32) {
+    with_game(|game| game.queued.push(Command::Begin { puzzle: puzzle as u16 }));
+}
+
+/// The running puzzle as JSON, or `null`: `{"puzzle","started","progress":[[done,needed]...],
+/// "solved":tick|null,"failed"}`. Read `of_puzzle_len` bytes from here.
+#[no_mangle]
+pub extern "C" fn of_puzzle() -> *const u8 {
+    with_game(|game| {
+        game.puzzle_json = match game.world.puzzle() {
+            None => "null".to_string(),
+            Some(state) => {
+                let progress: Vec<String> = state.progress.iter().map(|(done, needed)| format!("[{done},{needed}]")).collect();
+                format!(
+                    r#"{{"puzzle":{},"started":{},"progress":[{}],"solved":{},"failed":{}}}"#,
+                    state.puzzle,
+                    state.started,
+                    progress.join(","),
+                    state.solved.map_or("null".to_string(), |tick| tick.to_string()),
+                    state.failed
+                )
+            }
+        };
+        game.puzzle_json.as_ptr()
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn of_puzzle_len() -> u32 {
+    with_game(|game| game.puzzle_json.len() as u32)
 }
 
 /// The pack's definitions as JSON text. Read `of_pack_json_len` bytes from here.
@@ -607,6 +802,12 @@ pub extern "C" fn of_load() -> i32 {
         let bytes = std::mem::take(&mut game.incoming);
         match World::load(&game.pack, &bytes) {
             Ok(world) => {
+                // Starting over begins the same way the loaded game did.
+                game.start = match world.puzzle() {
+                    Some(state) => Start::Puzzle(state.puzzle),
+                    None if world.is_sandbox() => Start::Sandbox,
+                    None => Start::Free,
+                };
                 game.world = world;
                 game.queued.clear();
                 game.last_reject = 0;
@@ -703,6 +904,60 @@ mod tests {
         assert_eq!(load_bytes(&bytes[..bytes.len() / 2]), 1);
         assert_eq!(load_bytes(b"nonsense"), 1);
         assert_eq!(of_tick(), 900, "a failed load leaves the world alone");
+    }
+
+    fn text(pointer: *const u8, len: u32) -> String {
+        // SAFETY: the export keeps these bytes alive until the next call.
+        String::from_utf8(unsafe { std::slice::from_raw_parts(pointer, len as usize) }.to_vec()).unwrap()
+    }
+
+    #[test]
+    fn every_pack_can_be_chosen_and_started() {
+        let catalog = text(of_catalog(), of_catalog_len());
+        for (id, _) in PACKS {
+            assert!(catalog.contains(&format!(r#"{{"id":"{id}","title":"#)), "{catalog}");
+        }
+        assert!(catalog.contains(r#""name":"Gear rush","about":"A bare map"#), "{catalog}");
+        for pack in 0..PACKS.len() as i32 {
+            for start in [-1, -2, 0] {
+                assert_eq!(of_new(pack, start), 0);
+                assert_eq!(of_step(1), 0, "pack {pack} start {start}");
+                assert_eq!(of_pack_index(), pack);
+                assert_eq!(of_sandbox(), u32::from(start == -2));
+            }
+        }
+        assert_eq!(of_new(1, 0), 0);
+        of_step(10);
+        assert!(text(of_puzzle(), of_puzzle_len()).starts_with(r#"{"puzzle":0,"started":0,"progress":[[0,10]]"#));
+        of_begin(1);
+        of_step(1);
+        assert!(text(of_puzzle(), of_puzzle_len()).starts_with(r#"{"puzzle":1,"started":10,"#));
+        let applied = with_game(|game| game.applied.clone());
+        assert_eq!(applied, vec![4, 1, 0, 0, 0, 0]);
+
+        // A pack of the page's own, and one with a mistake in it.
+        let custom = "title \"Mine\"\nresource ore\nunit box stores shared\nstock ore 5\n";
+        for (source, expected) in [(custom, 0), ("unit box flies", 1)] {
+            let pointer = of_text_buffer(source.len() as u32);
+            // SAFETY: the buffer was just allocated with exactly this length.
+            unsafe { std::ptr::copy_nonoverlapping(source.as_ptr(), pointer, source.len()) };
+            assert_eq!(of_new(-1, -1), expected);
+        }
+        assert!(text(of_error(), of_error_len()).contains("line 1: unit does not understand 'flies'"));
+        assert_eq!(of_pack_index(), -1, "a failed pack leaves the game alone");
+        assert!(text(of_pack_json(), of_pack_json_len()).starts_with(r#"{"title":"Mine""#));
+        assert_eq!(of_new(7, -1), 1);
+
+        // Saves remember the start, and load into the same pack.
+        assert_eq!(of_new(0, 8), 0);
+        of_step(30);
+        let bytes = saved_bytes();
+        assert_eq!(of_new(0, -1), 0);
+        assert_eq!(load_bytes(&bytes), 0);
+        of_reset();
+        assert!(text(of_puzzle(), of_puzzle_len()).starts_with(r#"{"puzzle":8,"started":0,"#));
+        assert_eq!(of_new(2, -1), 0);
+        assert_eq!(load_bytes(&bytes), 3, "another pack's save is refused");
     }
 
     #[test]

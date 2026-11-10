@@ -1,4 +1,6 @@
 # OpenFactor base pack.
+title "Factory"
+summary "Ore to plates to parts to automata: the full chain, with power, oil and four levels to build on."
 #
 # Ore comes out of the ground, is smelted, assembled and finally built into
 # automata. Coal furnaces need no power but foul the air. Powered machines are
@@ -574,3 +576,70 @@ place belt 9 9 north count 7
 place furnace 9 2 east
 place belt 10 2 east count 10
 place depot 20 2 east
+
+# --- Puzzles. The campaign carries on in one factory, one goal after another.
+# The rushes start on a map of their own and are timed: every try is a new round.
+
+puzzle plates
+    name "Plates for days"
+    about "Keep the opening line running and build more of it: deliver 200 iron plates."
+    goal deliver ironPlate 200
+end
+puzzle copper
+    name "Copper"
+    about "Research copper working, then smelt and deliver 100 copper plates."
+    goal research copperWorking
+    goal deliver copperPlate 100
+end
+puzzle powerOn
+    name "Power on"
+    about "Fire bricks, draw wire and research electricity."
+    goal research electricity
+end
+puzzle steelWorks
+    name "Steel works"
+    about "Arc furnaces only run on power. Make 50 steel."
+    goal make steel 50
+end
+puzzle circuitry
+    name "Circuitry"
+    about "Deliver 100 circuits."
+    goal deliver circuit 100
+end
+puzzle assemblyLine
+    name "Assembly line"
+    about "Research automation."
+    goal research automation
+end
+puzzle firstAutomaton
+    name "The first automaton"
+    about "Motors, controllers, bricks and a lot of power: build one automaton."
+    goal metric automata 1
+end
+puzzle productionRun
+    name "Production run"
+    about "Build 25 automata. Then keep going for as long as you like."
+    goal metric automata 25
+end
+
+puzzle gearRush
+    name "Gear rush"
+    about "A bare map, 120 plates and five minutes: deliver 100 gears."
+    fresh
+    stock ironPlate 120 gear 20
+    place none
+    only belt drill furnace workshop depot
+    goal deliver gear 100
+    limit 18000
+end
+puzzle cleanAir
+    name "Clean air"
+    about "Coal furnaces choke on their own smog. Deliver 600 iron plates in eight minutes without letting them stall."
+    fresh
+    stock ironPlate 200 gear 60
+    place none
+    only belt splitter drill furnace depot
+    researched routing
+    goal deliver ironPlate 600
+    limit 28800
+end

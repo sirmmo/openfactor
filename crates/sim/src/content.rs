@@ -1,4 +1,4 @@
-use crate::{BeltId, Command, ItemId, LayerId, MetricId, Pos, TechId, UnitId};
+use crate::{BeltId, Building, Command, ItemId, LayerId, MetricId, Pos, TechId, UnitId};
 
 /// What something costs from the shared stock.
 pub type Cost = Vec<(ItemId, u32)>;
@@ -27,6 +27,44 @@ pub struct Content {
     /// How far, counted along the grid, something above the ground can be
     /// from the nearest building on the level below it.
     pub(crate) span: u32,
+    /// The pack's name and what it is about, for choosing it. Cosmetic.
+    pub(crate) title: String,
+    pub(crate) summary: String,
+    pub(crate) puzzles: Vec<PuzzleDef>,
+}
+
+/// One `puzzle`: goals to reach, and optionally a map of its own to reach them on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PuzzleDef {
+    pub id: String,
+    pub name: String,
+    /// What to do, in the player's words. Cosmetic.
+    pub description: String,
+    /// A puzzle with its own map starts a new world every round. Without one
+    /// it carries on in the factory the player already has.
+    pub fresh: Option<WorldGen>,
+    /// Research already done when a fresh puzzle starts.
+    pub researched: Vec<TechId>,
+    /// The only things that can be built while it runs. Empty allows everything.
+    pub only: Vec<Building>,
+    pub goals: Vec<Goal>,
+    /// Ticks allowed to reach every goal, if limited.
+    pub limit: Option<u32>,
+}
+
+/// Something a puzzle asks for. Counts start from zero when the puzzle does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Goal {
+    /// Delivered to depots.
+    Deliver(ItemId, u32),
+    /// Made by any building.
+    Make(ItemId, u32),
+    /// Added to a metric.
+    Metric(MetricId, u32),
+    /// At least this much in the shared stock at once.
+    Stock(ItemId, u32),
+    /// Finished.
+    Research(TechId),
 }
 
 /// One entry in the research tree. Paid for from the shared stock when it starts.
@@ -305,6 +343,18 @@ impl Content {
 
     pub fn tech_id(&self, id: &str) -> Option<TechId> {
         self.techs.iter().position(|t| t.id == id).map(|i| TechId(i as u16))
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn puzzles(&self) -> &[PuzzleDef] {
+        &self.puzzles
     }
 
     pub fn levels(&self) -> u32 {

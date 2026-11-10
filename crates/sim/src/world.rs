@@ -1,5 +1,5 @@
 use crate::belt::{BeltItem, Line, Target, TILE};
-use crate::content::{Amount, Content, Cost, Pack, Port, Route, Rule, Scope, UnitDef};
+use crate::content::{Amount, Content, Cost, Goal, Pack, Port, Route, Rule, Scope, UnitDef, WorldGen};
 use crate::hash::Hasher;
 use crate::{BeltId, Dir, EntityId, ItemId, LayerId, MetricId, Pos, TechId, Tick, UnitId};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -26,6 +26,44 @@ pub enum Command {
     Configure { pos: Pos, setting: Option<u16> },
     /// Pays for a research and starts it.
     Research { tech: TechId },
+    /// Starts a puzzle that carries on in the current factory.
+    Begin { puzzle: u16 },
+}
+
+/// How a new world begins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Start {
+    /// The pack's map, stock and opening buildings.
+    Free,
+    /// The same map with everything unlocked and free to build.
+    Sandbox,
+    /// A puzzle, on its own map if it has one.
+    Puzzle(u16),
+}
+
+/// How the running puzzle is going.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PuzzleState {
+    pub puzzle: u16,
+    /// The tick it began.
+    pub started: Tick,
+    /// For each goal, how far along it is and what it needs.
+    pub progress: Vec<(u64, u64)>,
+    /// The tick every goal was met.
+    pub solved: Option<Tick>,
+    /// Its time ran out first.
+    pub failed: bool,
+}
+
+/// The running puzzle, as the world keeps it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Run {
+    puzzle: u16,
+    started: Tick,
+    /// What each goal's count stood at when it began.
+    base: Vec<u64>,
+    solved: Option<Tick>,
+    failed: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -53,6 +91,11 @@ pub enum Reject {
     Unsupported,
     /// Something on the level above would lose its only support.
     CarriesLoad,
+    UnknownPuzzle,
+    /// The puzzle has a map of its own, so it needs a new world.
+    NeedsNewWorld,
+    /// The running puzzle doesn't allow building it.
+    NotInPuzzle,
 }
 
 /// A command that had no effect. Rejection is deterministic like everything else.
@@ -71,6 +114,8 @@ pub struct ItemStats {
     pub granted: u64,
     /// Currently tied up in buildings and finished research.
     pub spent: u64,
+    /// Received by depots.
+    pub delivered: u64,
 }
 
 /// A metric's running total and the tick of its latest change.
@@ -198,6 +243,8 @@ struct Shared {
     researched: BTreeSet<TechId>,
     /// The running research and the ticks it has left.
     research: Option<(TechId, u32)>,
+    /// Sandbox: everything unlocked and free.
+    free: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -212,6 +259,7 @@ pub struct World {
     belts: BTreeMap<EntityId, Entity>,
     lines: Vec<Line>,
     topology_dirty: bool,
+    puzzle: Option<Run>,
 }
 
 /// One unit, as a rule sees it.
@@ -297,7 +345,7 @@ fn apply_map_rule(rule: &Rule, layers: &mut [Layer], pos: Pos) {
 
 impl Shared {
     fn is_open(&self, locked_by: Option<TechId>) -> bool {
-        locked_by.map_or(true, |tech| self.researched.contains(&tech))
+        self.free || locked_by.map_or(true, |tech| self.researched.contains(&tech))
     }
 
     fn can_afford(&self, cost: &Cost) -> bool {
@@ -454,9 +502,32 @@ fn find(parents: &mut [usize], mut index: usize) -> usize {
 
 impl World {
     pub fn new(pack: &Pack) -> World {
+        World::generate(pack, &pack.worldgen)
+    }
+
+    /// A new world begun the way `start` says, and the buildings to place on
+    /// its first tick. Unknown puzzles start as [`Start::Free`].
+    pub fn start(pack: &Pack, start: Start) -> (World, Vec<Command>) {
+        let puzzle = match start {
+            Start::Puzzle(index) => pack.content.puzzles.get(usize::from(index)).map(|p| (index, p)),
+            _ => None,
+        };
+        let worldgen = puzzle.and_then(|(_, p)| p.fresh.as_ref()).unwrap_or(&pack.worldgen);
+        let mut world = World::generate(pack, worldgen);
+        world.shared.free = start == Start::Sandbox;
+        if let Some((index, definition)) = puzzle {
+            if definition.fresh.is_some() {
+                world.shared.researched.extend(definition.researched.iter().copied());
+            }
+            world.begin(index);
+        }
+        (world, worldgen.starter.clone())
+    }
+
+    fn generate(pack: &Pack, worldgen: &WorldGen) -> World {
         let content = pack.content.clone();
         let mut layers = vec![Layer::new(); content.layers.len()];
-        for patch in &pack.worldgen.patches {
+        for patch in &worldgen.patches {
             let tiles = &mut layers[usize::from(patch.layer.0)];
             for dx in 0..patch.width as i32 {
                 for dy in 0..patch.height as i32 {
@@ -467,7 +538,7 @@ impl World {
         }
         let mut globals = BTreeMap::new();
         let mut stats: Stats = BTreeMap::new();
-        for &(item, amount) in &pack.worldgen.stock {
+        for &(item, amount) in &worldgen.stock {
             *globals.entry(item).or_default() += u64::from(amount);
             stat(&mut stats, item).granted += u64::from(amount);
         }
@@ -484,12 +555,77 @@ impl World {
                 charge: BTreeMap::new(),
                 researched: BTreeSet::new(),
                 research: None,
+                free: false,
             },
             tiles: BTreeMap::new(),
             machines: BTreeMap::new(),
             belts: BTreeMap::new(),
             lines: Vec::new(),
             topology_dirty: false,
+            puzzle: None,
+        }
+    }
+
+    /// Whether everything is unlocked and free.
+    pub fn is_sandbox(&self) -> bool {
+        self.shared.free
+    }
+
+    /// The running puzzle, if any.
+    pub fn puzzle(&self) -> Option<PuzzleState> {
+        let run = self.puzzle.as_ref()?;
+        let definition = &self.content.puzzles[usize::from(run.puzzle)];
+        let progress = definition
+            .goals
+            .iter()
+            .zip(&run.base)
+            .map(|(goal, &base)| {
+                let (now, target) = self.goal_count(*goal);
+                (now.saturating_sub(base).min(target), target)
+            })
+            .collect();
+        Some(PuzzleState { puzzle: run.puzzle, started: run.started, progress, solved: run.solved, failed: run.failed })
+    }
+
+    /// A goal's count now, and the count it asks for beyond where it began.
+    fn goal_count(&self, goal: Goal) -> (u64, u64) {
+        let stats = |item: ItemId| self.shared.stats.get(&item).copied().unwrap_or_default();
+        match goal {
+            Goal::Deliver(item, n) => (stats(item).delivered, u64::from(n)),
+            Goal::Make(item, n) => (stats(item).produced, u64::from(n)),
+            Goal::Metric(metric, n) => {
+                (self.shared.metrics.get(&metric).map_or(0, |m| m.total), u64::from(n))
+            }
+            Goal::Stock(item, n) => (self.global(item), u64::from(n)),
+            Goal::Research(tech) => (u64::from(self.shared.researched.contains(&tech)), 1),
+        }
+    }
+
+    fn begin(&mut self, puzzle: u16) {
+        let goals = self.content.puzzles[usize::from(puzzle)].goals.clone();
+        let base = goals
+            .iter()
+            .map(|&goal| match goal {
+                // These count what the puzzle itself achieves.
+                Goal::Deliver(..) | Goal::Make(..) | Goal::Metric(..) => self.goal_count(goal).0,
+                Goal::Stock(..) | Goal::Research(_) => 0,
+            })
+            .collect();
+        self.puzzle = Some(Run { puzzle, started: self.tick, base, solved: None, failed: false });
+    }
+
+    fn check_puzzle(&mut self) {
+        let state = match self.puzzle() {
+            Some(state) if state.solved.is_none() && !state.failed => state,
+            _ => return,
+        };
+        let run = self.puzzle.as_mut().expect("a puzzle is running");
+        if state.progress.iter().all(|&(done, target)| done >= target) {
+            run.solved = Some(self.tick);
+        } else if let Some(limit) = self.content.puzzles[usize::from(run.puzzle)].limit {
+            if self.tick - run.started >= u64::from(limit) {
+                run.failed = true;
+            }
         }
     }
 
@@ -523,6 +659,7 @@ impl World {
         self.run_map_rules();
         self.advance_research();
         self.tick += 1;
+        self.check_puzzle();
         rejected
     }
 
@@ -532,6 +669,14 @@ impl World {
             Command::Remove { pos } => self.remove(pos),
             Command::Configure { pos, setting } => self.configure(pos, setting),
             Command::Research { tech } => self.start_research(tech),
+            Command::Begin { puzzle } => {
+                let definition = self.content.puzzles.get(usize::from(puzzle)).ok_or(Reject::UnknownPuzzle)?;
+                if definition.fresh.is_some() {
+                    return Err(Reject::NeedsNewWorld);
+                }
+                self.begin(puzzle);
+                Ok(())
+            }
         }
     }
 
@@ -541,6 +686,12 @@ impl World {
         }
         if self.tiles.contains_key(&pos) {
             return Err(Reject::Occupied);
+        }
+        if let Some(run) = &self.puzzle {
+            let only = &self.content.puzzles[usize::from(run.puzzle)].only;
+            if !only.is_empty() && !only.contains(&building) {
+                return Err(Reject::NotInPuzzle);
+            }
         }
         let kind = match building {
             Building::Belt(belt) => {
@@ -613,6 +764,10 @@ impl World {
     }
 
     fn cost_of(&self, building: Building) -> &Cost {
+        static FREE: Cost = Vec::new();
+        if self.shared.free {
+            return &FREE;
+        }
         match building {
             Building::Belt(belt) => &self.content.belts[usize::from(belt.0)].cost,
             Building::Unit(unit) => &self.content.unit(unit).cost,
@@ -1127,6 +1282,7 @@ impl World {
         let unit = machine.unit;
         if self.content.unit(unit).delivers {
             *self.shared.globals.entry(item).or_default() += 1;
+            stat(&mut self.shared.stats, item).delivered += 1;
         } else {
             *self.machine_mut(id).bins.entry(item).or_default() += 1;
         }
@@ -1472,6 +1628,18 @@ impl World {
             h.write(stats.destroyed);
             h.write(stats.granted);
             h.write(stats.spent);
+            h.write(stats.delivered);
+        }
+        h.write(u64::from(self.shared.free));
+        match &self.puzzle {
+            None => h.write(u64::MAX),
+            Some(run) => {
+                h.write(u64::from(run.puzzle));
+                h.write(run.started);
+                run.base.iter().for_each(|&base| h.write(base));
+                h.write(run.solved.map_or(u64::MAX, |tick| tick));
+                h.write(u64::from(run.failed));
+            }
         }
         h.finish()
     }
@@ -1550,6 +1718,32 @@ impl World {
         for map_rule in &self.content.map_rules {
             h.write(u64::from(map_rule.anchor.0));
             hash_rule(h, &map_rule.rule);
+        }
+        h.write(self.content.puzzles.len() as u64);
+        for puzzle in &self.content.puzzles {
+            h.write_str(&puzzle.id);
+            h.write(u64::from(puzzle.fresh.is_some()));
+            h.write(puzzle.limit.map_or(0, u64::from));
+            h.write(puzzle.only.len() as u64);
+            for building in &puzzle.only {
+                match building {
+                    Building::Belt(belt) => h.write(u64::from(belt.0)),
+                    Building::Unit(unit) => h.write(0x1_0000 + u64::from(unit.0)),
+                }
+            }
+            h.write(puzzle.goals.len() as u64);
+            for goal in &puzzle.goals {
+                let (kind, id, n) = match *goal {
+                    Goal::Deliver(item, n) => (0, item.0, n),
+                    Goal::Make(item, n) => (1, item.0, n),
+                    Goal::Metric(metric, n) => (2, metric.0, n),
+                    Goal::Stock(item, n) => (3, item.0, n),
+                    Goal::Research(tech) => (4, tech.0, 1),
+                };
+                h.write(kind);
+                h.write(u64::from(id));
+                h.write(u64::from(n));
+            }
         }
     }
 }

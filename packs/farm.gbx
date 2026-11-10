@@ -1,0 +1,253 @@
+# OpenFactor farming pack: from field to table.
+#
+# Grain needs water from pumps and pipes. Mills, bakeries and dairies turn
+# the harvest into food, and the kitchen packs it into picnic baskets.
+# Wood from the forest pays for building, through the sawmill as planks.
+
+title "Harvest"
+summary "Fields, orchards and pastures: grow, mill, bake and churn your way to a picnic basket."
+
+belt belt name "Cart track" speed 12 model conveyor corner conveyor-corner
+
+resource wood   name "Wood"           sprite 105 tint 8a5a2b
+resource plank  name "Plank"          sprite 106 tint c69c62
+resource grain  name "Grain"          sprite 97  tint e8c34a
+resource flour  name "Flour"          sprite 97  tint f4efe0
+resource bread  name "Bread"          sprite 85  tint c58a4a
+resource apple  name "Apple"          sprite 129 tint d94040
+resource juice  name "Apple juice"    sprite 126 tint e0a030
+resource milk   name "Milk"           sprite 126 tint f5f5f5
+resource cheese name "Cheese"         sprite 107 tint f2c94c
+resource basket name "Picnic basket"  sprite 123
+resource water  name "Water"          sprite 86
+
+layer field    name "farmland" sprites 3 32 tint 8a6a3a
+layer orchard  name "orchard"  sprites 3 32 tint 4f9f45
+layer pasture  name "pasture"  sprites 3 32 tint 9ccc5c
+layer forest   name "forest"   sprites 3 32 tint 2f5f2f
+layer pond     name "pond"     sprites 3    tint 2f7fd6
+
+metric baskets name "Baskets packed"
+
+unit splitter   name "Fork"         sprite 72  group "Logistics" routes split model conveyor-cross
+unit sorter     name "Sorting gate" sprite 79  group "Logistics" routes filter model scanner-low
+unit market     name "Market"       sprite 58  group "Logistics" stores shared model box-wide
+unit woodcutter name "Woodcutter"   sprite 121 group "Gathering" placeOn forest model robot-arm-b
+unit farm       name "Farm"         sprite 99  tint 9ccc5c group "Gathering" placeOn field model piston-round
+unit picker     name "Apple picker" sprite 100 group "Gathering" placeOn orchard model piston-square
+unit ranch      name "Ranch"        sprite 101 tint f5f5f5 group "Gathering" placeOn pasture model machine-window-bar
+unit pump       name "Pump"         sprite 90  group "Water" placeOn pond model pipe-large-valve
+unit pipe       name "Pipe"         sprite 91  group "Water" links water reach 1 model button-floor-round
+unit sawmill    name "Sawmill"      sprite 110 group "Workshops" model machine
+unit mill       name "Mill"         sprite 114 group "Workshops" model hopper-round
+unit bakery     name "Bakery"       sprite 92  group "Workshops" model hopper-high-round
+unit press      name "Cider press"  sprite 102 group "Workshops" model hopper-square
+unit dairy      name "Dairy"        sprite 75  group "Workshops" model machine-fortified
+unit kitchen    name "Kitchen"      sprite 87  group "Workshops" model machine-connection-pipe
+
+describe belt       "Carts carry goods one tile at a time in the direction the track faces."
+describe splitter   "Takes turns sending carts out of its front, left and right."
+describe sorter     "Pick a good in its inspector: that one goes straight on, everything else leaves by the sides."
+describe market     "Buys anything. What it receives joins the stock that pays for building and research."
+describe woodcutter "Fells trees in the forest it stands in."
+describe farm       "Grows grain on farmland, but only with water from a pipe beside it."
+describe picker     "Picks apples in the orchard."
+describe ranch      "Cows on the pasture: feed them grain and water, and they give milk."
+describe pump       "Fills the pipes around it with water. Build it on a pond."
+describe pipe       "Carries water to the pipes, pumps, farms and ranches next to it."
+describe sawmill    "Saws wood into planks."
+describe mill       "Grinds grain into flour."
+describe bakery     "Bakes flour into bread, burning wood in its oven."
+describe press      "Presses apples into juice."
+describe dairy      "Churns milk into cheese."
+describe kitchen    "Packs bread, cheese and juice into a picnic basket. Each one is counted."
+describe wood       "Fuel for ovens, and sawn into planks."
+describe plank      "Pays for most buildings."
+describe grain      "Milled into flour, and fed to cows."
+describe flour      "Baked into bread."
+describe bread      "Goes into baskets, and pays for research."
+describe apple      "Pressed into juice."
+describe juice      "Goes into baskets."
+describe milk       "Churned into cheese."
+describe cheese     "Goes into baskets."
+describe basket     "The end of the chain: a picnic for two."
+describe water      "Pumped into pipes for farms and ranches."
+describe milling    "The mill and the bakery: grain into bread."
+describe orchards   "Apple picking and the cider press."
+describe dairying   "Ranches and dairies: milk and cheese."
+describe picnics    "The kitchen, which packs baskets."
+describe sorting    "Sorting gates, to pick goods off a mixed track."
+
+unitRule fell
+    appliesTo woodcutter
+    rate 60
+    map forest in 1
+    local wood out 1
+end
+unitRule grow
+    appliesTo farm
+    rate 60
+    map field atLeast 1
+    network water in 4
+    local grain out 1
+end
+unitRule pick
+    appliesTo picker
+    rate 50
+    map orchard atLeast 1
+    local apple out 1
+end
+unitRule pumpWater
+    appliesTo pump
+    rate 30
+    map pond atLeast 1
+    network water out 20
+end
+unitRule graze
+    appliesTo ranch
+    rate 90
+    map pasture atLeast 1
+    local grain in 1
+    network water in 4
+    local milk out 2
+end
+unitRule saw
+    appliesTo sawmill
+    rate 60
+    local wood in 1
+    local plank out 2
+end
+unitRule grind
+    appliesTo mill
+    rate 60
+    local grain in 2
+    local flour out 1
+end
+unitRule bake
+    appliesTo bakery
+    rate 120
+    local flour in 2
+    local wood in 1
+    local bread out 2
+end
+unitRule pressApples
+    appliesTo press
+    rate 90
+    local apple in 3
+    local juice out 1
+end
+unitRule churn
+    appliesTo dairy
+    rate 120
+    local milk in 3
+    local cheese out 1
+end
+unitRule pack
+    appliesTo kitchen
+    rate 180
+    local bread in 2
+    local cheese in 1
+    local juice in 1
+    local basket out 1
+    log baskets 1
+end
+
+patch forest  at 0 0    size 6 5 amount 100000
+patch field   at 10 0   size 8 6 amount 1
+patch pond    at 19 2   size 3 3 amount 1
+patch orchard at 0 9    size 6 5 amount 1
+patch pasture at 12 10  size 7 5 amount 1
+
+stock plank 60 wood 20
+
+cost belt       plank 1
+cost splitter   plank 4
+cost sorter     plank 6 bread 2
+cost market     plank 10
+cost woodcutter plank 6
+cost farm       plank 8
+cost picker     plank 8
+cost ranch      plank 12 bread 4
+cost pump       plank 6
+cost pipe       plank 1
+cost sawmill    wood 10
+cost mill       plank 10
+cost bakery     plank 12
+cost press      plank 10
+cost dairy      plank 14
+cost kitchen    plank 20 bread 10
+
+research milling
+    name "Milling and baking"
+    cost plank 40 grain 20
+    time 300
+    unlocks mill bakery
+end
+research orchards
+    name "Orchards"
+    cost plank 40 bread 10
+    time 300
+    unlocks picker press
+end
+research dairying
+    name "Dairying"
+    requires milling
+    cost plank 60 bread 30
+    time 450
+    unlocks ranch dairy
+end
+research sorting
+    name "Sorting"
+    cost plank 40 bread 20
+    time 300
+    unlocks sorter
+end
+research picnics
+    name "Picnics"
+    requires orchards dairying
+    cost bread 60 juice 20 cheese 10
+    time 600
+    unlocks kitchen
+end
+
+# A woodcutter feeding a sawmill and a market, so planks start coming in.
+place woodcutter 5 2 east
+place belt 6 2 east count 2
+place sawmill 8 2 south
+place belt 8 3 south count 3
+place market 8 6 east
+
+puzzle firstHarvest
+    name "First harvest"
+    about "Farms grow only with water. Pump the pond, pipe the water to farms and deliver 40 grain."
+    goal deliver grain 40
+end
+puzzle dailyBread
+    name "Daily bread"
+    about "Research milling, grind the grain and bake 30 loaves for the market."
+    goal research milling
+    goal deliver bread 30
+end
+puzzle sweetAndSour
+    name "Sweet and sour"
+    about "Deliver 20 apple juice and 10 cheese."
+    goal deliver juice 20
+    goal deliver cheese 10
+end
+puzzle picnic
+    name "Picnic"
+    about "Pack 10 picnic baskets. Then feed a whole town: the factory keeps going."
+    goal metric baskets 10
+end
+
+puzzle marketDay
+    name "Market day"
+    about "Market opens in six minutes: deliver 60 bread and 20 juice by then."
+    fresh
+    stock plank 120 wood 30
+    researched milling orchards
+    only belt splitter woodcutter farm picker pump pipe sawmill mill bakery press market
+    goal deliver bread 60
+    goal deliver juice 20
+    limit 21600
+end

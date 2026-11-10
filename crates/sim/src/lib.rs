@@ -16,12 +16,12 @@ mod world;
 
 pub use belt::{ITEM_SPACING, TILE};
 pub use content::{
-    Amount, BeltDef, Condition, Content, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Port,
-    ResourceDef, Route, Rule, Scope, TechDef, Test, UnitDef, WorldGen,
+    Amount, BeltDef, Condition, Content, Goal, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Port,
+    PuzzleDef, ResourceDef, Route, Rule, Scope, TechDef, Test, UnitDef, WorldGen,
 };
 pub use gbx::PackError;
 pub use world::{
-    Building, Command, Inspection, ItemStats, LoadError, MetricValue, NetworkView, Reject, Rejected, Status,
+    Building, Command, Inspection, PuzzleState, Start, ItemStats, LoadError, MetricValue, NetworkView, Reject, Rejected, Status,
     World,
 };
 

@@ -1,0 +1,133 @@
+# OpenFactor tutorial pack: one small step at a time.
+#
+# A few ores, a furnace, a workshop and belts. Each puzzle adds one idea and
+# carries on in the same factory, so what you built for the last one keeps
+# working for the next.
+
+title "First steps"
+summary "A short guided start: dig, carry, smelt and make parts, one goal at a time."
+
+belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
+
+resource ironOre     name "Iron ore"     sprite 96
+resource copperOre   name "Copper ore"   sprite 97
+resource coal        name "Coal"         sprite 96 tint 26262e
+resource ironPlate   name "Iron plate"   sprite 107
+resource copperPlate name "Copper plate" sprite 107 tint d07f43
+resource gear        name "Gear"         sprite 114
+resource wire        name "Wire"         sprite 130 tint d07f43
+
+layer ironField   name "iron ground"   sprites 3 32 tint 6f8fb8
+layer copperField name "copper ground" sprites 3 32 tint c8763c
+layer coalField   name "coal ground"   sprites 3 32 tint 15151a
+
+unit splitter name "Splitter"     sprite 72  group "Logistics" routes split model conveyor-cross
+unit depot    name "Depot"        sprite 58  group "Logistics" stores shared model box-wide
+unit drill    name "Drill"        sprite 110 group "Extraction" placeOn ironField placeOn copperField placeOn coalField model piston-round
+unit furnace  name "Furnace"      sprite 92  group "Production" model hopper-round
+unit workshop name "Workshop"     sprite 87  group "Production" model machine
+
+describe belt     "Carries items one tile at a time in the direction it faces. Drag to lay a line."
+describe splitter "Takes turns sending what arrives out of its front, left and right."
+describe depot    "Accepts anything. What it receives joins the stock that pays for building."
+describe drill    "Digs whatever ore is under it and sends it out of its front."
+describe furnace  "Smelts two ore with one coal into two plates. Feed it from any side."
+describe workshop "Turns plates into parts. Pick a recipe in its inspector, or let it choose."
+describe ironOre     "Dug from iron ground."
+describe copperOre   "Dug from copper ground."
+describe coal        "Dug from coal ground. Furnaces burn it."
+describe ironPlate   "Pays for almost everything."
+describe copperPlate "Drawn into wire."
+describe gear        "A moving part, made from iron plates."
+describe wire        "Drawn from copper plates."
+
+unitRule digIron
+    appliesTo drill
+    rate 45
+    map ironField in 1
+    local ironOre out 1
+end
+unitRule digCopper
+    appliesTo drill
+    rate 45
+    map copperField in 1
+    local copperOre out 1
+end
+unitRule digCoal
+    appliesTo drill
+    rate 45
+    map coalField in 1
+    local coal out 1
+end
+unitRule smeltIron
+    appliesTo furnace
+    rate 90
+    local ironOre in 2
+    local coal in 1
+    local ironPlate out 2
+end
+unitRule smeltCopper
+    appliesTo furnace
+    rate 90
+    local copperOre in 2
+    local coal in 1
+    local copperPlate out 2
+end
+unitRule makeGear
+    appliesTo workshop
+    rate 60
+    local ironPlate in 2
+    local gear out 1
+end
+unitRule drawWire
+    appliesTo workshop
+    rate 45
+    local copperPlate in 1
+    local wire out 2
+end
+
+patch ironField   at 0 0   size 5 4 amount 100000
+patch coalField   at 0 7   size 5 3 amount 100000
+patch copperField at 12 0  size 4 4 amount 100000
+
+stock ironPlate 80
+
+cost belt     ironPlate 1
+cost splitter ironPlate 4
+cost depot    ironPlate 5
+cost drill    ironPlate 5
+cost furnace  ironPlate 5
+cost workshop ironPlate 6
+
+puzzle dig
+    name "1. Dig"
+    about "Put a drill on the blue iron ground, run a belt from the way it faces to a depot, and deliver 10 iron ore."
+    goal deliver ironOre 10
+end
+puzzle smelt
+    name "2. Smelt"
+    about "A furnace needs ore and coal. Belt both into one, and its plates into a depot: deliver 20 iron plates."
+    goal deliver ironPlate 20
+end
+puzzle gears
+    name "3. Gears"
+    about "Feed plates into a workshop and deliver 10 gears. A splitter can share one plate line between the depot and the workshop."
+    goal deliver gear 10
+end
+puzzle copper
+    name "4. Copper"
+    about "The same furnace smelts copper ore. Deliver 20 copper plates."
+    goal deliver copperPlate 20
+end
+puzzle wire
+    name "5. Wire"
+    about "A second workshop set to wire: deliver 40 wire."
+    goal deliver wire 40
+end
+puzzle allTogether
+    name "6. All together"
+    about "Everything at once, and in quantity: 100 iron plates, 30 gears and 60 wire. Then the factory is yours."
+    goal deliver ironPlate 100
+    goal deliver gear 30
+    goal deliver wire 60
+end

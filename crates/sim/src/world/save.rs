@@ -10,7 +10,7 @@
 //! Numbers are written as LEB128 variable-length integers. Every value read
 //! back is checked, so a damaged or hostile file is an error, never a panic.
 
-use super::{Entity, Job, Kind, Machine, MetricValue, Shared, World};
+use super::{Entity, Job, Kind, Machine, MetricValue, Run, Shared, World};
 use crate::belt::BeltItem;
 use crate::content::{Pack, Route};
 use crate::hash::Hasher;
@@ -19,7 +19,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 
 const MAGIC: &[u8; 4] = b"OFSV";
-const VERSION: u64 = 1;
+/// Version 2 added deliveries, sandboxes and puzzles. Version 1 still loads.
+const VERSION: u64 = 2;
 
 /// Why a save couldn't be loaded.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,6 +132,14 @@ impl Reader<'_> {
         Ok(Pos::at(self.i()?, self.i()?, self.i()?))
     }
 
+    fn flag(&mut self) -> Loaded<bool> {
+        match self.u()? {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(LoadError::Damaged("a flag is neither 0 nor 1")),
+        }
+    }
+
     fn option(&mut self) -> Loaded<Option<u64>> {
         match self.u()? {
             0 => Ok(None),
@@ -188,8 +197,20 @@ impl World {
         w.u(shared.stats.len() as u64);
         for (item, stats) in &shared.stats {
             w.u(u64::from(item.0));
-            for value in [stats.produced, stats.consumed, stats.destroyed, stats.granted, stats.spent] {
+            for value in [stats.produced, stats.consumed, stats.destroyed, stats.granted, stats.spent, stats.delivered] {
                 w.u(value);
+            }
+        }
+        w.u(u64::from(shared.free));
+        match &self.puzzle {
+            None => w.u(0),
+            Some(run) => {
+                w.u(1);
+                w.u(u64::from(run.puzzle));
+                w.u(run.started);
+                run.base.iter().for_each(|&base| w.u(base));
+                w.option(run.solved);
+                w.u(u64::from(run.failed));
             }
         }
         w.u(shared.charge.len() as u64);
@@ -259,7 +280,7 @@ impl World {
         }
         let mut r = Reader { bytes, at: MAGIC.len() };
         let version = r.u()?;
-        if version != VERSION {
+        if version == 0 || version > VERSION {
             return Err(LoadError::Version(version));
         }
         let mut world = World::new(pack);
@@ -280,6 +301,7 @@ impl World {
             charge: BTreeMap::new(),
             researched: BTreeSet::new(),
             research: None,
+            free: false,
         };
         for _ in 0..content.layers.len() {
             let mut tiles = BTreeMap::new();
@@ -302,8 +324,30 @@ impl World {
         }
         for _ in 0..r.len()? {
             let item = ItemId(r.index(items, "unknown resource in the totals")?);
-            let stats = ItemStats { produced: r.u()?, consumed: r.u()?, destroyed: r.u()?, granted: r.u()?, spent: r.u()? };
+            let mut stats = ItemStats { produced: r.u()?, consumed: r.u()?, destroyed: r.u()?, granted: r.u()?, spent: r.u()?, delivered: 0 };
+            if version >= 2 {
+                stats.delivered = r.u()?;
+            }
             shared.stats.insert(item, stats);
+        }
+        if version >= 2 {
+            shared.free = r.flag()?;
+            world.puzzle = match r.u()? {
+                0 => None,
+                1 => {
+                    let puzzle = r.index(content.puzzles.len(), "unknown puzzle")?;
+                    let started = r.u()?;
+                    let goals = content.puzzles[usize::from(puzzle)].goals.len();
+                    let base = (0..goals).map(|_| r.u()).collect::<Loaded<Vec<u64>>>()?;
+                    let solved = r.option()?;
+                    let failed = r.flag()?;
+                    if started > world.tick || solved.map_or(false, |tick| tick < started || tick > world.tick) {
+                        return Err(LoadError::Damaged("the puzzle's times are impossible"));
+                    }
+                    Some(Run { puzzle, started, base, solved, failed })
+                }
+                _ => return Err(LoadError::Damaged("the puzzle is unreadable")),
+            };
         }
         for _ in 0..r.len()? {
             let resource = ItemId(r.index(items, "unknown network resource")?);

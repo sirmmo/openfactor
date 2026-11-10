@@ -964,6 +964,15 @@ fn infrastructure_replays_identically_and_conserves_everything() {
 
 const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
 
+/// Every pack the game ships, by name.
+const ALL_PACKS: [(&str, &str); 5] = [
+    ("base", BASE_PACK),
+    ("tutorial", include_str!("../../../packs/tutorial.gbx")),
+    ("farm", include_str!("../../../packs/farm.gbx")),
+    ("chips", include_str!("../../../packs/chips.gbx")),
+    ("network", include_str!("../../../packs/network.gbx")),
+];
+
 /// Test-only units that supply every resource, as items or over a network.
 fn supply_units(base: &Pack) -> String {
     let mut text = String::new();
@@ -976,19 +985,27 @@ fn supply_units(base: &Pack) -> String {
     text
 }
 
-/// The ground a rule has to stand on, if any. Smog is an effect, not a ground.
+/// The ground a rule has to stand on, if any. A haze like smog is an effect, not a ground.
 fn ground_of(base: &Pack, rule: &Rule) -> Option<LayerId> {
-    let smog = base.content.layer_id("smog").unwrap();
+    let is_ground = |layer: LayerId| base.content.layers()[usize::from(layer.0)].overlay.is_none();
     let from_takes = rule.takes.iter().find_map(|entry| match entry.scope {
-        Scope::Map { layer, .. } if layer != smog => Some(layer),
+        Scope::Map { layer, .. } if is_ground(layer) => Some(layer),
         _ => None,
     });
-    from_takes.or_else(|| rule.conditions.iter().map(|c| c.layer).find(|&layer| layer != smog))
+    from_takes.or_else(|| rule.conditions.iter().map(|c| c.layer).find(|&layer| is_ground(layer)))
 }
 
 #[test]
-fn every_base_pack_recipe_runs_when_fed() {
-    let base = Pack::parse(BASE_PACK).unwrap();
+fn every_recipe_in_every_pack_runs_when_fed() {
+    let mut checked = 0;
+    for (name, text) in ALL_PACKS {
+        checked += check_every_recipe(name, text);
+    }
+    assert!(checked > 70, "{checked}");
+}
+
+fn check_every_recipe(pack_name: &str, pack_text: &str) -> usize {
+    let base = Pack::parse(pack_text).unwrap();
     let supplies = supply_units(&base);
     let mut checked = 0;
     for (unit_index, unit) in base.content.units().iter().enumerate() {
@@ -996,7 +1013,7 @@ fn every_base_pack_recipe_runs_when_fed() {
             let patch = ground_of(&base, rule).map_or(String::new(), |layer| {
                 format!("patch {} at 0 0 size 1 1 amount 1000000\n", base.content.layers()[usize::from(layer.0)].id)
             });
-            let pack = Pack::parse(&format!("{BASE_PACK}\nsandbox\n{supplies}\n{patch}")).unwrap();
+            let pack = Pack::parse(&format!("{pack_text}\nsandbox\n{supplies}\n{patch}")).unwrap();
             let helper = |prefix: &str, item: ItemId| {
                 let name = format!("{prefix}_{}", base.content.resources()[usize::from(item.0)].id);
                 Building::Unit(pack.content.unit_id(&name).unwrap())
@@ -1039,7 +1056,7 @@ fn every_base_pack_recipe_runs_when_fed() {
             };
             assert!(
                 moved(&rule.gives, &|item| world.stats(item).produced) && moved(&rule.takes, &|item| world.stats(item).consumed),
-                "rule {} of unit {} did not run",
+                "rule {} of unit {} in {pack_name} did not run",
                 rule.name,
                 unit.id
             );
@@ -1047,7 +1064,7 @@ fn every_base_pack_recipe_runs_when_fed() {
             checked += 1;
         }
     }
-    assert!(checked > 30, "{checked}");
+    checked
 }
 
 #[test]
@@ -1706,8 +1723,8 @@ fn damaged_or_foreign_saves_are_refused_without_panicking() {
     longer.push(0);
     assert!(matches!(World::load(&pack, &longer), Err(LoadError::Damaged(_))));
     let mut newer = bytes.clone();
-    newer[4] = 2;
-    assert_eq!(World::load(&pack, &newer).unwrap_err(), LoadError::Version(2));
+    newer[4] = 3;
+    assert_eq!(World::load(&pack, &newer).unwrap_err(), LoadError::Version(3));
     let other = Pack::parse(&fuzz_pack_text().replace("rate 7", "rate 8")).unwrap();
     assert_eq!(World::load(&other, &bytes).unwrap_err(), LoadError::OtherPack);
     let renamed = Pack::parse(&format!("{}\ndescribe ore \"Rocks.\"", fuzz_pack_text())).unwrap();
@@ -1726,5 +1743,194 @@ fn damaged_or_foreign_saves_are_refused_without_panicking() {
                 loaded.step(&[]);
             }
         }
+    }
+}
+
+// Puzzles and starts.
+
+const PUZZLES: &str = r#"
+    resource ore
+    resource plate
+    layer oreField
+    metric made
+    unit miner placeOn oreField
+    unit depot stores shared
+    unit other
+    unitRule mine
+        appliesTo miner
+        rate 10
+        map oreField in 1
+        local ore out 1
+    end
+    unitRule tinker
+        appliesTo other
+        rate 10
+        local plate out 1
+        log made 1
+    end
+    patch oreField at 0 0 size 1 1 amount 1000000
+    stock plate 100
+    cost miner plate 10
+    cost depot plate 10
+    cost belt plate 1
+    research smelting
+        cost plate 5
+        time 10
+    end
+    puzzle haul
+        name "Haul"
+        about "Deliver ore."
+        only miner belt depot
+        goal deliver ore 5
+    end
+    puzzle rush
+        fresh
+        patch oreField at 5 5 size 1 1 amount 1000000
+        stock plate 30
+        place none
+        researched smelting
+        goal deliver ore 3
+        limit 200
+    end
+"#;
+
+fn ore_line() -> Vec<Command> {
+    let mut commands = vec![unit(0, 0, UnitId(0))];
+    commands.extend(belts(1..=3, 0));
+    commands.push(unit(4, 0, UnitId(1)));
+    commands
+}
+
+#[test]
+fn every_pack_parses_with_titles_and_puzzles() {
+    for (name, text) in ALL_PACKS {
+        let pack = Pack::parse(text).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(!pack.content.title().is_empty() && !pack.content.summary().is_empty(), "{name}");
+        assert!(!pack.content.puzzles().is_empty(), "{name} has puzzles");
+        for (index, puzzle) in pack.content.puzzles().iter().enumerate() {
+            assert!(!puzzle.description.is_empty(), "{name}: {} is described", puzzle.id);
+            // Every start builds its opening without a refusal.
+            let (mut world, starter) = World::start(&pack, Start::Puzzle(index as u16));
+            assert_eq!(world.step(&starter), vec![], "{name}: {}", puzzle.id);
+            assert_eq!(world.puzzle().unwrap().puzzle, index as u16);
+        }
+        for start in [Start::Free, Start::Sandbox] {
+            let (mut world, starter) = World::start(&pack, start);
+            assert_eq!(world.step(&starter), vec![], "{name}");
+        }
+    }
+}
+
+#[test]
+fn a_puzzle_is_solved_by_reaching_its_goals() {
+    let pack = Pack::parse(PUZZLES).unwrap();
+    let (mut world, starter) = World::start(&pack, Start::Puzzle(0));
+    assert!(starter.is_empty());
+    let other = Command::Place { pos: p(9, 9), dir: Dir::East, building: Building::Unit(UnitId(2)) };
+    assert_eq!(world.step(&[other]), vec![Rejected { index: 0, reason: Reject::NotInPuzzle }]);
+    run(&mut world, &ore_line(), 1);
+    let state = world.puzzle().unwrap();
+    assert_eq!((state.progress.clone(), state.solved, state.failed), (vec![(0, 5)], None, false));
+    let mut ticks = 0;
+    while world.puzzle().unwrap().solved.is_none() {
+        world.step(&[]);
+        ticks += 1;
+        assert!(ticks < 500, "never solved");
+    }
+    let state = world.puzzle().unwrap();
+    assert_eq!(state.progress, vec![(5, 5)]);
+    assert_eq!(state.solved, Some(world.tick()));
+    // It stays solved, and the factory carries on.
+    run(&mut world, &[], 100);
+    assert_eq!(world.puzzle().unwrap().solved, state.solved);
+    assert!(world.stats(ItemId(0)).delivered > 5);
+}
+
+#[test]
+fn a_carried_on_puzzle_counts_from_when_it_begins() {
+    let pack = Pack::parse(PUZZLES).unwrap();
+    let (mut world, _) = World::start(&pack, Start::Free);
+    assert_eq!(world.puzzle(), None);
+    run(&mut world, &ore_line(), 200);
+    let delivered = world.stats(ItemId(0)).delivered;
+    assert!(delivered > 5);
+    // Beginning it now doesn't count what was already delivered.
+    run(&mut world, &[Command::Begin { puzzle: 0 }], 1);
+    assert_eq!(world.puzzle().unwrap().progress[0].0, world.stats(ItemId(0)).delivered - delivered);
+    assert!(world.puzzle().unwrap().solved.is_none());
+    assert_eq!(
+        world.step(&[Command::Begin { puzzle: 1 }, Command::Begin { puzzle: 9 }]),
+        vec![Rejected { index: 0, reason: Reject::NeedsNewWorld }, Rejected { index: 1, reason: Reject::UnknownPuzzle }]
+    );
+}
+
+#[test]
+fn a_fresh_puzzle_has_its_own_map_and_a_clock() {
+    let pack = Pack::parse(PUZZLES).unwrap();
+    let (mut world, starter) = World::start(&pack, Start::Puzzle(1));
+    assert!(starter.is_empty());
+    let ore = pack.content.layer_id("oreField").unwrap();
+    assert_eq!(world.layer_value(ore, p(0, 0)), 0);
+    assert!(world.layer_value(ore, p(5, 5)) > 0);
+    assert_eq!(world.global(PLATE), 30);
+    assert!(world.researched(TechId(0)));
+    run(&mut world, &[], 199);
+    assert!(!world.puzzle().unwrap().failed);
+    world.step(&[]);
+    let state = world.puzzle().unwrap();
+    assert!(state.failed && state.solved.is_none());
+    // Once over, it stays over.
+    run(&mut world, &[], 50);
+    assert!(world.puzzle().unwrap().failed);
+}
+
+#[test]
+fn a_sandbox_has_everything_unlocked_and_free() {
+    let base = Pack::parse(BASE_PACK).unwrap();
+    let (mut world, starter) = World::start(&base, Start::Sandbox);
+    assert!(world.is_sandbox());
+    world.step(&starter);
+    let stock = world.global(base.content.resource_id("ironPlate").unwrap());
+    let refinery = Building::Unit(base.content.unit_id("refinery").unwrap());
+    assert_eq!(world.step(&[Command::Place { pos: p(50, 50), dir: Dir::East, building: refinery }]), vec![]);
+    assert_eq!(world.global(base.content.resource_id("ironPlate").unwrap()), stock);
+    assert_eq!(world.step(&[Command::Remove { pos: p(50, 50) }]), vec![]);
+    let (free, _) = World::start(&base, Start::Free);
+    assert!(!free.is_sandbox());
+    assert_ne!(world.state_hash(), free.state_hash());
+}
+
+#[test]
+fn puzzles_and_sandboxes_survive_a_save() {
+    let pack = Pack::parse(PUZZLES).unwrap();
+    for start in [Start::Puzzle(0), Start::Puzzle(1), Start::Sandbox] {
+        let (mut world, starter) = World::start(&pack, start);
+        world.step(&starter);
+        world.step(&ore_line());
+        for _ in 0..120 {
+            world.step(&[]);
+        }
+        let loaded = World::load(&pack, &world.save()).unwrap();
+        assert_eq!(loaded.state_hash(), world.state_hash(), "{start:?}");
+        assert_eq!(loaded.puzzle(), world.puzzle());
+        assert_eq!(loaded.is_sandbox(), world.is_sandbox());
+    }
+}
+
+#[test]
+fn a_puzzle_needs_goals_and_only_a_fresh_one_has_a_map() {
+    let base = "resource ore\nlayer oreField\nunit miner\n";
+    let cases = [
+        ("puzzle a\nend", "has no goals"),
+        ("puzzle a\ngoal deliver ore 1\npatch oreField at 0 0 size 1 1 amount 1\nend", "only a 'fresh' puzzle"),
+        ("puzzle a\ngoal deliver rock 1\nend", "unknown resource 'rock'"),
+        ("puzzle a\ngoal win\nend", "expected 'goal deliver"),
+        ("puzzle a\ngoal deliver ore 1\nonly castle\nend", "'castle' isn't a belt or a unit"),
+        ("puzzle a\ngoal deliver ore 1\nend\npuzzle a\ngoal deliver ore 1\nend", "declared twice"),
+        ("puzzle a\ngoal deliver ore 1\nweather rain\nend", "puzzle does not understand 'weather'"),
+    ];
+    for (text, message) in cases {
+        let error = Pack::parse(&format!("{base}{text}")).unwrap_err();
+        assert!(error.message.contains(message), "{text}: {error}");
     }
 }

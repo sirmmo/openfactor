@@ -8,6 +8,10 @@
 // world. Once a second the host includes its state hash, and a guest that no
 // longer matches asks for a fresh save.
 //
+// The welcome names the host's rules. A guest playing other rules reloads the
+// page with the host's and joins again, and does the same when the host
+// switches rules mid-game.
+//
 // Browsers find each other through the PeerJS broker, then talk directly over
 // WebRTC data channels. This module wraps the wasm calls on the page's `of`
 // object, so the rest of the page doesn't need to know who is in charge.
@@ -18,7 +22,8 @@ const CODE_LENGTH = 6;
 const HASH_EVERY = 60;
 const CURSOR_MS = 100;
 const COLORS = ['#f2b63c', '#4fc3f7', '#ef6aa8', '#7bd389', '#b39ddb', '#ff8a65', '#4dd0e1', '#dce775'];
-const EDITS = ['of_place', 'of_remove', 'of_configure', 'of_research'];
+const EDITS = ['of_place', 'of_remove', 'of_configure', 'of_research', 'of_begin'];
+const RETRY_MS = 1500;
 
 function newCode() {
   const values = crypto.getRandomValues(new Uint32Array(CODE_LENGTH));
@@ -37,17 +42,19 @@ function fromBase64(text) {
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return bytes;
 }
-const isRecord = (r) => Array.isArray(r) && r.length === 6 && r.every(Number.isInteger) && r[0] >= 0 && r[0] <= 3;
+const isRecord = (r) => Array.isArray(r) && r.length === 6 && r.every(Number.isInteger) && r[0] >= 0 && r[0] <= 4;
 
 /**
  * `game` supplies: of (the page's mutable copy of the wasm exports), say(text),
  * replaced() after the world is swapped, leaveToOwn() to go back to the
- * player's own factory, and changed() when the session changes.
+ * player's own factory, changed() when the session changes, packInfo() naming
+ * the rules in play, and follow(info, code, delayMs), which switches to the
+ * host's rules and returns true, or returns false if they are already in play.
  */
 export function createSession(game) {
   const { of } = game;
   const real = {};
-  for (const name of [...EDITS, 'of_step', 'of_reset', 'of_load']) real[name] = of[name].bind(of);
+  for (const name of [...EDITS, 'of_step', 'of_reset', 'of_load', 'of_new']) real[name] = of[name].bind(of);
 
   const session = {
     role: 'solo',
@@ -58,6 +65,8 @@ export function createSession(game) {
   };
   let peer = null, hostConn = null;
   let batches = [], resyncAsked = false, lastCursorSent = 0, lastCursorKey = '';
+  // Set while the page reloads to follow the host's rules.
+  let switching = false;
 
   const send = (conn, message) => { if (conn && conn.open) conn.send(message); };
   const broadcast = (message, except = null) => {
@@ -69,7 +78,8 @@ export function createSession(game) {
     if (r[0] === 0) real.of_place(r[1], r[2], r[3], r[4], r[5]);
     else if (r[0] === 1) real.of_remove(r[1], r[2], r[3]);
     else if (r[0] === 2) real.of_configure(r[1], r[2], r[3], r[4]);
-    else real.of_research(r[1]);
+    else if (r[0] === 3) real.of_research(r[1]);
+    else real.of_begin(r[1]);
   }
   function applied() {
     const length = of.of_applied_len();
@@ -93,7 +103,8 @@ export function createSession(game) {
       const r = name === 'of_place' ? [0, ...args]
         : name === 'of_remove' ? [1, ...args, 0, 0]
         : name === 'of_configure' ? [2, ...args, 0]
-        : [3, args[0], 0, 0, 0, 0];
+        : name === 'of_research' ? [3, args[0], 0, 0, 0, 0]
+        : [4, args[0], 0, 0, 0, 0];
       send(hostConn, { t: 'cmd', r });
     };
   }
@@ -108,10 +119,10 @@ export function createSession(game) {
     }
     return refused;
   };
-  // Starting over or loading a file as host takes everyone along.
-  for (const name of ['of_reset', 'of_load']) {
+  // Starting over, starting a puzzle or loading a file as host takes everyone along.
+  for (const name of ['of_reset', 'of_load', 'of_new']) {
     of[name] = (...args) => {
-      if (session.role === 'guest') return name === 'of_load' ? 1 : undefined;
+      if (session.role === 'guest') return name === 'of_reset' ? undefined : 1;
       const result = real[name](...args);
       if (session.role === 'host') broadcast(snapshot());
       return result;
@@ -165,11 +176,12 @@ export function createSession(game) {
     return id ? new Peer(id, { debug: 0 }) : new Peer({ debug: 0 });
   }
 
-  async function host() {
+  /** Opens a game, with `wanted` as its code if given and free (after a reload, say). */
+  async function host(wanted = null, tries = 5) {
     if (session.role !== 'solo') return;
     try { await loadLibrary(); } catch (error) { game.say('Couldn’t start a shared game: ' + error.message, 6000); return; }
     if (session.role !== 'solo') return;
-    const code = newCode();
+    const code = wanted && tries > 0 ? normalCode(wanted) : newCode();
     peer = openPeer(PREFIX + code);
     session.role = 'host';
     session.code = code;
@@ -178,7 +190,13 @@ export function createSession(game) {
     game.changed();
     peer.on('open', () => { session.state = 'open'; game.changed(); });
     peer.on('error', (error) => {
-      if (error.type === 'unavailable-id' && session.state !== 'open') { stop(); host(); return; }
+      if (error.type === 'unavailable-id' && session.state !== 'open') {
+        stop();
+        // The code may still be held by the page this one replaced.
+        if (wanted && tries > 1) setTimeout(() => host(wanted, tries - 1), RETRY_MS);
+        else host();
+        return;
+      }
       if (session.role === 'host' && session.state !== 'open') {
         stop();
         game.say('Couldn’t start a shared game: ' + describe(error), 7000);
@@ -199,7 +217,7 @@ export function createSession(game) {
       const color = COLORS.find((c) => !used.has(c)) || COLORS[session.peers.size % COLORS.length];
       const name = 'Player ' + (session.peers.size + 2);
       session.peers.set(id, { name, color, cursor: null, conn });
-      send(conn, { t: 'welcome', name, color, hostColor: COLORS[0] });
+      send(conn, { t: 'welcome', name, color, hostColor: COLORS[0], pack: game.packInfo() });
       send(conn, snapshot());
       broadcast({ t: 'peers', list: peerList() });
       game.say(name + ' joined.', 4000);
@@ -229,7 +247,7 @@ export function createSession(game) {
   }
 
   // --- Joining.
-  async function join(rawCode) {
+  async function join(rawCode, { retries = 0 } = {}) {
     if (session.role !== 'solo') return;
     const code = normalCode(rawCode);
     if (code.length !== CODE_LENGTH) { game.say('A game code has ' + CODE_LENGTH + ' letters and digits.', 4000); return; }
@@ -251,16 +269,26 @@ export function createSession(game) {
       hostConn.on('error', () => hostGone('Lost the connection to the host.'));
     });
     peer.on('error', (error) => {
+      // A host that is reloading with new rules comes back in a moment.
+      if (error.type === 'peer-unavailable' && retries > 0 && !joined) {
+        stop();
+        setTimeout(() => join(code, { retries: retries - 1 }), RETRY_MS);
+        return;
+      }
       const text = error.type === 'peer-unavailable' ? 'No game is open with the code ' + code + '.' : 'Couldn’t join: ' + describe(error);
+      if (!joined && session.role === 'guest') { stop(); game.say(text, 7000); game.leaveToOwn(); return; }
       hostGone(text);
     });
   }
   let joined = false;
   function onHostMessage(message) {
-    if (!message || typeof message !== 'object') return;
+    if (!message || typeof message !== 'object' || switching) return;
     if (message.t === 'welcome') {
       session.selfName = message.name;
       session.selfColor = message.color;
+      if (message.pack && game.follow(message.pack, session.code, 0)) switching = true;
+    } else if (message.t === 'moving') {
+      if (message.pack && game.follow(message.pack, session.code, RETRY_MS)) switching = true;
     } else if (message.t === 'snap') {
       const code = loadSnapshot(message);
       if (code !== 0) {
@@ -288,7 +316,7 @@ export function createSession(game) {
     }
   }
   function hostGone(text) {
-    if (session.role !== 'guest') return;
+    if (session.role !== 'guest' || switching) return;
     const wasIn = joined;
     stop();
     game.say(text + (wasIn ? ' You’re back in your own factory.' : ''), 7000);
@@ -341,6 +369,11 @@ export function createSession(game) {
     return (error && error.message) || 'unknown error';
   }
 
+  /** Tells guests the host is about to reload with other rules. */
+  function moving(pack) {
+    if (session.role === 'host') broadcast({ t: 'moving', pack });
+  }
+
   addEventListener('pagehide', () => { if (peer) peer.destroy(); });
-  return Object.assign(session, { host, join, leave, pointer, cursors, inviteLink: () => location.origin + location.pathname + '?join=' + session.code });
+  return Object.assign(session, { host, join, leave, moving, pointer, cursors, inviteLink: () => location.origin + location.pathname + '?join=' + session.code });
 }

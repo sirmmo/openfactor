@@ -38,7 +38,7 @@ export function makeTools(game) {
   const { of, pack, D, beltCount } = game;
   const resourceName = (id) => pack.resources[id].name;
   const tickSeconds = () => Math.floor(of.of_tick() / D.TICKS_PER_SECOND);
-  const isOpen = (lock) => lock === null || of.of_researched(lock) === 1;
+  const isOpen = (lock) => lock === null || of.of_sandbox() === 1 || of.of_researched(lock) === 1;
   const stockOf = (id) => of.of_stock(id) >>> 0;
   const kindName = (kind) => (kind < beltCount ? pack.belts[kind].name : pack.units[kind - beltCount].name);
   const kindId = (kind) => (kind < beltCount ? pack.belts[kind].id : pack.units[kind - beltCount].id);
@@ -120,6 +120,9 @@ export function makeTools(game) {
         problems: problems.slice(0, 40),
         totals: Object.fromEntries(pack.metrics.map((m, i) => [m.name, of.of_metric(i) >>> 0]).filter(([, v]) => v)),
         levels: pack.levels,
+        rules: pack.title,
+        sandbox: of.of_sandbox() === 1,
+        puzzle: game.puzzle ? game.puzzle() : null,
         howToPay: 'Buildings and research are paid from the shared stock. Belt items into a depot to add to it. Erasing a building refunds its cost.',
       };
     },

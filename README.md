@@ -23,6 +23,12 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 - **Saves:** `World::save` / `World::load` capture the whole state as bytes. The
   browser autosaves and can export and import `.ofsave` files; co-op late join
   will use the same snapshot.
+- **Rule sets and puzzles:** every game starts by choosing a pack (`packs/*.gbx`,
+  or one loaded from a file) and free play, a sandbox or a puzzle. Puzzles are
+  part of the pack and their goals are checked inside the simulation, so they are
+  deterministic and shared in co-op. Campaign puzzles carry on in one factory;
+  `fresh` puzzles are rounds on their own map, often timed. Switching packs
+  reloads the page; saves record their pack.
 - **Agents:** the play page registers WebMCP tools (`document.modelContext`) so an
   AI agent in the browser can look at and build the factory under the same rules
   as a player.
@@ -32,14 +38,16 @@ saves, co-op sync and integrations all depend on this, so don't break it.
 1. Headless sim with replay tests (done).
 2. **Browser client with a build and render loop (first version in `site/play`).**
 3. **Two browsers in one world, with late join and desync detection (first version, browser to browser).**
-4. GlassBox-style rule packs (first version in `packs/`), then an in-game
-   inspector and editor, and the external API.
+4. **GlassBox-style rule packs: five rule sets with puzzles in `packs/`** (factory,
+   tutorial, farming, chip fab, network), then an in-game editor and the external API.
 5. WASM mods, then federation.
 
 ## Rule packs
 
-Resources, machines, recipes, belt tiers, routing, power and pipe networks are all
-data: see [`packs/base.gbx`](packs/base.gbx) and the "Rules" section of the docs.
+Resources, machines, recipes, belt tiers, routing, power and pipe networks,
+puzzles and their goals are all data: see [`packs/`](packs) and the "Rules"
+section of the docs. Every pack is tested: each recipe must run when fed, and
+each start must build its opening without a refusal.
 The language follows citysim's GlassBox scripts, with additions for logistics.
 
 ## Running

@@ -57,11 +57,23 @@
   </div>
 
   <h2>Status</h2>
-  <p>Early prototype. The core simulation and a single-player game with costs, research and a full production chain work. There is no multiplayer or public API yet, and saves are not implemented, so reloading the page starts over.</p>
+  <p>Early prototype. The deterministic simulation, five rule sets with puzzles, saves, browser-to-browser co-op and tools for AI agents work. There is no public API or in-game rule editor yet.</p>
 
   <h2>The one rule</h2>
   <pre><code>state(t+1) = sim(state(t), commands(t))</code></pre>
   <p>The simulation has no clock, no I/O, no floats and no randomised containers. Anything unpredictable enters as a command. Co-op sync, replays and integrations are all planned around this rule. Every run of the same commands produces the same state hash, which the game shows in its top bar.</p>
+
+  <h2>Rule sets and puzzles</h2>
+  <p>A new game (<kbd>N</kbd>) starts with a choice of rules, then of how to play them: <b>free play</b> on the pack's own map, a <b>sandbox</b> where everything is unlocked and free, or a <b>puzzle</b>. Puzzles come in two kinds. A <b>campaign</b> carries on in one factory, one goal after another, for as long as you want to keep building. A <b>round</b> starts on a map of its own, often with a clock and only some buildings allowed, and starts afresh every try; the game keeps your best time for each.</p>
+  <div class="scroll"><table>
+    <tr><th>Rules</th><th>What it is</th></tr>
+    <tr><td><b>Factory</b></td><td>The full chain from ore to automata, with power, oil and four levels. An eight-step campaign to 25 automata, and two timed rushes.</td></tr>
+    <tr><td><b>First steps</b></td><td>A small tutorial: a drill, belts, a furnace and a workshop, one idea per goal.</td></tr>
+    <tr><td><b>Harvest</b></td><td>Farming. Farms need water through pipes; grain, apples and milk become bread, juice and cheese, packed into picnic baskets. Wood pays for building, through the sawmill.</td></tr>
+    <tr><td><b>Chip fab</b></td><td>Short timed rounds on small maps: sand to silicon to wafers, copper to wire, then transistors, chips and boards on solar power.</td></tr>
+    <tr><td><b>Network</b></td><td>Nothing is dug. Requests come in through gateways and pass through parsers, routers, databases and renderers to become responses, on compute from server racks that overheat when packed together. Parsers reject malformed requests, which must be logged or they stall. Each layer of the factory is a layer of the stack. Deliberately more complicated than it needs to be, to show how much happens between a click and a page.</td></tr>
+  </table></div>
+  <p><b>Your own rules…</b> in the same dialog loads a <code>.gbx</code> pack from a file; a mistake in it is reported with its line. Saves remember their rules, so loading one switches to them, and a pack loaded from a file travels inside the save.</p>
 
   <h2>Playing</h2>
   <p>You start with a coal-fired smelting line feeding a depot and a little stock. Everything a depot receives joins the shared stock, which pays for buildings and research. Removing a building refunds it in full, but whatever it held is lost.</p>
@@ -72,6 +84,7 @@
     <tr><td>Click a building, or <kbd>I</kbd></td><td>Inspect it: status, recipe or filter choice, contents and networks</td></tr>
     <tr><td><kbd>P</kbd></td><td>Production totals and stock</td></tr>
     <tr><td><kbd>T</kbd></td><td>Research tree</td></tr>
+    <tr><td><kbd>N</kbd></td><td>New game: choose the rules, then free play, a sandbox or a puzzle</td></tr>
     <tr><td><kbd>G</kbd></td><td>Game: save to a file, load from a file, or start over. The factory also saves itself in the browser every 30 seconds and when you leave, and is back when you return</td></tr>
     <tr><td><kbd>H</kbd></td><td>Show or hide the card describing the selected building: what it does, its recipes and what it costs. Hover a tool to preview its card</td></tr>
     <tr><td><kbd>V</kbd></td><td>Switch between the 2D and 3D views. <kbd>Q</kbd> and <kbd>E</kbd> turn the 3D camera</td></tr>
@@ -150,6 +163,25 @@ place miner 2 2 east</code></pre>
   <p><code>describe &lt;id&gt; "…"</code> gives a belt, unit, research or resource the sentence players see on its card, in the inspector, in the research tree and in the catalogue above. Write what it is for; recipes, costs, placement and requirements are worked out from the rest of the pack and added automatically. Descriptions are cosmetic, so they don't change the state hash.</p>
 <pre><code>describe furnace "Smelts ore with coal. Needs no power, but fouls the air."
 describe routing "Splitters and tunnels, to share lines and pass belts under each other."</code></pre>
+  <h3>Titles and puzzles</h3>
+  <p><code>title "…"</code> and <code>summary "…"</code> name a pack in the New game dialog. A <code>puzzle</code> block sets goals; every count starts from zero when the puzzle does, and the simulation itself checks them, so everyone in a shared game agrees on the moment it is solved.</p>
+<pre><code>puzzle gearRush
+    name "Gear rush"
+    about "A bare map, 120 plates and five minutes: deliver 100 gears."
+    fresh
+    stock ironPlate 120 gear 20
+    place none
+    only belt drill furnace workshop depot
+    goal deliver gear 100
+    limit 18000
+end</code></pre>
+  <div class="scroll"><table>
+    <tr><td><code>goal deliver &lt;R&gt; &lt;n&gt;</code></td><td>That many delivered to <code>stores shared</code> units. Also <code>goal make</code> (made by any building), <code>goal stock</code> (in the shared stock at once), <code>goal metric &lt;metric&gt; &lt;n&gt;</code> and <code>goal research &lt;id&gt;</code>. A puzzle needs at least one.</td></tr>
+    <tr><td><code>fresh</code></td><td>The puzzle starts a new world: the pack's map, stock and opening buildings, except for whichever of <code>patch</code>, <code>stock</code> and <code>place</code> the puzzle gives itself (<code>stock none</code> and <code>place none</code> start empty). <code>researched &lt;id&gt;…</code> starts it with research done. Without <code>fresh</code> the puzzle carries on in the factory already there.</td></tr>
+    <tr><td><code>only &lt;building&gt;…</code></td><td>Only these can be built while it runs.</td></tr>
+    <tr><td><code>limit &lt;ticks&gt;</code></td><td>Time allowed; past it the puzzle is lost, though the factory keeps running.</td></tr>
+  </table></div>
+  <p>Puzzles are offered in the order they are written, and a solved one offers the next.</p>
   <h3>Levels</h3>
   <div class="scroll"><table>
     <tr><td><code>levels &lt;n&gt;</code></td><td>How many levels can be built on, up to 8. The default is 1, a flat world.</td></tr>
@@ -229,13 +261,14 @@ assert_eq!(copy.state_hash(), world.state_hash());</code></pre>
   <h2>Playing together</h2>
   <p>In the Game panel (<kbd>G</kbd>), <b>Host a game</b> gives a six-letter code and an invite link. Friends open the link, or type the code under <b>Join</b>, and build in your factory with you; everyone sees where the others are pointing.</p>
   <p>The host's browser runs the game. It steps the world and sends each batch of ticks, with the edits made in it, straight to every guest over WebRTC. Guests send their edits to the host and run the same ticks, so every copy stays identical; they compare state hashes once a second and fetch a fresh copy if they ever differ. A player who joins late starts from a save of the host's world. Browsers find each other through the free <a href="https://peerjs.com/">PeerJS</a> broker; the game itself never passes through a server.</p>
+  <p>The host chooses the rules and the puzzle. A guest playing other rules switches to the host's automatically, and when the host starts a game with other rules, everyone reloads and reconnects with the same code.</p>
   <p>Keep the host's tab open and visible: if it is hidden the browser pauses it, and the game pauses for everyone. When the host leaves, guests go back to their own factories, which were saved when they joined. Some strict networks block direct connections between browsers; there is no relay server yet to work around that.</p>
 
   <h2>AI agents (WebMCP)</h2>
   <p>The play page offers its controls to AI agents through <a href="https://webmachinelearning.github.io/webmcp/">WebMCP</a>, the proposed browser API that lets a page give tools to an agent running in the browser. An agent can do what a player can and nothing more: it pays the same costs, is refused for the same reasons, and the page says what it did.</p>
   <div class="scroll"><table>
     <tr><th>Tool</th><th>What it does</th></tr>
-    <tr><td><code>openfactor_overview</code></td><td>Time, shared stock, research progress, building counts and buildings with problems. Read only.</td></tr>
+    <tr><td><code>openfactor_overview</code></td><td>Time, shared stock, research progress, building counts and buildings with problems, and the rules and running puzzle with its goals and clock. Read only.</td></tr>
     <tr><td><code>openfactor_catalogue</code></td><td>Every building, research and resource with descriptions, costs, recipes and placement rules. Read only.</td></tr>
     <tr><td><code>openfactor_look</code></td><td>Ground, smog and buildings in an area of up to 48 by 48 tiles on one level. Read only.</td></tr>
     <tr><td><code>openfactor_inspect</code></td><td>One building's status, recipe, contents and networks. Read only.</td></tr>
@@ -259,7 +292,7 @@ python3 -m http.server --directory site</code></pre>
     <li>Headless simulation with replay tests (done).</li>
     <li>Browser client with a build and render loop (first version live).</li>
     <li>Two browsers in one world, with late join and desync detection (first version live, browser to browser).</li>
-    <li>GlassBox-style rule packs (first version live), an in-game inspector and editor, and the external API.</li>
+    <li>GlassBox-style rule packs, five rule sets with puzzles, and packs loaded from a file (first version live); an in-game rule editor and the external API.</li>
     <li>WASM mods, then federation between worlds.</li>
   </ol>
 

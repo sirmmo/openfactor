@@ -5,8 +5,8 @@
 //! than a resource nothing produces.
 
 use crate::content::{
-    Amount, BeltDef, Condition, Content, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Patch,
-    Port, ResourceDef, Route, Rule, Scope, TechDef, Test, UnitDef, WorldGen,
+    Amount, BeltDef, Condition, Content, Goal, LayerDef, Link, MapRule, MetricDef, Overlay, Pack, Patch,
+    Port, PuzzleDef, ResourceDef, Route, Rule, Scope, TechDef, Test, UnitDef, WorldGen,
 };
 use crate::world::{Building, Command};
 use crate::{BeltId, Dir, ItemId, LayerId, MetricId, Pos, TechId, UnitId};
@@ -128,7 +128,7 @@ fn tokenize(text: &str, number: usize) -> Parsed<Vec<String>> {
 }
 
 fn is_block_start(head: &str) -> bool {
-    matches!(head, "unitRule" | "rule" | "mapRule" | "zoneRule" | "agentRule" | "research")
+    matches!(head, "unitRule" | "rule" | "mapRule" | "zoneRule" | "agentRule" | "research" | "puzzle")
 }
 
 fn split_lines(text: &str) -> Parsed<(Vec<Line>, Vec<Block>)> {
@@ -202,6 +202,9 @@ struct Builder {
     starter: Vec<Command>,
     stock: Vec<(ItemId, u32)>,
     sandbox: bool,
+    title: Option<String>,
+    summary: String,
+    puzzles: Vec<PuzzleDef>,
     levels: Option<u32>,
     span: Option<u32>,
 }
@@ -454,6 +457,8 @@ impl Builder {
                 });
             }
             ["sandbox"] => self.sandbox = true,
+            ["title", value] => self.title = Some(value.to_string()),
+            ["summary", value] => self.summary = value.to_string(),
             ["levels", value] => {
                 let levels = line.positive(value)?;
                 if levels > MAX_LEVELS {
@@ -830,6 +835,130 @@ impl Builder {
         }
     }
 
+    fn building(&self, line: &Line, id: &str) -> Parsed<Building> {
+        match self.belts.iter().position(|b| b.id == id) {
+            Some(index) => Ok(Building::Belt(BeltId(index as u16))),
+            None => match self.units.iter().position(|u| u.id == id) {
+                Some(index) => Ok(Building::Unit(UnitId(index as u16))),
+                None => line.fail(format!("'{id}' isn't a belt or a unit")),
+            },
+        }
+    }
+
+    fn goal(&self, line: &Line) -> Parsed<Goal> {
+        Ok(match line.strs().as_slice() {
+            ["goal", "deliver", item, n] => Goal::Deliver(self.resource(line, item)?, line.positive(n)?),
+            ["goal", "make", item, n] => Goal::Make(self.resource(line, item)?, line.positive(n)?),
+            ["goal", "stock", item, n] => Goal::Stock(self.resource(line, item)?, line.positive(n)?),
+            ["goal", "metric", metric, n] => Goal::Metric(self.metric(line, metric)?, line.positive(n)?),
+            ["goal", "research", tech] => Goal::Research(self.tech(line, tech)?),
+            _ => {
+                return line.fail(
+                    "expected 'goal deliver|make|stock <resource> <n>', 'goal metric <metric> <n>' or 'goal research <name>'",
+                )
+            }
+        })
+    }
+
+    /// `puzzle <id> ... end`: goals, and optionally a map of its own.
+    fn add_puzzle(&mut self, block: &Block) -> Parsed<()> {
+        let id = match block.header.strs().as_slice() {
+            [_, id] => id.to_string(),
+            _ => return block.header.fail("'puzzle' needs exactly one name"),
+        };
+        if self.puzzles.iter().any(|p| p.id == id) {
+            return block.header.fail(format!("puzzle '{id}' is declared twice"));
+        }
+        let mut puzzle = PuzzleDef {
+            name: id.clone(),
+            id,
+            description: String::new(),
+            fresh: None,
+            researched: Vec::new(),
+            only: Vec::new(),
+            goals: Vec::new(),
+            limit: None,
+        };
+        // The pack's own map, stock and opening, which a fresh puzzle replaces piece by piece.
+        let pack_map = (std::mem::take(&mut self.patches), std::mem::take(&mut self.starter), std::mem::take(&mut self.stock));
+        let (mut own_map, mut own_starter, mut own_stock) = (false, false, false);
+        let mut map_line: Option<&Line> = None;
+        let mut result = Ok(());
+        for line in &block.body {
+            let step = match line.strs().as_slice() {
+                ["name", value] => {
+                    puzzle.name = value.to_string();
+                    Ok(())
+                }
+                ["about", value] => {
+                    puzzle.description = value.trim().to_string();
+                    Ok(())
+                }
+                ["fresh"] => {
+                    puzzle.fresh = Some(WorldGen::default());
+                    Ok(())
+                }
+                ["limit", value] => line.positive(value).map(|v| puzzle.limit = Some(v)),
+                ["only", names @ ..] if !names.is_empty() => names.iter().try_for_each(|name| {
+                    let building = self.building(line, name)?;
+                    puzzle.only.push(building);
+                    Ok(())
+                }),
+                ["researched", names @ ..] if !names.is_empty() => {
+                    map_line = Some(line);
+                    names.iter().try_for_each(|name| {
+                        let tech = self.tech(line, name)?;
+                        puzzle.researched.push(tech);
+                        Ok(())
+                    })
+                }
+                ["goal", ..] => self.goal(line).map(|goal| puzzle.goals.push(goal)),
+                ["stock", "none"] => {
+                    own_stock = true;
+                    map_line = Some(line);
+                    Ok(())
+                }
+                ["place", "none"] => {
+                    own_starter = true;
+                    map_line = Some(line);
+                    Ok(())
+                }
+                [head @ ("patch" | "stock" | "place"), ..] => {
+                    own_map |= *head == "patch";
+                    own_stock |= *head == "stock";
+                    own_starter |= *head == "place";
+                    map_line = Some(line);
+                    self.map_statement(line)
+                }
+                _ => line.fail(format!("puzzle does not understand '{}'", line.head())),
+            };
+            if step.is_err() {
+                result = step;
+                break;
+            }
+        }
+        let (patches, starter, stock) =
+            (std::mem::take(&mut self.patches), std::mem::take(&mut self.starter), std::mem::take(&mut self.stock));
+        let (pack_patches, pack_starter, pack_stock) = pack_map;
+        if let Some(fresh) = &mut puzzle.fresh {
+            fresh.patches = if own_map { patches } else { pack_patches.clone() };
+            fresh.starter = if own_starter { starter } else { pack_starter.clone() };
+            fresh.stock = if own_stock { stock } else { pack_stock.clone() };
+        }
+        self.patches = pack_patches;
+        self.starter = pack_starter;
+        self.stock = pack_stock;
+        result?;
+        if let (None, Some(line)) = (&puzzle.fresh, map_line) {
+            return line.fail("only a 'fresh' puzzle has a map, stock, buildings or research of its own");
+        }
+        if puzzle.goals.is_empty() {
+            return block.header.fail(format!("puzzle '{}' has no goals", puzzle.id));
+        }
+        self.puzzles.push(puzzle);
+        Ok(())
+    }
+
     /// A sandbox pack has everything available for free.
     fn open_everything(&mut self) {
         for belt in &mut self.belts {
@@ -885,6 +1014,9 @@ impl Builder {
                 techs: self.techs,
                 levels: self.levels.unwrap_or(1),
                 span: self.span.unwrap_or(DEFAULT_SPAN),
+                title: self.title.unwrap_or_else(|| "Untitled rules".to_string()),
+                summary: self.summary,
+                puzzles: self.puzzles,
             },
             worldgen: WorldGen { patches: self.patches, starter: self.starter, stock: self.stock },
         }
@@ -928,10 +1060,15 @@ impl Pack {
         }
         let (research, rules): (Vec<&Block>, Vec<&Block>) =
             blocks.iter().partition(|block| block.header.head() == "research");
+        let (puzzles, rules): (Vec<&Block>, Vec<&Block>) =
+            rules.into_iter().partition(|block| block.header.head() == "puzzle");
         for block in rules {
             builder.add_rule(block)?;
         }
         builder.add_research(&research)?;
+        for block in puzzles {
+            builder.add_puzzle(block)?;
+        }
         // Last, so research can be described too.
         for line in top.iter().filter(|l| l.head() == "describe") {
             builder.describe(line)?;

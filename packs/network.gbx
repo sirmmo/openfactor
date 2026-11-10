@@ -1,0 +1,301 @@
+# OpenFactor network pack: an abstract factory of requests and responses.
+#
+# Nothing is dug here. Users send requests through gateways; services parse
+# them, route them, query databases and render responses, all running on
+# compute from server racks. Every response served pays for more. It is
+# deliberately more complicated than it needs to be, to show how much happens
+# between a click and a page: layers of services, logs to keep, heat to shed.
+
+title "Network"
+summary "No ore, just traffic: requests flow through parsers, routers, databases and renderers to become responses."
+
+# The four levels are the layers of the stack, from wire to application.
+levels 4
+span 3
+
+belt belt name "Link" speed 24 model conveyor corner conveyor-corner
+belt fiber name "Fiber link" speed 48 style 1 model conveyor-stripe corner conveyor-stripe-corner
+
+resource request  name "Request"   sprite 106 tint 4a90d9
+resource json     name "JSON"      sprite 130 tint f2c94c
+resource query    name "Query"     sprite 57  tint 9b59b6
+resource rows     name "Rows"      sprite 85  tint 7f8c8d
+resource response name "Response"  sprite 106 tint 3fae5a
+resource error    name "Error"     sprite 129 tint e74c3c
+resource token    name "Token"     sprite 114 tint e8c34a
+resource compute  name "Compute"   sprite 129 tint 4ad9d9
+
+layer users   name "users"       sprites 3 32 tint 4a90d9
+layer storage name "storage"     sprites 3 32 tint 7f8c8d
+layer heat    name "heat"        haze d9534a full 400
+
+metric served name "Responses served"
+metric logged name "Errors logged"
+
+unit balancer name "Load balancer"   sprite 72  group "Routing" routes split model conveyor-cross
+unit firewall name "Firewall"        sprite 79  group "Routing" routes filter model scanner-low
+unit queue    name "Message queue"   sprite 68  group "Routing" routes tunnel range 8 model machine-connection-hole
+unit up       name "Layer up"        sprite 127 group "Routing" routes up range 3 model crane-lift
+unit down     name "Layer down"      sprite 109 group "Routing" routes down range 3 model hopper-square
+unit mount    name "Mount"           sprite 128 group "Routing" model structure-yellow-tall
+unit internet name "The internet"    sprite 58  group "Routing" stores shared model box-wide
+unit gateway  name "Gateway"         sprite 81  group "Edge" placeOn users model pipe-large-valve
+unit monolith name "Monolith"        sprite 84  group "Services" model machine-fortified
+unit parser   name "Parser"          sprite 87  group "Services" model machine
+unit auth     name "Auth service"    sprite 75  group "Services" model scanner-low
+unit router   name "API router"      sprite 111 group "Services" model machine-connection-pipe
+unit database name "Database"        sprite 108 tint 9fb0c0 group "Services" placeOn storage model hopper-high-square
+unit cache    name "Cache"           sprite 113 group "Services" model screen-flat
+unit renderer name "Renderer"        sprite 99  group "Services" model machine-window-bar
+unit logger   name "Log collector"   sprite 92  group "Services" model hopper-round
+unit rack     name "Server rack"     sprite 84  tint 4ad9d9 group "Compute" model hopper-high-round
+unit switch   name "Switch"          sprite 116 group "Compute" links compute reach 5 model structure-tall
+
+describe belt     "Carries messages one tile at a time in the direction it faces."
+describe fiber    "A link twice as fast."
+describe balancer "Shares traffic: takes turns sending what arrives out of its front, left and right."
+describe firewall "Pick a message type in its inspector: that one passes straight on, everything else is turned aside."
+describe queue    "Holds messages and delivers them to the next queue facing the same way, up to 8 tiles ahead, past anything in between."
+describe up       "Carries messages up to 3 layers higher in the stack. Put one at each end of an empty shaft."
+describe down     "Carries messages down to 3 layers lower. Put one at each end of an empty shaft."
+describe mount    "Holds up whatever is built on the layer above."
+describe internet "Where responses go. Everything it receives joins the stock that pays for new services."
+describe gateway  "Takes requests from the users under it and sends them in."
+describe monolith "One big program that does everything, slowly: a request in, a response out."
+describe parser   "Reads requests into JSON. One in four is malformed and leaves by its left side as an error; if errors back up, it stops."
+describe auth     "Checks a request's token. Signed requests are worth twice as much to the router."
+describe router   "Turns JSON into database queries."
+describe database "Answers queries with rows. Only runs where there is storage."
+describe cache    "Answers queries from memory: anywhere, and faster than a database."
+describe renderer "Turns rows into responses. Each one is counted."
+describe logger   "Collects errors so parsers don't stall. Each one is counted."
+describe rack     "Gives compute to everything on its switches, and heats the tiles around it. Racks too close together overheat and stop."
+describe switch   "Joins services and racks within 5 steps of it into one compute network."
+describe request  "What users send. Comes in through gateways."
+describe json     "A parsed request."
+describe query    "A question for the database."
+describe rows     "What the database answers."
+describe response "What users wanted. Pays for everything."
+describe error    "A malformed request. Has to go somewhere."
+describe token    "Proof of who sent a request. Issued by the auth service."
+describe compute  "Shared through switches. Never travels on links."
+describe microservices "Split the monolith: parsers, routers, databases, renderers and log collectors."
+describe loadBalancing "Load balancers and firewalls."
+describe messaging     "Message queues, to send traffic past everything in between."
+describe caching       "Caches, which answer from memory."
+describe authentication "The auth service and signed requests."
+describe stack         "Build on higher layers of the stack."
+describe fiberLinks    "Fiber links, twice as fast."
+
+unitRule listen
+    appliesTo gateway
+    rate 20
+    map users atLeast 1
+    local request out 1
+end
+
+unitRule doEverything
+    appliesTo monolith
+    rate 90
+    local request in 1
+    network compute in 3
+    local response out 1
+    log served 1
+end
+
+unitRule parse
+    appliesTo parser
+    rate 30
+    local request in 4
+    network compute in 2
+    local json out 3
+    local error out 1 left
+end
+unitRule signIn
+    appliesTo auth
+    rate 60
+    local request in 2
+    network compute in 2
+    local token out 2
+end
+unitRule route
+    appliesTo router
+    rate 20
+    local json in 1
+    network compute in 1
+    local query out 1
+end
+unitRule routeSigned
+    appliesTo router
+    rate 20
+    local token in 1
+    network compute in 1
+    local query out 2
+end
+unitRule answer
+    appliesTo database
+    rate 40
+    map storage atLeast 1
+    local query in 2
+    network compute in 4
+    local rows out 2
+end
+unitRule remember
+    appliesTo cache
+    rate 15
+    local query in 2
+    network compute in 2
+    local rows out 2
+end
+unitRule render
+    appliesTo renderer
+    rate 30
+    local rows in 1
+    network compute in 2
+    local response out 1
+    log served 1
+end
+unitRule collect
+    appliesTo logger
+    rate 20
+    local error in 1
+    log logged 1
+end
+
+unitRule serve
+    appliesTo rack
+    rate 60
+    map heat atMost 250
+    network compute out 30
+    map heat out 6 radius 2
+end
+
+# Heat leaves by itself, fast enough for one rack but not for two side by side.
+mapRule airflow
+    rate 30
+    map heat in 3
+end
+
+patch users   at 0 0   size 4 10  amount 1
+patch storage at 18 2  size 4 4   amount 1
+
+stock response 150
+
+cost belt     response 1
+cost fiber    response 3
+cost balancer response 6
+cost firewall response 8
+cost queue    response 10
+cost up       response 12
+cost down     response 10
+cost mount    response 4
+cost internet response 10
+cost gateway  response 8
+cost monolith response 20
+cost parser   response 20
+cost auth     response 40 rows 20
+cost router   response 15
+cost database response 30
+cost cache    response 40 rows 30
+cost renderer response 20
+cost logger   response 10
+cost rack     response 25
+cost switch   response 2
+
+research microservices
+    name "Microservices"
+    cost response 150
+    time 300
+    unlocks parser router database renderer logger
+end
+research loadBalancing
+    name "Load balancing"
+    cost response 80
+    time 300
+    unlocks balancer firewall
+end
+research messaging
+    name "Message queues"
+    requires loadBalancing
+    cost response 200 rows 40
+    time 450
+    unlocks queue
+end
+research caching
+    name "Caching"
+    requires microservices
+    cost response 300 rows 100
+    time 600
+    unlocks cache
+end
+research authentication
+    name "Authentication"
+    requires microservices
+    cost response 300 json 100
+    time 600
+    unlocks auth routeSigned
+end
+research stack
+    name "Up the stack"
+    requires messaging
+    cost response 400
+    time 600
+    unlocks up down mount
+end
+research fiberLinks
+    name "Fiber"
+    requires loadBalancing
+    cost response 300 rows 60
+    time 600
+    unlocks fiber
+end
+
+# The opening: a gateway, one monolith on one rack, and the internet.
+place gateway 3 4 east
+place belt 4 4 east count 3
+place monolith 7 4 east
+place belt 8 4 east count 3
+place internet 11 4 east
+place rack 7 6 east
+place switch 7 5 east
+
+puzzle helloWorld
+    name "Hello, world"
+    about "The monolith works, just slowly. Add gateways, monoliths and racks and serve 100 responses."
+    goal deliver response 100
+end
+puzzle splitIt
+    name "Split the monolith"
+    about "Research microservices, then serve 50 responses through a parser, a router, a database and a renderer."
+    goal research microservices
+    goal make rows 50
+    goal deliver response 50
+end
+puzzle mindTheLogs
+    name "Mind the logs"
+    about "Parsers stall when their errors back up. Collect 100 errors in log collectors."
+    goal metric logged 100
+end
+puzzle keepCool
+    name "Keep it cool"
+    about "Racks side by side overheat and stop. Spread them out, join them with switches and serve 600 responses."
+    goal metric served 600
+end
+puzzle scaleOut
+    name "Scale out"
+    about "Serve 5000 responses. Caches, signed requests and fiber all help. After that, it just keeps growing."
+    goal metric served 5000
+end
+
+puzzle trafficSpike
+    name "Traffic spike"
+    about "Launch day. A fresh data center, a narrow strip of users and five minutes: serve 400 responses."
+    fresh
+    patch users   at 0 0   size 2 6 amount 1
+    patch storage at 10 0  size 3 3 amount 1
+    stock response 260
+    place none
+    researched microservices loadBalancing
+    goal metric served 400
+    limit 18000
+end

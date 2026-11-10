@@ -1,0 +1,213 @@
+# OpenFactor chip pack: timed puzzles in a clean room.
+#
+# Sand becomes silicon, silicon becomes wafers, copper becomes wire, and a
+# powered etcher turns them into transistors for chips and boards. Each fab
+# puzzle is a round on a map of its own with a clock running; the open fab at
+# the end carries on for as long as you like.
+
+title "Chip fab"
+summary "Timed puzzle rounds: lay out a small, powered electronics line before the clock runs out."
+
+belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
+belt fast name "Fast belt" speed 32 style 1 model conveyor-stripe corner conveyor-stripe-corner
+
+resource sand       name "Sand"        sprite 96 tint e3cf98
+resource copperOre  name "Copper ore"  sprite 97
+resource silicon    name "Silicon"     sprite 107 tint 6c7a89
+resource copper     name "Copper"      sprite 107 tint d07f43
+resource wafer      name "Wafer"       sprite 130 tint b9c6d6
+resource wire       name "Wire"        sprite 130 tint d07f43
+resource transistor name "Transistor"  sprite 57  tint 3fae5a
+resource chip       name "Chip"        sprite 57  tint 2c2c34
+resource board      name "Board"       sprite 129 tint 2e8b57
+resource power      name "Power"       sprite 129
+
+layer dunes       name "sand"          sprites 3 32 tint d8c48a
+layer copperField name "copper ground" sprites 3 32 tint c8763c
+
+metric boards name "Boards shipped"
+
+unit splitter name "Splitter"       sprite 72  group "Logistics" routes split model conveyor-cross
+unit sorter   name "Sorter"         sprite 79  group "Logistics" routes filter model scanner-low
+unit tunnel   name "Tunnel"         sprite 68  group "Logistics" routes tunnel range 4 model machine-connection-hole
+unit dock     name "Loading dock"   sprite 58  group "Logistics" stores shared model box-wide
+unit dredge   name "Sand dredge"    sprite 110 group "Raw" placeOn dunes model piston-round
+unit drill    name "Copper drill"   sprite 98  group "Raw" placeOn copperField model piston-square
+unit smelter  name "Smelter"        sprite 92  group "Fab" model hopper-round
+unit slicer   name "Wafer slicer"   sprite 74  group "Fab" model scanner-low
+unit drawer   name "Wire drawer"    sprite 102 group "Fab" model machine
+unit etcher   name "Etcher"         sprite 111 group "Fab" model machine-window-bar
+unit packager name "Chip packager"  sprite 87  group "Fab" model machine-fortified
+unit boarder  name "Board line"     sprite 99  group "Fab" model machine-connection-pipe
+unit panel    name "Solar panel"    sprite 22  group "Power" model screen-flat
+unit pole     name "Power pole"     sprite 116 group "Power" links power reach 5 model structure-tall
+
+describe belt       "Carries items one tile at a time in the direction it faces."
+describe fast       "Twice as fast as a belt."
+describe splitter   "Takes turns sending what arrives out of its front, left and right."
+describe sorter     "Pick a resource in its inspector: that one goes straight on, everything else leaves by the sides."
+describe tunnel     "Sends items underground to the next tunnel facing the same way, up to 4 tiles ahead."
+describe dock       "Ships anything it receives. Shipped goods pay for building."
+describe dredge     "Scoops sand from the dunes."
+describe drill      "Digs copper ore."
+describe smelter    "Melts sand into silicon, or copper ore into copper. No power needed."
+describe slicer     "Slices silicon into wafers. Needs power."
+describe drawer     "Draws copper into wire."
+describe etcher     "Etches a wafer and wire into transistors. Needs a lot of power."
+describe packager   "Packs transistors and wire into a chip. Needs power."
+describe boarder    "Solders chips onto copper into a finished board. Each one is counted."
+describe panel      "Makes power from sunlight, for everything on its poles' network."
+describe pole       "Joins power users and panels within 5 steps of it."
+describe sand       "Smelted into silicon."
+describe copperOre  "Smelted into copper."
+describe silicon    "Sliced into wafers."
+describe copper     "Drawn into wire, and the base of every board."
+describe wafer      "Etched into transistors."
+describe wire       "Connects everything."
+describe transistor "Packed into chips."
+describe chip       "Soldered onto boards."
+describe board      "The finished product."
+describe power      "Shared along poles. Never travels on belts."
+
+unitRule dredgeSand
+    appliesTo dredge
+    rate 30
+    map dunes in 1
+    local sand out 1
+end
+unitRule digCopper
+    appliesTo drill
+    rate 40
+    map copperField in 1
+    local copperOre out 1
+end
+unitRule meltSand
+    appliesTo smelter
+    rate 60
+    local sand in 2
+    local silicon out 1
+end
+unitRule meltCopper
+    appliesTo smelter
+    rate 60
+    local copperOre in 2
+    local copper out 2
+end
+unitRule slice
+    appliesTo slicer
+    rate 60
+    local silicon in 1
+    network power in 2
+    local wafer out 2
+end
+unitRule draw
+    appliesTo drawer
+    rate 40
+    local copper in 1
+    local wire out 2
+end
+unitRule etch
+    appliesTo etcher
+    rate 90
+    local wafer in 1
+    local wire in 1
+    network power in 6
+    local transistor out 2
+end
+unitRule packChip
+    appliesTo packager
+    rate 120
+    local transistor in 4
+    local wire in 2
+    network power in 4
+    local chip out 1
+end
+unitRule solder
+    appliesTo boarder
+    rate 180
+    local chip in 2
+    local copper in 2
+    network power in 4
+    local board out 1
+    log boards 1
+end
+unitRule sunlight
+    appliesTo panel
+    rate 60
+    network power out 6
+end
+
+# The open fab: plenty of room.
+patch dunes       at 0 0   size 6 5 amount 100000
+patch copperField at 0 8   size 6 5 amount 100000
+
+stock copper 120 silicon 20
+
+cost belt     copper 1
+cost fast     copper 2 wire 1
+cost splitter copper 3
+cost sorter   copper 3 transistor 2
+cost tunnel   copper 6
+cost dock     copper 8
+cost dredge   copper 6
+cost drill    copper 8
+cost smelter  copper 6
+cost slicer   copper 10 silicon 4
+cost drawer   copper 8
+cost etcher   copper 16 wire 10
+cost packager copper 20 transistor 8
+cost boarder  copper 24 chip 4
+cost panel    copper 6 silicon 6
+cost pole     copper 2
+
+puzzle wafers
+    name "1. Wafers"
+    about "Two minutes on the clock: dredge sand, smelt it, slice it with solar power, and ship 30 wafers."
+    fresh
+    patch dunes at 0 0 size 3 3 amount 100000
+    stock copper 80 silicon 30
+    place none
+    only belt splitter dock dredge smelter slicer panel pole
+    goal deliver wafer 30
+    limit 7200
+end
+puzzle twoLines
+    name "2. Two lines"
+    about "Sand on one side, copper on the other, and four minutes: ship 40 transistors."
+    fresh
+    patch dunes       at 0 0  size 3 3 amount 100000
+    patch copperField at 14 0 size 3 3 amount 100000
+    stock copper 160 silicon 40 wire 20
+    place none
+    only belt splitter tunnel dock dredge drill smelter slicer drawer etcher panel pole
+    goal deliver transistor 40
+    limit 14400
+end
+puzzle tightBudget
+    name "3. Tight budget"
+    about "Barely enough copper to start. Ship what you need to grow, and 6 chips, in six minutes."
+    fresh
+    patch dunes       at 0 0 size 3 2 amount 100000
+    patch copperField at 0 4 size 3 2 amount 100000
+    stock copper 70 silicon 10 wire 12
+    place none
+    only belt splitter dock dredge drill smelter slicer drawer etcher packager panel pole
+    goal deliver chip 6
+    limit 21600
+end
+puzzle crossing
+    name "4. Crossing"
+    about "Copper sits between the sand and the dock. Tunnels and sorters help: 5 boards in eight minutes."
+    fresh
+    patch dunes       at 0 0  size 3 3 amount 100000
+    patch copperField at 6 0  size 3 3 amount 100000
+    stock copper 220 silicon 40 wire 40 transistor 20 chip 4
+    place none
+    goal metric boards 5
+    limit 28800
+end
+puzzle openFab
+    name "Open fab"
+    about "No clock. Ship 100 boards from one fab, as neat or as tangled as you like."
+    goal metric boards 100
+end
