@@ -11,24 +11,24 @@ summary "Fields, orchards and pastures: grow, mill, bake and churn your way to a
 # City Kit (Industrial) models in 3D.
 sheet farm
 
-belt belt name "Cart track" speed 12 model conveyor corner conveyor-corner
+belt belt name "Cart track" speed 12
 
-resource wood   name "Wood"           sprite 14
-resource plank  name "Plank"          sprite 76
-resource grain  name "Grain"          sprite 66
-resource flour  name "Flour"          sprite 74
-resource bread  name "Bread"          sprite 125
-resource apple  name "Apple"          sprite 44
-resource juice  name "Apple juice"    sprite 85
-resource milk   name "Milk"           sprite 123
-resource cheese name "Cheese"         sprite 96
-resource basket name "Picnic basket"  sprite 47
+resource wood   name "Wood"           sprite 14 model survival/resource-wood
+resource plank  name "Plank"          sprite 76 model survival/resource-planks
+resource grain  name "Grain"          sprite 66 model nature/crops_wheatStageB
+resource flour  name "Flour"          sprite 74 model food/bag
+resource bread  name "Bread"          sprite 125 model food/bread
+resource apple  name "Apple"          sprite 44 model food/apple
+resource juice  name "Apple juice"    sprite 85 model food/carton-small
+resource milk   name "Milk"           sprite 123 model food/carton
+resource cheese name "Cheese"         sprite 96 model food/cheese-cut
+resource basket name "Picnic basket"  sprite 47 model survival/box-open
 resource water  name "Water"          sprite 73
 
-layer field    name "farmland" sprites 49 61 tint 8a6a3a
-layer orchard  name "orchard"  sprites 78 39 tint 4f9f45
-layer pasture  name "pasture"  sprites 52 64 40 tint 9ccc5c
-layer forest   name "forest"   sprites 15 27 3 tint 2f5f2f
+layer field    name "farmland" sprites 49 61 tint 8a6a3a decor nature/crops_wheatStageA@0.8 nature/crops_wheatStageB@0.8 nature/crops_wheatStageB@0.8
+layer orchard  name "orchard"  sprites 78 39 tint 4f9f45 decor 80% nature/tree_default@0.9 nature/tree_oak@0.9
+layer pasture  name "pasture"  sprites 52 64 40 tint 9ccc5c decor 60% nature/grass_large@0.6 nature/grass@0.6 nature/plant_bushSmall@0.5 nature/grass_large@0.6 nature/grass@0.6 nature/grass@0.6 pets/animal-chick@0.3 pets/animal-pig@0.4
+layer forest   name "forest"   sprites 15 27 3 tint 2f5f2f decor nature/tree_pineDefaultA nature/tree_pineRoundB nature/tree_tall
 layer pond     name "pond"     sprites 73    tint 2f7fd6
 
 metric baskets name "Baskets packed"

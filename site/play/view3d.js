@@ -11,6 +11,8 @@ const TILE_FIT = 0.94;
 const ROTATE_EASE = 0.18;
 const BELT_TOP = 0.34;
 const ITEM_HEIGHT = 0.16;
+// Items drawn as models fit in a box this wide; scenery fits in a tile.
+const ITEM_FIT = 0.34, DECOR_FIT = 0.9;
 const LEVEL_HEIGHT = 1.6;
 const ABOVE_OPACITY = 0.2;
 const DECK_THICKNESS = 0.08;
@@ -107,6 +109,20 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   const names = new Set();
   for (const belt of pack.belts) { if (belt.model) names.add(belt.model); if (belt.corner) names.add(belt.corner); }
   for (const unit of pack.units) if (unit.model) names.add(unit.model);
+  for (const resource of pack.resources) if (resource.model) names.add(resource.model);
+  // A layer's decor list: model names, each optionally `@scale`, and optionally
+  // a share of tiles like `40%` (all of them otherwise).
+  const scenery = pack.layers.map((layer) => {
+    let share = 1;
+    const entries = [];
+    for (const token of layer.decor || []) {
+      if (token.endsWith('%')) { share = Math.min(1, Math.max(0, parseFloat(token) / 100 || 0)); continue; }
+      const [name, scale] = token.split('@');
+      entries.push({ name, scale: parseFloat(scale) || 1 });
+    }
+    return { share, entries };
+  });
+  for (const { entries } of scenery) for (const { name } of entries) names.add(name);
   const loader = new GLTFLoader();
   const models = new Map();
   await Promise.all([...names].map(async (name) => {
@@ -114,6 +130,8 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     gltf.scene.updateMatrixWorld(true);
     const parts = [];
     gltf.scene.traverse((node) => {
+      // Some kits mark plain-coloured materials fully metallic, which renders black without an environment map.
+      if (node.isMesh && !node.material.map && node.material.metalness > 0.5) node.material.metalness = 0;
       if (node.isMesh) parts.push({ geometry: node.geometry, material: node.material, matrix: node.matrixWorld.clone() });
     });
     models.set(name, { name, parts, bounds: new THREE.Box3().setFromObject(gltf.scene) });
@@ -134,8 +152,39 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
       .multiply(new THREE.Matrix4().makeTranslation(-center.x, -model.bounds.min.y, -center.z));
     return { matrix, height: size.y * upright };
   }
+  // Belts, items and scenery are scaled to fit, keeping their proportions.
+  function fitInside(model, width) {
+    const size = model.bounds.getSize(new THREE.Vector3());
+    const center = model.bounds.getCenter(new THREE.Vector3());
+    const scale = width / Math.max(size.x, size.z, 1e-6);
+    const matrix = new THREE.Matrix4().makeScale(scale, scale, scale)
+      .multiply(new THREE.Matrix4().makeTranslation(-center.x, -model.bounds.min.y, -center.z));
+    return { matrix, height: size.y * scale };
+  }
+  const beltNames = new Set(pack.belts.flatMap((belt) => [belt.model, belt.corner].filter(Boolean)));
+  const itemNames = new Set(pack.resources.map((resource) => resource.model).filter(Boolean));
+  const decorNames = new Set(scenery.flatMap(({ entries }) => entries.map((entry) => entry.name)));
   const fits = new Map();
-  for (const model of models.values()) fits.set(model.name, fitOf(model, baseName(model.name).startsWith('conveyor')));
+  for (const model of models.values()) {
+    const base = baseName(model.name);
+    let fit;
+    // Belt pieces are made to the kit's one-unit tile and keep their own origin, so corners line up.
+    if (base.startsWith('conveyor') || beltNames.has(model.name)) fit = fitOf(model, true);
+    else if (itemNames.has(model.name)) fit = fitInside(model, ITEM_FIT);
+    else if (decorNames.has(model.name)) fit = fitInside(model, DECOR_FIT);
+    else fit = fitOf(model, false);
+    fits.set(model.name, fit);
+  }
+  // A straight belt piece is turned to run along the belt: the conveyor kit's
+  // run north to south; a piece longer east to west than north to south runs that way.
+  const straightTurn = (name) => {
+    if (!models.has(name)) return STRAIGHT_BELT_TURN;
+    const size = models.get(name).bounds.getSize(new THREE.Vector3());
+    return size.x > size.z * 1.2 ? 0 : STRAIGHT_BELT_TURN;
+  };
+  // Items ride on top of the tallest belt; the conveyor kit's surface sits a little below its rims.
+  const beltTop = Math.max(0.05, ...pack.belts.map((belt) => (!belt.model ? 0.08
+    : baseName(belt.model).startsWith('conveyor') ? BELT_TOP : fits.get(belt.model).height)));
 
   const world = new THREE.Group();
   scene.add(world);
@@ -165,6 +214,31 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   const itemColors = pack.resources.map((resource) => averageColor(spriteSource(resource.sprite, resource.tint)));
   const itemGeometry = new THREE.BoxGeometry(0.26, ITEM_HEIGHT, 0.26);
   const itemBatch = makeBatch(world, itemGeometry, new THREE.MeshLambertMaterial({ color: 0xffffff }), { shadow: true, colored: true });
+  // Resources with a model of their own: one batch per part, tinted toward the resource's colour.
+  const itemModels = pack.resources.map((resource) => {
+    if (!resource.model) return null;
+    const model = models.get(resource.model), fit = fits.get(resource.model);
+    return model.parts.map((part) => {
+      const material = part.material.clone();
+      if (resource.tint !== null && resource.tint !== undefined) material.color.lerp(new THREE.Color(resource.tint), 0.55);
+      return { batch: makeBatch(world, part.geometry, material, { shadow: true }), inner: new THREE.Matrix4().multiplyMatrices(fit.matrix, part.matrix) };
+    });
+  });
+  // Scenery: one batch per layer, model and part, tinted toward the layer's colour.
+  const decorKey = (layer, name) => layer + ':' + name;
+  const decorBatches = new Map();
+  pack.layers.forEach((layer, index) => {
+    for (const name of new Set(scenery[index].entries.map((entry) => entry.name))) {
+      decorBatches.set(decorKey(index, name), models.get(name).parts.map((part) => {
+        const material = part.material.clone();
+        if (layer.tint !== null && layer.tint !== undefined) material.color.lerp(new THREE.Color(layer.tint), 0.5);
+        return {
+          batch: makeBatch(world, part.geometry, material, { shadow: true, receive: true }),
+          inner: new THREE.Matrix4().multiplyMatrices(fits.get(name).matrix, part.matrix),
+        };
+      }));
+    }
+  });
 
   // A flat arrowhead pointing along +X.
   const arrowShape = new THREE.Shape([new THREE.Vector2(-0.12, -0.14), new THREE.Vector2(0.14, 0), new THREE.Vector2(-0.12, 0.14)]);
@@ -174,6 +248,19 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
 
   const markBatch = makeBatch(world, new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff }), { colored: true });
   const pipeBatch = makeBatch(world, new THREE.BoxGeometry(1, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x8ea0b8, metalness: 0.2, roughness: 0.6 }), { shadow: true });
+
+  // Belts with no model are drawn as flat strips: a half-tile run from each fed
+  // side to the middle and out of the front, one colour per belt style.
+  const TRACK_HEIGHT = 0.05, TRACK_WIDTH = 0.46;
+  const trackColors = (look.track || [0x8a7a68]).map((hex) => new THREE.Color(hex));
+  const halfTrack = new THREE.BoxGeometry(0.5 + TRACK_WIDTH / 2, TRACK_HEIGHT, TRACK_WIDTH);
+  halfTrack.translate((0.5 + TRACK_WIDTH / 2) / 2 - TRACK_WIDTH / 2, TRACK_HEIGHT / 2, 0);
+  const trackBatch = makeBatch(world, halfTrack, new THREE.MeshLambertMaterial({ color: 0xffffff }), { receive: true, colored: true });
+  const faintTrackBatch = makeBatch(world, halfTrack,
+    new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: ABOVE_OPACITY, depthWrite: false }), { colored: true });
+  // Ties across the strip, if the pack asks for them (wooden sleepers on a cart track).
+  const tieGeometry = new THREE.BoxGeometry(0.08, TRACK_HEIGHT * 1.6, TRACK_WIDTH * 1.25);
+  const tieBatch = makeBatch(world, tieGeometry, new THREE.MeshLambertMaterial({ color: look.ties ?? 0x6b4a2b }), { shadow: true, receive: true });
 
   const deckGeometry = new THREE.BoxGeometry(1, DECK_THICKNESS, 1);
   const deckColor = 0x6d7a8c;
@@ -249,7 +336,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
       const first = (side + 1) % 4 === b.dir ? side : b.dir;
       return { model: belt.corner, yaw: quarterTurn(first - CORNER_BASE_EDGE) };
     }
-    return { model: belt.model, yaw: facingYaw(b.dir) + STRAIGHT_BELT_TURN };
+    return { model: belt.model, yaw: facingYaw(b.dir) + straightTurn(belt.model) };
   }
 
   function setInstance(mesh, index, x, y, z, angle, inner) {
@@ -288,15 +375,25 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   function rebuildBuildings(buildings, level) {
     const lists = new Map([...models.keys()].map((name) => [name, { solid: [], faint: [] }]));
     const arrows = [], decks = { solid: [], faint: [] }, shafts = [];
+    const tracks = { solid: [], faint: [] }, ties = [];
     unitHeights = new Map();
     for (const b of buildings.values()) {
       const piece = pieceOf(buildings, b);
       const above = b.z > level, pile = above ? 'faint' : 'solid';
       if (piece.model) lists.get(piece.model)[pile].push({ b, yaw: piece.yaw });
+      else if (isBelt(b.kind)) {
+        const sides = [0, 1, 2, 3].filter((side) => side !== b.dir && feedsFrom(buildings, b, side));
+        if (!sides.length) sides.push((b.dir + 2) % 4);
+        const style = pack.belts[b.kind].style || 0;
+        for (const side of [b.dir, ...sides]) {
+          tracks[pile].push({ b, side, style });
+          if (look.ties && !above) for (const along of [0.12, 0.37]) ties.push({ b, side, along });
+        }
+      }
       if (b.z > 0) decks[pile].push(b);
       const base = heightOf(b.z);
       if (isBelt(b.kind)) {
-        if (!above) arrows.push({ x: b.x + 0.5, z: b.y + 0.5, y: base + BELT_TOP + 0.09, dir: b.dir });
+        if (!above) arrows.push({ x: b.x + 0.5, z: b.y + 0.5, y: base + beltTop + 0.09, dir: b.dir });
       } else {
         const unit = unitOf(b);
         unitHeights.set(b.x + ',' + b.y + ',' + b.z, piece.model ? fits.get(piece.model).height : 0.5);
@@ -320,6 +417,21 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
         fillPieces(faintBatch, list.faint, inner);
       }
     }
+    for (const [batch, list] of [[trackBatch, tracks.solid], [faintTrackBatch, tracks.faint]]) {
+      const mesh = batch.resize(list.length);
+      const identity = new THREE.Matrix4();
+      list.forEach(({ b, side, style }, index) => {
+        setInstance(mesh, index, b.x + 0.5, heightOf(b.z) + 0.01, b.y + 0.5, facingYaw(side), identity);
+        mesh.setColorAt(index, trackColors[style % trackColors.length]);
+      });
+      batch.commit();
+    }
+    const tieMesh = tieBatch.resize(ties.length);
+    ties.forEach(({ b, side, along }, index) => {
+      const [dx, dz] = DIRS[side];
+      setInstance(tieMesh, index, b.x + 0.5 + dx * along, heightOf(b.z) + 0.01, b.y + 0.5 + dz * along, facingYaw(side), new THREE.Matrix4());
+    });
+    tieBatch.commit();
     fillDecks(deckBatch, decks.solid);
     fillDecks(faintDeckBatch, decks.faint);
 
@@ -412,13 +524,55 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
 
   function updateItems(allItems, level) {
     const items = allItems.filter((it) => it.z <= level);
-    const mesh = itemBatch.resize(items.length);
-    items.forEach((it, index) => {
-      place.makeTranslation(it.x, heightOf(it.z) + BELT_TOP + ITEM_HEIGHT / 2, it.y);
+    const boxes = items.filter((it) => !itemModels[it.item]);
+    const mesh = itemBatch.resize(boxes.length);
+    boxes.forEach((it, index) => {
+      place.makeTranslation(it.x, heightOf(it.z) + beltTop + ITEM_HEIGHT / 2, it.y);
       mesh.setMatrixAt(index, place);
       mesh.setColorAt(index, itemColors[it.item]);
     });
     itemBatch.commit();
+    itemModels.forEach((parts, resource) => {
+      if (!parts) return;
+      const list = items.filter((it) => it.item === resource);
+      for (const { batch, inner } of parts) {
+        const partMesh = batch.resize(list.length);
+        list.forEach((it, index) => setInstance(partMesh, index, it.x, heightOf(it.z) + beltTop, it.y, 0, inner));
+        batch.commit();
+      }
+    });
+  }
+
+  // A steady pseudo-random number for a tile, so scenery stays put between frames.
+  const tileNoise = (x, y, salt) => {
+    let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(salt, 2246822519) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+
+  function rebuildDecor(ground, buildings) {
+    const lists = new Map([...decorBatches.keys()].map((key) => [key, []]));
+    for (const [key, layer] of ground) {
+      const { share, entries } = scenery[layer];
+      if (!entries.length) continue;
+      const [x, y] = key.split(',').map(Number);
+      if (buildings.has(x + ',' + y + ',0') || tileNoise(x, y, 6) >= share) continue;
+      const { name, scale } = entries[Math.floor(tileNoise(x, y, 1) * entries.length)];
+      lists.get(decorKey(layer, name)).push({
+        x: x + 0.5 + (tileNoise(x, y, 2) - 0.5) * 0.2,
+        z: y + 0.5 + (tileNoise(x, y, 3) - 0.5) * 0.2,
+        yaw: tileNoise(x, y, 4) * Math.PI * 2,
+        size: scale * (0.8 + tileNoise(x, y, 5) * 0.3),
+      });
+    }
+    const sized = new THREE.Matrix4();
+    for (const [key, list] of lists) {
+      for (const { batch, inner } of decorBatches.get(key)) {
+        const mesh = batch.resize(list.length);
+        list.forEach((d, index) => setInstance(mesh, index, d.x, 0.03, d.z, d.yaw, sized.makeScale(d.size, d.size, d.size).multiply(inner)));
+        batch.commit();
+      }
+    }
   }
 
   function updateMarks(buildings, level) {
@@ -507,7 +661,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     if (ghostTool !== tool) buildGhost(tool);
     ghost.visible = true;
     ghost.position.set(hover.x + 0.5, base, hover.y + 0.5);
-    ghost.rotation.y = facingYaw(rotation) + (tool.belt ? STRAIGHT_BELT_TURN : 0);
+    ghost.rotation.y = facingYaw(rotation) + (tool.belt ? straightTurn(pack.belts[tool.kind].model) : 0);
     rangeGroup.visible = true;
     rangeGroup.position.copy(ghost.position);
     if (tool.unit && tool.unit.route === 'tunnel') {
@@ -528,7 +682,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     return hash;
   }
 
-  let builtHash = null, groundCount = -1;
+  let builtHash = null, groundCount = -1, decorHash = null;
 
   return {
     groundAt,
@@ -568,8 +722,10 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
       levelGrid.position.set(Math.round(state.cam.x), heightOf(state.level) + 0.01, Math.round(state.cam.y));
 
       const hash = Math.imul(hashBuildings(state.buildings), 31) + state.level | 0;
+      const groundChanged = state.ground.size !== groundCount;
       if (hash !== builtHash) { builtHash = hash; rebuildBuildings(state.buildings, state.level); }
-      if (state.ground.size !== groundCount) { groundCount = state.ground.size; rebuildGround(state.ground); }
+      if (groundChanged) { groundCount = state.ground.size; rebuildGround(state.ground); }
+      if (decorNames.size && (groundChanged || hash !== decorHash)) { decorHash = hash; rebuildDecor(state.ground, state.buildings); }
       updateHaze(state.haze);
       updateItems(state.items, state.level);
       updateMarks(state.buildings, state.level);

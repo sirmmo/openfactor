@@ -260,16 +260,17 @@ impl Builder {
         if self.resources.iter().any(|r| r.id == id) {
             return line.fail(format!("resource '{id}' is declared twice"));
         }
-        let (mut name, mut sprite, mut tint) = (id.to_string(), 0, None);
+        let (mut name, mut sprite, mut tint, mut model) = (id.to_string(), 0, None, None);
         for pair in line.strs()[2..].chunks(2) {
             match pair {
                 ["name", value] => name = value.to_string(),
                 ["sprite", value] => sprite = line.whole(value)?,
                 ["tint", value] => tint = Some(line.color(value)?),
+                ["model", value] => model = Some(value.to_string()),
                 _ => return line.fail(format!("resource does not understand '{}'", pair[0])),
             }
         }
-        self.resources.push(ResourceDef { id: id.to_string(), name, description: String::new(), sprite, tint });
+        self.resources.push(ResourceDef { id: id.to_string(), name, description: String::new(), sprite, tint, model });
         Ok(())
     }
 
@@ -292,7 +293,14 @@ impl Builder {
         if self.layers.iter().any(|l| l.id == id) {
             return line.fail(format!("layer '{id}' is declared twice"));
         }
-        let mut layer = LayerDef { id: id.to_string(), name: id.to_string(), sprites: Vec::new(), tint: None, overlay: None };
+        let mut layer = LayerDef {
+            id: id.to_string(),
+            name: id.to_string(),
+            sprites: Vec::new(),
+            tint: None,
+            overlay: None,
+            decor: Vec::new(),
+        };
         let tokens = line.strs();
         let mut rest = &tokens[2..];
         while !rest.is_empty() {
@@ -318,6 +326,14 @@ impl Builder {
                         layer.sprites.push(line.whole(value)?);
                     }
                     &tail[count..]
+                }
+                // Model names run to the end of the line, so `decor` comes last.
+                ["decor", tail @ ..] => {
+                    if tail.is_empty() {
+                        return line.fail("'decor' needs at least one model");
+                    }
+                    layer.decor.extend(tail.iter().map(|t| t.to_string()));
+                    &[]
                 }
                 other => return line.fail(format!("layer does not understand '{}'", other[0])),
             };

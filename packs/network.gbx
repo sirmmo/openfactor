@@ -16,8 +16,8 @@ sheet onebit
 levels 4
 span 3
 
-belt belt name "Link" speed 24 model conveyor corner conveyor-corner
-belt fiber name "Fiber link" speed 48 style 1 model conveyor-stripe corner conveyor-stripe-corner
+belt belt name "Link" speed 24
+belt fiber name "Fiber link" speed 48 style 1
 
 resource request  name "Request"   sprite 721 tint 4a90d9
 resource json     name "JSON"      sprite 768 tint f2c94c
@@ -28,8 +28,8 @@ resource error    name "Error"     sprite 1064 tint e74c3c
 resource token    name "Token"     sprite 571 tint e8c34a
 resource compute  name "Compute"   sprite 829 tint 4ad9d9
 
-layer users   name "users"       sprites 827 828 tint 4a90d9
-layer storage name "storage"     sprites 892 893 tint 7f8c8d
+layer users   name "users"       sprites 827 828 tint 4a90d9 decor 45% people/character-female-a@0.5 people/character-male-b@0.5 people/character-female-c@0.5 people/character-male-e@0.5 people/character-worker@0.5
+layer storage name "storage"     sprites 892 893 tint 7f8c8d decor 30% space/container-tall@0.5 space/container@0.5
 layer heat    name "heat"        haze d9534a full 400
 
 metric served name "Responses served"

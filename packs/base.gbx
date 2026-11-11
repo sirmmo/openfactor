@@ -16,11 +16,11 @@ belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
 belt express name "Express belt" speed 32 style 1 model conveyor-stripe corner conveyor-stripe-corner
 
 # Raw materials
-resource ironOre     name "Iron ore"     sprite 96
-resource copperOre   name "Copper ore"   sprite 97
-resource coal        name "Coal"         sprite 96 tint 26262e
-resource stone       name "Stone"        sprite 96 tint c9b89a
-resource tungstenOre name "Tungsten ore" sprite 96 tint 8d5fc4
+resource ironOre     name "Iron ore"     sprite 96 tint 8fa3c0 model survival/resource-stone
+resource copperOre   name "Copper ore"   sprite 97 tint d07f43 model survival/resource-stone
+resource coal        name "Coal"         sprite 96 tint 26262e model survival/resource-stone
+resource stone       name "Stone"        sprite 96 tint c9b89a model survival/resource-stone-large
+resource tungstenOre name "Tungsten ore" sprite 96 tint 8d5fc4 model survival/resource-stone
 
 # Moved over networks rather than belts
 resource power name "Power"     sprite 129
@@ -28,29 +28,29 @@ resource water name "Water"     sprite 86
 resource crude name "Crude oil" sprite 73 tint 3a2f3a
 
 # Materials
-resource ironPlate   name "Iron plate"   sprite 107
-resource copperPlate name "Copper plate" sprite 107 tint d07f43
-resource brick       name "Brick"        sprite 107 tint b5533c
-resource steel       name "Steel"        sprite 107 tint 3f4b63
-resource carbide     name "Carbide"      sprite 130 tint a86ee0
-resource plastic     name "Plastic"      sprite 74
+resource ironPlate   name "Iron plate"   sprite 107 model survival/metal-panel
+resource copperPlate name "Copper plate" sprite 107 tint d07f43 model survival/metal-panel
+resource brick       name "Brick"        sprite 107 tint b5533c model survival/metal-panel
+resource steel       name "Steel"        sprite 107 tint 3f4b63 model survival/metal-panel
+resource carbide     name "Carbide"      sprite 130 tint a86ee0 model box-small
+resource plastic     name "Plastic"      sprite 74 model box-small
 resource tar         name "Tar"          sprite 85 tint 2d2830
 
 # Parts
-resource gear       name "Gear"       sprite 114
+resource gear       name "Gear"       sprite 114 model cog-a
 resource wire       name "Wire"       sprite 130 tint d07f43
-resource circuit    name "Circuit"    sprite 57 tint 3fae5a
-resource motor      name "Motor"      sprite 102
-resource controller name "Controller" sprite 129 tint 4a90d9
-resource automaton  name "Automaton"  sprite 120
+resource circuit    name "Circuit"    sprite 57 tint 3fae5a model screen-panel-small
+resource motor      name "Motor"      sprite 102 model cog-c
+resource controller name "Controller" sprite 129 tint 4a90d9 model screen-small
+resource automaton  name "Automaton"  sprite 120 model people/character-robot
 
-layer ironField     name "iron ground"     sprites 3 32 tint 6f8fb8
-layer copperField   name "copper ground"   sprites 3 32 tint c8763c
-layer coalField     name "coal ground"     sprites 3 32 tint 15151a
-layer stoneField    name "stone ground"    sprites 3 32 tint b9a888
-layer tungstenField name "tungsten ground" sprites 3 32 tint 8d5fc4
+layer ironField     name "iron ground"     sprites 3 32 tint 6f8fb8 decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
+layer copperField   name "copper ground"   sprites 3 32 tint c8763c decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
+layer coalField     name "coal ground"     sprites 3 32 tint 15151a decor 45% survival/rock-a@0.45 survival/rock-c@0.4
+layer stoneField    name "stone ground"    sprites 3 32 tint b9a888 decor 45% survival/rock-b@0.5 survival/rock-flat@0.6
+layer tungstenField name "tungsten ground" sprites 3 32 tint 8d5fc4 decor 45% survival/rock-a@0.45 survival/rock-b@0.45
 layer waterField    name "water"           sprites 3    tint 2f7fd6
-layer oilField      name "oil seep"        sprites 3 32 tint 3a2f3a
+layer oilField      name "oil seep"        sprites 3 32 tint 3a2f3a decor 35% survival/rock-flat@0.5
 layer smog          name "smog"            haze 4d4636 full 500
 
 metric energy    name "Energy used"

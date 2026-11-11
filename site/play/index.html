@@ -279,7 +279,8 @@
   //           outline, one colour per belt style, and dashes on top (moving
   //           at the belt's speed unless still); sizes are fractions of a tile
   //   linkIcons: toolbar icons for belts drawn as lines, one per style
-  //   view3d: ground and grid colours for the 3D view
+  //   view3d: ground and grid colours for the 3D view; belts with no model are
+  //           drawn there as strips in the `track` colours, with wooden `ties` if given
   const SHEETS = {
     tiny: { src: 'assets/tiny-factory.png', columns: 12, tint: 0.6, groundTint: 0.55 },
     onebit: {
@@ -287,14 +288,14 @@
       floor: '#1f1c2b', grid: 'rgba(120, 110, 160, .14)',
       cable: { outline: '#0e0c16', width: 0.3, colors: ['#7d8db8', '#4ad9d9'], line: 0.16, dash: '#f4f1ff', dashWidth: 0.07, pattern: [0.1, 0.4] },
       linkIcons: [1009, 1058],
-      view3d: { ground: 0x2b2740, grid: 0x4c4668 },
+      view3d: { ground: 0x2b2740, grid: 0x4c4668, track: [0x55608a, 0x3fc9c9] },
     },
     farm: {
       src: 'assets/tiny-farm.png', columns: 12, tint: 0.45, groundTint: 0.3,
       floor: '#84c669', floorDecor: { sprites: [52, 16, 40, 28], every: 11, alpha: 0.35 },
       cable: { outline: '#4a3019', width: 0.46, colors: ['#b8875a', '#d6a86f'], line: 0.32, dash: '#7a522e', dashWidth: 0.32, pattern: [0.07, 0.18], still: true },
       linkIcons: [61, 61],
-      view3d: { ground: 0x86b85a, grid: 0x6f9e48 },
+      view3d: { ground: 0x86b85a, grid: 0x6f9e48, track: [0xb08356, 0xc9a06a], ties: 0x6b4a2b },
     },
   };
   let SHEET_COLUMNS = 12;
@@ -1471,7 +1472,7 @@
       loading3d = true;
       say('Loading the 3D view…', 0);
       try {
-        const { createView3d } = await import('./view3d.js?v=3');
+        const { createView3d } = await import('./view3d.js?v=4');
         view3d = await createView3d({ pack, canvas: $('view3d'), spriteSource, isBelt, DIRS, PORT_TURNS, beltCount, look: ART.view3d });
         statusEl.hidden = true;
       } catch (error) {
@@ -1485,7 +1486,13 @@
     $('view3d').hidden = !use3d;
     viewButton.innerHTML = (use3d ? '2D view' : '3D view') + '<kbd>V</kbd>';
     if (use3d) view3d.resize(width, height);
+    try { localStorage.setItem(VIEW_KEY, use3d ? '3d' : '2d'); } catch { /* not remembered */ }
   }
+  // The game opens in 3D, unless the player last chose the flat map.
+  const VIEW_KEY = 'openfactor.view';
+  let wanted3d = true;
+  try { wanted3d = localStorage.getItem(VIEW_KEY) !== '2d'; } catch { /* default */ }
+  if (wanted3d) toggle3d();
 
   const cellAt = (e) => (use3d ? { ...view3d.cellAt(e.clientX, e.clientY, level), z: level } : {
     x: Math.floor(cam.x + (e.clientX - width / 2) / cam.cell),

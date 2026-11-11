@@ -110,6 +110,8 @@ pub struct ResourceDef {
     pub sprite: u32,
     /// Colour blended over the sprite, as 0xRRGGBB.
     pub tint: Option<u32>,
+    /// 3D model an item of this resource is drawn as. Cosmetic.
+    pub model: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,6 +124,8 @@ pub struct LayerDef {
     pub tint: Option<u32>,
     /// Draws the layer as a haze that thickens with its value.
     pub overlay: Option<Overlay>,
+    /// 3D models scattered over the layer's tiles, like trees on a forest. Cosmetic.
+    pub decor: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

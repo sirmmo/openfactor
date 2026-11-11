@@ -184,6 +184,12 @@ end</code></pre>
   <p>Puzzles are offered in the order they are written, and a solved one offers the next.</p>
   <h3>Art</h3>
   <p>Sprite numbers count across the sprite sheet, row by row from 0. A pack uses the Tiny Factory sheet unless it names another: <code>sheet onebit</code> is Kenney's 1-Bit Pack (49 sprites per row) with a dark floor and belts drawn as cables, as in the Network pack; <code>sheet farm</code> is Tiny Farm (12 per row) with grass and wooden cart tracks, as in Harvest. A <code>model</code> can name a file in a folder: <code>space</code>, <code>nature</code>, <code>survival</code>, <code>food</code>, <code>pets</code> and <code>industrial</code> hold models from the kits credited below, as in <code>model space/computer</code>. Art never changes how a pack plays.</p>
+  <p>The game opens in 3D (<kbd>V</kbd> switches to the flat map, and the choice is remembered). Three more art options are for it:</p>
+  <div class="scroll"><table>
+    <tr><td><code>resource … model food/bread</code></td><td>Items of this resource travel as that model instead of a coloured box, tinted toward the resource's <code>tint</code>.</td></tr>
+    <tr><td><code>layer … decor 40% nature/tree_oak@0.9 …</code></td><td>Scenery scattered over the layer's tiles where nothing is built: a model is picked per tile, <code>@0.9</code> scales it, and the percentage is how many tiles get any (all of them without one). It goes last on the line and is tinted toward the layer's colour.</td></tr>
+    <tr><td><code>belt</code> with no <code>model</code></td><td>Drawn as a flat strip that bends toward whatever feeds it: a cart track with sleepers in Harvest, a cable in Network.</td></tr>
+  </table></div>
   <h3>Levels</h3>
   <div class="scroll"><table>
     <tr><td><code>levels &lt;n&gt;</code></td><td>How many levels can be built on, up to 8. The default is 1, a flat world.</td></tr>

@@ -13,10 +13,10 @@ summary "Timed puzzle rounds: lay out a small, powered electronics line before t
 belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
 belt fast name "Fast belt" speed 32 style 1 model conveyor-stripe corner conveyor-stripe-corner
 
-resource sand       name "Sand"        sprite 96 tint e3cf98
-resource copperOre  name "Copper ore"  sprite 97
-resource silicon    name "Silicon"     sprite 107 tint 6c7a89
-resource copper     name "Copper"      sprite 107 tint d07f43
+resource sand       name "Sand"        sprite 96 tint e3cf98 model survival/resource-stone
+resource copperOre  name "Copper ore"  sprite 97 tint d07f43 model survival/resource-stone
+resource silicon    name "Silicon"     sprite 107 tint 6c7a89 model survival/metal-panel
+resource copper     name "Copper"      sprite 107 tint d07f43 model survival/metal-panel
 resource wafer      name "Wafer"       sprite 130 tint b9c6d6
 resource wire       name "Wire"        sprite 130 tint d07f43
 resource transistor name "Transistor"  sprite 57  tint 3fae5a
@@ -24,8 +24,8 @@ resource chip       name "Chip"        sprite 57  tint 2c2c34
 resource board      name "Board"       sprite 129 tint 2e8b57
 resource power      name "Power"       sprite 129
 
-layer dunes       name "sand"          sprites 3 32 tint d8c48a
-layer copperField name "copper ground" sprites 3 32 tint c8763c
+layer dunes       name "sand"          sprites 3 32 tint d8c48a decor 40% survival/rock-sand-a@0.5 survival/rock-sand-b@0.5 survival/rock-sand-c@0.5
+layer copperField name "copper ground" sprites 3 32 tint c8763c decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
 
 metric boards name "Boards shipped"
 

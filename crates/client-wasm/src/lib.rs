@@ -383,12 +383,13 @@ fn pack_json(pack: &Pack) -> String {
         .iter()
         .map(|r| {
             format!(
-                r#"{{"id":{},"name":{},"about":{},"sprite":{},"tint":{}}}"#,
+                r#"{{"id":{},"name":{},"about":{},"sprite":{},"tint":{},"model":{}}}"#,
                 json_string(&r.id),
                 json_string(&r.name),
                 json_string(&r.description),
                 r.sprite,
-                json_tint(r.tint)
+                json_tint(r.tint),
+                json_name(&r.model)
             )
         })
         .collect();
@@ -398,11 +399,12 @@ fn pack_json(pack: &Pack) -> String {
         .map(|layer| {
             let haze = layer.overlay.map_or("null".to_string(), |o| o.color.to_string());
             format!(
-                r#"{{"name":{},"sprites":{:?},"tint":{},"haze":{}}}"#,
+                r#"{{"name":{},"sprites":{:?},"tint":{},"haze":{},"decor":[{}]}}"#,
                 json_string(&layer.name),
                 layer.sprites,
                 json_tint(layer.tint),
-                haze
+                haze,
+                layer.decor.iter().map(|d| json_string(d)).collect::<Vec<_>>().join(",")
             )
         })
         .collect();

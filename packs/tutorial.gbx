@@ -9,17 +9,17 @@ summary "A short guided start: dig, carry, smelt and make parts, one goal at a t
 
 belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
 
-resource ironOre     name "Iron ore"     sprite 96
-resource copperOre   name "Copper ore"   sprite 97
-resource coal        name "Coal"         sprite 96 tint 26262e
-resource ironPlate   name "Iron plate"   sprite 107
-resource copperPlate name "Copper plate" sprite 107 tint d07f43
-resource gear        name "Gear"         sprite 114
+resource ironOre     name "Iron ore"     sprite 96 tint 8fa3c0 model survival/resource-stone
+resource copperOre   name "Copper ore"   sprite 97 tint d07f43 model survival/resource-stone
+resource coal        name "Coal"         sprite 96 tint 26262e model survival/resource-stone
+resource ironPlate   name "Iron plate"   sprite 107 model survival/metal-panel
+resource copperPlate name "Copper plate" sprite 107 tint d07f43 model survival/metal-panel
+resource gear        name "Gear"         sprite 114 model cog-a
 resource wire        name "Wire"         sprite 130 tint d07f43
 
-layer ironField   name "iron ground"   sprites 3 32 tint 6f8fb8
-layer copperField name "copper ground" sprites 3 32 tint c8763c
-layer coalField   name "coal ground"   sprites 3 32 tint 15151a
+layer ironField   name "iron ground"   sprites 3 32 tint 6f8fb8 decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
+layer copperField name "copper ground" sprites 3 32 tint c8763c decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
+layer coalField   name "coal ground"   sprites 3 32 tint 15151a decor 45% survival/rock-a@0.45 survival/rock-c@0.4
 
 unit splitter name "Splitter"     sprite 72  group "Logistics" routes split model conveyor-cross
 unit depot    name "Depot"        sprite 58  group "Logistics" stores shared model box-wide
