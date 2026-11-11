@@ -891,6 +891,7 @@ impl Builder {
             name: id.clone(),
             id,
             description: String::new(),
+            chapter: None,
             fresh: None,
             researched: Vec::new(),
             only: Vec::new(),
@@ -910,6 +911,10 @@ impl Builder {
                 }
                 ["about", value] => {
                     puzzle.description = value.trim().to_string();
+                    Ok(())
+                }
+                ["chapter", value] => {
+                    puzzle.chapter = Some(value.trim().to_string());
                     Ok(())
                 }
                 ["fresh"] => {

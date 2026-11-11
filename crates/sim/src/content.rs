@@ -43,6 +43,8 @@ pub struct PuzzleDef {
     pub name: String,
     /// What to do, in the player's words. Cosmetic.
     pub description: String,
+    /// The chapter it's listed under, if any. Cosmetic.
+    pub chapter: Option<String>,
     /// A puzzle with its own map starts a new world every round. Without one
     /// it carries on in the factory the player already has.
     pub fresh: Option<WorldGen>,

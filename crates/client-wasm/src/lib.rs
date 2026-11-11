@@ -453,10 +453,11 @@ fn pack_json(pack: &Pack) -> String {
                 })
                 .collect();
             format!(
-                r#"{{"id":{},"name":{},"about":{},"fresh":{},"limit":{},"only":[{}],"goals":[{}]}}"#,
+                r#"{{"id":{},"name":{},"about":{},"chapter":{},"fresh":{},"limit":{},"only":[{}],"goals":[{}]}}"#,
                 json_string(&puzzle.id),
                 json_string(&puzzle.name),
                 json_string(&puzzle.description),
+                puzzle.chapter.as_deref().map_or("null".to_string(), json_string),
                 puzzle.fresh.is_some(),
                 puzzle.limit.map_or("null".to_string(), |limit| limit.to_string()),
                 only.join(","),

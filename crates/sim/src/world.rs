@@ -687,7 +687,8 @@ impl World {
         if self.tiles.contains_key(&pos) {
             return Err(Reject::Occupied);
         }
-        if let Some(run) = &self.puzzle {
+        // The opening, built on the first tick, may use anything.
+        if let Some(run) = self.puzzle.as_ref().filter(|_| self.tick > 0) {
             let only = &self.content.puzzles[usize::from(run.puzzle)].only;
             if !only.is_empty() && !only.contains(&building) {
                 return Err(Reject::NotInPuzzle);

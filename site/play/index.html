@@ -163,6 +163,14 @@
   .ng-starts { display: flex; flex-wrap: wrap; gap: 8px; }
   .ng-starts button { flex: 1 1 200px; text-align: left; }
   .ng-starts button span, .ng-puzzle span { display: block; color: var(--dim); font-size: 12px; }
+  .ng-chapter { border-top: 1px solid var(--line); }
+  .ng-chapter summary { cursor: pointer; padding: 10px 2px; font-family: var(--ui-font); display: flex; gap: 10px; align-items: baseline; }
+  .ng-chapter summary .count { margin-left: auto; font: 12px var(--mono); color: var(--dim); }
+  .ng-chapter[open] summary { color: var(--accent); }
+  .ng-chapter summary { list-style: none; }
+  .ng-chapter summary::-webkit-details-marker { display: none; }
+  .ng-chapter summary::before { content: '▸'; color: var(--dim); }
+  .ng-chapter[open] summary::before { content: '▾'; }
   .ng-puzzle { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; margin-bottom: 6px; }
   .ng-puzzle div { flex: 1; min-width: 0; }
   .ng-puzzle .best { font: 12px var(--mono); color: #7bd389; white-space: nowrap; }
@@ -1366,13 +1374,35 @@
       startButton('Sandbox', 'Everything unlocked and free, to try designs.', -2));
     const h = (text) => { const e = document.createElement('h3'); e.textContent = text; return e; };
     detail.append(head, h('Start'), starts);
+    const all = info.puzzles.map((p, i) => [p, i]);
     const groups = [
-      ['Campaign: one factory, one goal after another', info.puzzles.map((p, i) => [p, i]).filter(([p]) => !p.fresh)],
-      ['Rounds: a fresh map every time', info.puzzles.map((p, i) => [p, i]).filter(([p]) => p.fresh)],
+      ['Campaign: one factory, one goal after another', all.filter(([p]) => !p.chapter && !p.fresh)],
+      ['Rounds: a fresh map every time', all.filter(([p]) => !p.chapter && p.fresh)],
     ];
-    for (const [title, puzzles] of groups) {
+    for (const [p] of all) {
+      if (p.chapter && !groups.some(([title]) => title === p.chapter)) groups.push([p.chapter, all.filter(([q]) => q.chapter === p.chapter), true]);
+    }
+    let opened = false;
+    for (const [title, puzzles, chapter] of groups) {
       if (!puzzles.length) continue;
-      detail.append(h(title));
+      let into = detail;
+      if (chapter) {
+        // A chapter folds away; the first one with puzzles left to solve starts open.
+        const solved = puzzles.filter(([p]) => bestOf(chosenPack, p.id)).length;
+        const box = document.createElement('details');
+        box.className = 'ng-chapter';
+        const summary = document.createElement('summary');
+        const count = document.createElement('span');
+        count.className = 'count';
+        count.textContent = solved + ' / ' + puzzles.length + ' solved';
+        summary.append(title, count);
+        box.append(summary);
+        if (!opened && solved < puzzles.length) box.open = opened = true;
+        detail.append(box);
+        into = box;
+      } else {
+        detail.append(h(title));
+      }
       for (const [puzzle, index] of puzzles) {
         const b = document.createElement('button');
         b.className = 'ng-puzzle';
@@ -1387,7 +1417,7 @@
         const best = bestOf(chosenPack, puzzle.id);
         if (best) { const c = document.createElement('span'); c.className = 'best'; c.textContent = '★ ' + clock(best); c.title = 'Your best time'; b.append(c); }
         b.addEventListener('click', () => startGame(chosenPack, index));
-        detail.append(b);
+        into.append(b);
       }
     }
   }

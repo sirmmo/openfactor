@@ -201,3 +201,121 @@ puzzle giftWrap
     goal deliver car 10
     limit 14400
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/toys.sol.
+
+puzzle handful
+    chapter "Pellets and moulds"
+    name "A handful"
+    about "Thirty bricks to start a workshop from nothing. Sell 10 bricks."
+    fresh
+    place none
+    stock brick 30
+    only belt hopper mould shop
+    goal deliver brick 10
+end
+puzzle acrossTheRoom
+    chapter "Pellets and moulds"
+    name "Across the room"
+    about "The shop is on the far side of the room. Get 20 bricks to it."
+    fresh
+    place shop 14 7 east
+    stock brick 50
+    only belt hopper mould
+    goal deliver brick 20
+    limit 4200
+end
+puzzle wheelPress
+    chapter "Pellets and moulds"
+    name "Wheel press"
+    about "No bricks today: press and sell 60 wheels."
+    fresh
+    place none
+    stock brick 40
+    only belt hopper press shop
+    goal deliver wheel 60
+    limit 4200
+end
+puzzle notOneToSpare
+    chapter "Pellets and moulds"
+    name "Not one to spare"
+    about "Fourteen bricks: a hopper and a mould, and not a single belt. The shop is waiting. Sell 30 bricks."
+    fresh
+    place shop 5 4 east
+    stock brick 24
+    only belt hopper mould
+    goal deliver brick 30
+end
+puzzle oneHopper
+    chapter "Pellets and moulds"
+    name "One hopper"
+    about "Room for a single hopper. Split its pellets between a mould and a press."
+    fresh
+    patch resin at 2 4 size 1 1 amount 1
+    place none
+    stock brick 60
+    only belt splitter hopper mould press shop
+    goal deliver brick 15
+    goal deliver wheel 30
+    limit 4200
+end
+puzzle twoCorners
+    chapter "Pellets and moulds"
+    name "Two corners"
+    about "Two specks of resin, far apart, and a shop between them. Sell 40 bricks."
+    fresh
+    patch resin at 0 0 size 1 1 amount 1
+    patch resin at 0 12 size 1 1 amount 1
+    place shop 6 6 east
+    stock brick 70
+    only belt hopper mould
+    goal deliver brick 40
+    limit 4800
+end
+puzzle savings
+    chapter "Pellets and moulds"
+    name "Savings"
+    about "Grow the workshop, then stop spending: have 250 bricks in the stock at once."
+    fresh
+    place none
+    stock brick 24
+    only belt hopper mould shop
+    goal stock brick 250
+    limit 10200
+end
+puzzle wheelWorks
+    chapter "Pellets and moulds"
+    name "Wheel works"
+    about "A big order from the car makers: 300 wheels."
+    fresh
+    place none
+    stock brick 60
+    only belt hopper press shop
+    goal deliver wheel 300
+    limit 6600
+end
+puzzle mixedBag
+    chapter "Pellets and moulds"
+    name "Mixed bag"
+    about "One shop, two kinds of toy: sell 40 bricks and 40 wheels."
+    fresh
+    place none
+    stock brick 60
+    only belt hopper mould press shop
+    goal deliver brick 40
+    goal deliver wheel 40
+    limit 4800
+end
+puzzle rushHour
+    chapter "Pellets and moulds"
+    name "Rush hour"
+    about "A small square of resin, room for four hoppers. Sell 120 bricks."
+    fresh
+    patch resin at 0 0 size 2 2 amount 1
+    place none
+    stock brick 70
+    only belt hopper mould shop
+    goal deliver brick 120
+    limit 6000
+end
