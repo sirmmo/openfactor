@@ -173,31 +173,31 @@ end
 
 puzzle brickRush
     name "Brick rush"
-    about "Three minutes, 300 bricks in the shop. One line won't be enough."
+    about "Three minutes, 600 bricks in the shop. One line won't be anywhere near enough."
     fresh
     stock brick 60
     only belt splitter shop hopper mould
-    goal deliver brick 300
+    goal deliver brick 600
     limit 10800
 end
 puzzle pitStop
     name "Pit stop"
-    about "Five minutes to build 8 racing cars."
+    about "Three minutes to build 40 racing cars."
     fresh
     stock brick 200
     researched racing
     only belt splitter shop hopper tap mould press shaper assembler
-    goal metric cars 8
-    limit 18000
+    goal metric cars 40
+    limit 10800
 end
 puzzle giftWrap
     name "Gift wrap"
-    about "Four minutes: box 10 brick sets and sell 4 cars."
+    about "Four minutes: box 40 brick sets and sell 10 cars."
     fresh
     stock brick 250
     researched racing boxing
     only belt splitter shop hopper tap mould press shaper assembler boxer
-    goal deliver set 10
-    goal deliver car 4
+    goal deliver set 40
+    goal deliver car 10
     limit 14400
 end

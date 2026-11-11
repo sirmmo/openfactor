@@ -24,6 +24,7 @@ resource bun     name "Bun"          sprite 125  tint d9a05b model food/loaf-rou
 resource patty   name "Patty"        sprite 965  tint 7a4a2a model food/meat-patty
 resource salad   name "Salad"        sprite 1012 model food/salad
 resource burger  name "Burger"       sprite 1039 tint d9a05b model food/burger
+resource raw     name "Raw pizza"    sprite 631  tint f3e2c0 model food/pizza
 resource pizza   name "Pizza"        sprite 631  tint e0703a model food/pizza
 resource coin    name "Coin"         sprite 218  model toy/item-coin-gold
 resource gas     name "Gas"          sprite 896  tint 7fb4ff
@@ -45,6 +46,7 @@ unit bowl     name "Salad bar"     sprite 1012 group "Kitchen" model furniture/k
 unit mixer    name "Mixer"         sprite 651  group "Kitchen" model furniture/kitchenBlender
 unit grill    name "Grill"         sprite 504  group "Kitchen" model furniture/kitchenStoveElectric
 unit oven     name "Oven"          sprite 505  group "Kitchen" model furniture/kitchenStove
+unit bench    name "Pizza bench"   sprite 631  group "Kitchen" model furniture/table
 unit pass     name "Burger station" sprite 1039 group "Kitchen" model furniture/kitchenMicrowave
 unit gasMain  name "Gas main"      sprite 896  group "Gas" model industrial/detail-tank
 unit gasPipe  name "Gas pipe"      sprite 161  group "Gas" links gas reach 1 model spacekit/pipe_supportLow
@@ -62,7 +64,8 @@ describe board    "Chops vegetables."
 describe bowl     "Tosses chopped vegetables into a salad."
 describe mixer    "Mixes flour into dough."
 describe grill    "Grills meat into patties, burning gas."
-describe oven     "Bakes dough into buns, or dough, cheese and chopped veg into a pizza, burning gas."
+describe oven     "Bakes dough into buns, or a raw pizza into a pizza, burning gas."
+describe bench    "Tops dough with cheese and chopped veg: a raw pizza, ready for the oven."
 describe pass     "Builds a burger from a bun, a patty and chopped veg."
 describe gasMain  "Fills the gas pipes around it."
 describe gasPipe  "Carries gas to the pipes, grills and ovens next to it."
@@ -76,11 +79,12 @@ describe bun      "Holds a burger together."
 describe patty    "The middle of a burger."
 describe salad    "The simplest dish: 3 coins."
 describe burger   "6 coins at a table."
+describe raw      "Baked in the oven."
 describe pizza    "10 coins at a table."
 describe coin     "Pays for everything."
 describe gas      "Shared along gas pipes. Never travels on belts."
 describe grilling "The cold room, the grill and the burger station."
-describe baking   "Flour shelves, the mixer, the oven and the cheese fridge."
+describe baking   "The cheese fridge and the pizza bench."
 describe sorting  "Sorters, to pick dishes off a mixed belt."
 
 unitRule handVeg
@@ -132,12 +136,18 @@ unitRule sear
     network gas in 2
     local patty out 1
 end
-unitRule bakePizza
-    appliesTo oven
-    rate 150
+unitRule top
+    appliesTo bench
+    rate 60
     local dough in 1
     local cheese in 1
     local chopped in 1
+    local raw out 1
+end
+unitRule bakePizza
+    appliesTo oven
+    rate 120
+    local raw in 1
     network gas in 4
     local pizza out 1
 end
@@ -201,6 +211,7 @@ cost bowl     coin 8
 cost mixer    coin 12
 cost grill    coin 20
 cost oven     coin 30
+cost bench    coin 12
 cost pass     coin 16
 cost gasMain  coin 20
 cost gasPipe  coin 1
@@ -216,7 +227,7 @@ research baking
     requires grilling
     cost coin 200 burger 10
     time 450
-    unlocks fridge
+    unlocks fridge bench
 end
 research sorting
     name "Sorting"
@@ -249,7 +260,7 @@ puzzle burgers
 end
 puzzle pizzaNight
     name "Pizza night"
-    about "Research pizza and bake 20 of them."
+    about "Research pizza: top dough on the bench, then bake 20 pizzas."
     goal research baking
     goal make pizza 20
 end
@@ -261,12 +272,12 @@ end
 
 puzzle saturday
     name "Saturday night"
-    about "Six minutes to the dinner rush: make 25 burgers and 15 pizzas."
+    about "Five minutes to the dinner rush: make 40 burgers and 25 pizzas."
     fresh
     stock coin 400
     researched grilling baking
-    only belt splitter till table crate shelf coldRoom fridge board bowl mixer grill oven pass gasMain gasPipe
-    goal make burger 25
-    goal make pizza 15
-    limit 21600
+    only belt splitter till table crate shelf coldRoom fridge board bowl mixer bench grill oven pass gasMain gasPipe
+    goal make burger 40
+    goal make pizza 25
+    limit 18000
 end

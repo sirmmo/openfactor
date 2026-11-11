@@ -223,11 +223,11 @@ end
 
 puzzle dustStorm
     name "Dust storm"
-    about "The storm hits in five minutes. Bank 30 oxygen before it does."
+    about "The storm hits in three minutes. Bank 60 oxygen before it does."
     fresh
     stock metal 160
     researched lifeSupport
     only belt splitter dock excavator drill smelter melter electrolyser panel pylon
-    goal deliver oxygen 30
-    limit 18000
+    goal deliver oxygen 60
+    limit 10800
 end
