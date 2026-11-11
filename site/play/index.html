@@ -194,6 +194,7 @@
   </div>
   <div class="chip" id="pack-chip" title="The rules in play"></div>
   <div class="chip sandbox" id="sandbox-chip" title="Everything is unlocked and free" hidden>Sandbox</div>
+  <button class="chip" id="sound-chip" title="Sound on or off" aria-pressed="true">&#9835; on</button>
   <div class="spacer" id="hud-spacer"></div>
   <button class="chip" id="t-chip" hidden></button>
   <div class="chip" title="Hash of the full simulation state"><span>state</span> <b id="hash">-</b></div>
@@ -411,6 +412,13 @@
   TINT_STRENGTH = ART.tint;
   GROUND_TINT_STRENGTH = ART.groundTint;
   const D = await import('./describe.js?v=1');
+  const sound = (await import('./sound.js?v=1')).createSound(ART.theme || 'factory');
+  const soundChip = document.getElementById('sound-chip');
+  const showSound = () => { soundChip.innerHTML = '&#9835; ' + (sound.on ? 'on' : 'off'); soundChip.setAttribute('aria-pressed', sound.on); };
+  showSound();
+  soundChip.addEventListener('click', () => { sound.toggle(); showSound(); });
+  // Every button gives a soft click.
+  document.addEventListener('click', (e) => { if (e.target.closest('button')) sound.play('click', 0.5); });
   const techUnlockList = D.unlocksByTech(pack);
   const beltCount = pack.belts.length;
   const isBelt = (kind) => kind < beltCount;
@@ -1010,6 +1018,7 @@
     const current = active + ':' + pack.techs.map((_, index) => of.of_researched(index)).join('');
     if (current === progress) return;
     const finished = progress !== '' && current.split(':')[1] !== progress.split(':')[1];
+    if (finished) sound.play('done');
     progress = current;
     refreshLevels();
     refreshGroups();
@@ -1394,7 +1403,13 @@
     return state && pack.puzzles[state.puzzle] ? state : null;
   }
   function refreshPuzzle() {
+    const before = puzzleState;
     puzzleState = readPuzzle();
+    // The moment a puzzle is won or lost, in this same puzzle run.
+    if (before && puzzleState && before.puzzle === puzzleState.puzzle && before.started === puzzleState.started) {
+      if (before.solved === null && puzzleState.solved !== null) sound.play('solved');
+      else if (!before.failed && puzzleState.failed) sound.play('failed');
+    }
     const def = puzzleState && pack.puzzles[puzzleState.puzzle];
     const only = def && def.only.length ? new Set(def.only) : null;
     if (String(only && [...only]) !== String(puzzleOnly && [...puzzleOnly])) {
@@ -2007,6 +2022,9 @@
 
   function updateHud() {
     $('tick').textContent = of.of_tick().toLocaleString('en');
+    let working = 0;
+    for (const b of buildings.values()) if (b.status === 1) working++;
+    sound.activity(working / 40);
     const toHex = (n) => (n >>> 0).toString(16).padStart(8, '0');
     $('hash').textContent = toHex(of.of_hash_hi()) + toHex(of.of_hash_lo());
     refreshProgress();
@@ -2023,16 +2041,21 @@
     refreshPuzzle();
   }
 
-  let previous = performance.now(), accumulated = 0, nextHud = 0;
+  let previous = performance.now(), accumulated = 0, nextHud = 0, heardBuildings = -1;
   function frame(now) {
     accumulated += now - previous;
     previous = now;
     const steps = Math.min(Math.floor(accumulated / TICK_MS), MAX_STEPS_PER_FRAME);
     if (steps > 0) {
       accumulated = steps === MAX_STEPS_PER_FRAME ? 0 : accumulated - steps * TICK_MS;
-      if (of.of_step(steps) > 0) say(REJECT_TEXT[of.of_last_reject()]);
+      if (of.of_step(steps) > 0) { say(REJECT_TEXT[of.of_last_reject()]); sound.play('refuse'); }
     }
     readSnapshot();
+    // A building appearing or going, by anyone: the player, a partner or an assistant.
+    // A big jump is a load or a new game, which stays quiet.
+    const change = buildings.size - heardBuildings;
+    if (heardBuildings >= 0 && change !== 0 && Math.abs(change) < 20) sound.play(change > 0 ? 'build' : 'erase');
+    heardBuildings = buildings.size;
     if (use3d) view3d.render({ ground, haze, buildings, items, cam, hover: pan ? null : hover, tool, rotation, selected, level, unsupported: !!hover && !canStand(hover) });
     else draw();
     if (now >= nextHud) { updateHud(); nextHud = now + 250; }
