@@ -643,3 +643,887 @@ puzzle cleanAir
     goal deliver ironPlate 600
     limit 28800
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/base.sol.
+
+puzzle firstFire
+    chapter "First fires"
+    name "First fire"
+    about "Iron ore, coal and sixty plates. Smelt and deliver 20 iron plates."
+    fresh
+    patch ironField at 0 0 size 3 2 amount 100000
+    patch coalField at 0 4 size 3 2 amount 100000
+    stock ironPlate 60 gear 10
+    place none
+    only belt drill furnace depot
+    goal deliver ironPlate 20
+end
+puzzle nightShift
+    chapter "First fires"
+    name "Night shift"
+    about "The night shift left the line in pieces and ten plates in the stock. Mend it and deliver 40 iron plates."
+    fresh
+    stock ironPlate 61 gear 6
+    place drill 2 2 east
+    place belt 3 2 east count 6
+    place drill 2 9 east
+    place belt 3 9 east count 6
+    place belt 9 9 north count 3
+    place furnace 9 2 east
+    place belt 10 2 east count 4
+    place depot 20 2 east
+    only belt
+    goal deliver ironPlate 40
+    limit 7800
+end
+puzzle gearTrain
+    chapter "First fires"
+    name "Gear train"
+    about "The plate line works, but today the order is for gears. Fit a workshop into it and deliver 30 gears."
+    fresh
+    stock ironPlate 69 gear 10
+    only belt workshop
+    goal deliver gear 30
+    limit 10800
+end
+puzzle shoulder
+    chapter "First fires"
+    name "Shoulder to shoulder"
+    about "No belts at all, and just enough for two drills, a furnace and a depot. Deliver 25 iron plates."
+    fresh
+    patch ironField at 0 0 size 1 3 amount 100000
+    patch coalField at 1 3 size 3 1 amount 100000
+    stock ironPlate 32 gear 6
+    place none
+    only drill furnace depot
+    goal deliver ironPlate 25
+end
+puzzle longHaul
+    chapter "First fires"
+    name "The long haul"
+    about "Iron in the east, coal in the south and the depot in the corner, with few plates to spare. Deliver 40 iron plates."
+    fresh
+    patch ironField at 20 0 size 2 2 amount 100000
+    patch coalField at 0 20 size 2 2 amount 100000
+    stock ironPlate 75 gear 6
+    place depot 0 0 east
+    only belt drill furnace
+    goal deliver ironPlate 40
+    limit 8400
+end
+puzzle thinSeam
+    chapter "First fires"
+    name "Thin seam"
+    about "Each patch of this seam holds only ten ore, and you can afford a single iron drill. Move it along and deliver 50 iron plates."
+    fresh
+    patch ironField at 0 0 size 6 1 amount 10
+    patch coalField at 6 3 size 2 1 amount 100000
+    stock ironPlate 50 gear 6
+    place none
+    only belt drill furnace depot
+    goal deliver ironPlate 50
+    limit 11400
+end
+puzzle sevenGears
+    chapter "First fires"
+    name "Seven gears"
+    about "Seven gears: two drills and no workshop, or one drill and a workshop. Find a way to deliver 20 gears."
+    fresh
+    patch ironField at 0 0 size 2 2 amount 100000
+    patch coalField at 0 3 size 2 2 amount 100000
+    stock ironPlate 60 gear 7
+    place none
+    only belt drill furnace workshop depot
+    goal deliver gear 20
+end
+puzzle copperRush
+    chapter "First fires"
+    name "Copper rush"
+    about "Earn the plates to research copper working, then draw and deliver 20 wire."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch coalField at 0 5 size 3 3 amount 100000
+    patch copperField at 8 5 size 3 3 amount 100000
+    stock ironPlate 70 gear 16
+    place none
+    only belt drill furnace workshop depot
+    goal research copperWorking
+    goal deliver wire 20
+    limit 10200
+end
+puzzle rainyDay
+    chapter "First fires"
+    name "Rainy day"
+    about "Build up, then stop spending: have 300 iron plates in the stock at once."
+    fresh
+    patch ironField at 0 0 size 2 10 amount 100000
+    patch coalField at 8 0 size 2 10 amount 100000
+    stock ironPlate 80 gear 18
+    place none
+    only belt drill furnace depot
+    goal stock ironPlate 300
+    limit 18600
+end
+puzzle orderBook
+    chapter "First fires"
+    name "Order book"
+    about "Four orders at once: 60 iron plates, 40 copper plates, 30 bricks and 20 gears. You can't afford every line at the start."
+    fresh
+    patch ironField at 0 0 size 12 2 amount 100000
+    patch coalField at 0 3 size 12 2 amount 100000
+    patch copperField at 0 6 size 6 2 amount 100000
+    patch stoneField at 6 6 size 6 2 amount 100000
+    stock ironPlate 100 gear 22
+    place none
+    researched copperWorking masonry
+    only belt drill furnace workshop depot
+    goal deliver ironPlate 60
+    goal deliver copperPlate 40
+    goal deliver brick 30
+    goal deliver gear 20
+    limit 11400
+end
+
+puzzle forkRoad
+    chapter "Crossings"
+    name "Fork in the road"
+    about "Two furnaces and a single speck of coal. Share it out and deliver 80 iron plates."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch ironField at 0 4 size 1 1 amount 100000
+    patch coalField at 0 2 size 1 1 amount 100000
+    stock ironPlate 70 gear 11
+    place none
+    researched routing
+    only belt splitter drill furnace depot
+    goal deliver ironPlate 80
+    limit 9000
+end
+puzzle crossroads
+    chapter "Crossings"
+    name "Crossroads"
+    about "The copper ore runs south to its depot, right across the way from iron to coal. Deliver 30 iron plates and 30 copper ore without mixing them."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 12 1 size 1 1 amount 100000
+    patch copperField at 6 -10 size 1 1 amount 100000
+    stock ironPlate 93 gear 9
+    place depot 13 0 east
+    place depot 6 10 east
+    researched routing
+    only belt tunnel drill furnace
+    goal deliver ironPlate 30
+    goal deliver copperOre 30
+    limit 7800
+end
+puzzle rubble
+    chapter "Crossings"
+    name "Rubble"
+    about "The mine sends iron ore and stone down one belt, and the furnace has choked on the stone. Deliver 40 iron plates and 40 stone."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch stoneField at 3 -1 size 1 1 amount 100000
+    patch coalField at 17 1 size 1 1 amount 100000
+    stock ironPlate 69 gear 11 circuit 1
+    place drill 0 0 east
+    place drill 3 -1 south
+    place belt 1 0 east count 16
+    place drill 17 1 north
+    place furnace 17 0 east
+    place depot 18 0 east
+    researched electronics
+    only belt sorter depot
+    goal deliver ironPlate 40
+    goal deliver stone 40
+    limit 7800
+end
+puzzle sharePlate
+    chapter "Crossings"
+    name "Half and half"
+    about "One furnace is all the ground allows. Split its plates and deliver 40 iron plates and 20 gears."
+    fresh
+    patch ironField at 0 1 size 1 1 amount 100000
+    patch coalField at 1 2 size 1 1 amount 100000
+    stock ironPlate 50 gear 12
+    place none
+    researched routing
+    only belt splitter drill furnace workshop depot
+    goal deliver ironPlate 40
+    goal deliver gear 20
+end
+puzzle wallIn
+    chapter "Crossings"
+    name "Walled in"
+    about "The copper line runs right round your iron, and there are no tunnels today. Lift the plates over it: deliver 30 iron plates and 60 wire."
+    fresh
+    patch copperField at -1 0 size 1 1 amount 100000
+    patch coalField at 0 -1 size 1 1 amount 100000
+    patch ironField at 2 2 size 2 2 amount 100000
+    patch coalField at 3 6 size 2 2 amount 100000
+    stock ironPlate 153 gear 20
+    place drill -1 0 east
+    place drill 0 -1 south
+    place furnace 0 0 east
+    place belt 1 0 east count 9
+    place belt 10 0 south count 10
+    place belt 10 10 west count 10
+    place belt 0 10 north count 9
+    place workshop 0 1 west
+    place depot -1 1 west
+    place depot 14 3 east
+    researched copperWorking elevation
+    only belt drill furnace hoist chute
+    goal deliver ironPlate 30
+    goal deliver wire 60
+end
+puzzle doubleDuty
+    chapter "Crossings"
+    name "Double duty"
+    about "One furnace smelts both ores. Send its copper plates to be drawn into wire and the rest to the depot: deliver 30 iron plates and 60 wire."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch copperField at 0 2 size 1 1 amount 100000
+    patch coalField at 2 2 size 1 1 amount 100000
+    stock ironPlate 66 gear 15 circuit 1
+    place none
+    researched copperWorking electronics
+    only belt sorter drill furnace workshop depot
+    goal deliver ironPlate 30
+    goal deliver wire 60
+    limit 10800
+end
+puzzle manifold
+    chapter "Crossings"
+    name "Manifold"
+    about "The ore and coal are a long way off, and you can afford two long belts, not six. Feed three furnaces from them and deliver 150 iron plates."
+    fresh
+    patch ironField at -20 -1 size 3 1 amount 100000
+    patch coalField at -20 5 size 2 1 amount 100000
+    stock ironPlate 190 gear 23
+    place none
+    researched routing
+    only belt splitter drill furnace depot
+    goal deliver ironPlate 150
+    limit 13200
+end
+puzzle mineCart
+    chapter "Crossings"
+    name "Mine cart"
+    about "Iron ore and copper ore come down the same belt. Part them and deliver 50 iron plates and 50 copper plates."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch copperField at 3 -1 size 1 1 amount 100000
+    patch coalField at 21 1 size 1 1 amount 100000
+    patch coalField at 19 -3 size 1 1 amount 100000
+    stock ironPlate 92 gear 14 circuit 1
+    place drill 0 0 east
+    place belt 1 0 east count 19
+    place drill 3 -1 south
+    researched electronics copperWorking
+    only belt sorter drill furnace depot
+    goal deliver ironPlate 50
+    goal deliver copperPlate 50
+    limit 10200
+end
+puzzle expressOrder
+    chapter "Crossings"
+    name "Express order"
+    about "Twenty steel are in the stock for express belts; the sixty gears are up to you, from a single coal seam. Research express belts."
+    fresh
+    patch ironField at 0 0 size 1 3 amount 100000
+    patch ironField at 0 4 size 1 3 amount 100000
+    patch coalField at 0 3 size 1 1 amount 100000
+    stock ironPlate 100 gear 10 steel 20
+    place none
+    researched routing metallurgy
+    only belt splitter drill furnace workshop depot
+    goal research expressBelts
+    limit 13800
+end
+puzzle grandJunction
+    chapter "Crossings"
+    name "Grand junction"
+    about "Iron from the west, copper from the north, stone from the south and coal from the east, all to one depot in the middle. Deliver 50 iron plates, 50 copper plates and 30 bricks."
+    fresh
+    patch ironField at -15 0 size 1 1 amount 100000
+    patch copperField at 0 -15 size 1 1 amount 100000
+    patch stoneField at 0 15 size 1 1 amount 100000
+    patch coalField at 15 -1 size 1 1 amount 100000
+    patch coalField at 15 1 size 1 1 amount 100000
+    stock ironPlate 160 gear 19
+    place depot 0 0 east
+    researched copperWorking masonry routing
+    only belt splitter tunnel drill furnace
+    goal deliver ironPlate 50
+    goal deliver copperPlate 50
+    goal deliver brick 30
+    limit 15000
+end
+
+puzzle firstSpark
+    chapter "Live wires"
+    name "First spark"
+    about "An arc furnace needs power: a steam plant, coal, water from a pump and a pole to join them. Deliver 50 iron plates."
+    fresh
+    patch ironField at 0 0 size 2 2 amount 100000
+    patch coalField at 0 4 size 2 2 amount 100000
+    patch waterField at 6 4 size 2 2 amount 1000
+    stock ironPlate 70 gear 16 brick 20 wire 14 steel 4
+    place none
+    researched electricity metallurgy
+    only belt drill arc steam pump pipe pole depot
+    goal deliver ironPlate 50
+end
+puzzle poleLine
+    chapter "Live wires"
+    name "Five poles"
+    about "The power plant and the arc furnace are far apart, and there is wire for five poles. Join them and deliver 40 iron plates."
+    fresh
+    patch ironField at -1 0 size 1 1 amount 100000
+    patch coalField at 23 8 size 1 1 amount 100000
+    patch waterField at 22 10 size 1 1 amount 1000
+    stock ironPlate 64 gear 14 brick 20 wire 22 steel 4
+    place drill -1 0 east
+    place arc 0 0 east
+    place depot 1 0 east
+    place drill 23 8 west
+    place steam 22 8 east
+    place pipe 22 9 east
+    place pump 22 10 east
+    researched electricity metallurgy
+    only pole
+    goal deliver ironPlate 40
+    limit 7200
+end
+puzzle blackout
+    chapter "Live wires"
+    name "Blackout"
+    about "Everything is built and nothing runs. Find the three faults and deliver 40 iron plates."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 3 4 size 1 1 amount 100000
+    patch waterField at 9 4 size 1 1 amount 1000
+    stock ironPlate 60 gear 14 brick 20 wire 16 steel 4
+    place drill 0 0 east
+    place arc 1 0 east
+    place depot 2 0 east
+    place drill 3 4 east
+    place belt 4 4 east
+    place belt 5 4 north
+    place steam 6 4 east
+    place pipe 7 4 east
+    place pump 9 4 east
+    place pole 6 2 east
+    researched electricity metallurgy
+    only belt pipe pole
+    goal deliver ironPlate 40
+    limit 7200
+end
+puzzle twoJobs
+    chapter "Live wires"
+    name "Two jobs"
+    about "Nobody has researched masonry, but an arc furnace fires bricks anyway. There is steel for just one: deliver 60 iron plates and 40 bricks."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch stoneField at 1 1 size 1 1 amount 100000
+    patch coalField at 3 3 size 1 1 amount 100000
+    patch waterField at 6 3 size 1 1 amount 1000
+    stock ironPlate 66 gear 17 brick 20 wire 14 steel 4
+    place none
+    researched electricity metallurgy
+    only belt drill arc steam pump pipe pole depot
+    goal deliver ironPlate 60
+    goal deliver brick 40
+    limit 10800
+end
+puzzle sunshine
+    chapter "Live wires"
+    name "Sunshine"
+    about "Not a lump of coal on this map, but enough for six solar panels. Deliver 150 iron plates."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    stock ironPlate 60 gear 12 copperPlate 120 circuit 24 wire 14 brick 10 steel 4
+    place none
+    researched electricity metallurgy solarPower
+    only belt drill arc solar pole depot
+    goal deliver ironPlate 150
+    limit 10800
+end
+puzzle kickStart
+    chapter "Live wires"
+    name "Kick-start"
+    about "Only power drills dig here, even for the coal the steam plant burns; one solar panel will have to start it all. Deliver 150 iron plates."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 0 4 size 1 1 amount 100000
+    patch waterField at 3 4 size 1 1 amount 1000
+    stock ironPlate 45 gear 20 brick 20 wire 26 steel 12 copperPlate 20 circuit 4
+    place none
+    researched electricity metallurgy poweredMining solarPower
+    only belt powerDrill arc steam pump pipe pole solar depot
+    goal deliver ironPlate 150
+end
+puzzle threeIslands
+    chapter "Live wires"
+    name "Three islands"
+    about "Three arc furnaces stand far from the power plant, and there is wire for only five poles. Light them all and deliver 120 iron plates."
+    fresh
+    patch coalField at -1 0 size 1 1 amount 100000
+    patch waterField at 0 -2 size 1 1 amount 1000
+    patch ironField at -11 10 size 1 1 amount 100000
+    patch ironField at 9 10 size 1 1 amount 100000
+    patch ironField at -1 20 size 1 1 amount 100000
+    stock ironPlate 98 gear 20 brick 40 wire 46 steel 12
+    place drill -1 0 east
+    place steam 0 0 east
+    place pipe 0 -1 east
+    place pump 0 -2 east
+    place drill -11 10 east
+    place arc -10 10 east
+    place depot -9 10 east
+    place drill 9 10 east
+    place arc 10 10 east
+    place depot 11 10 east
+    place drill -1 20 east
+    place arc 0 20 east
+    place depot 1 20 east
+    researched electricity metallurgy
+    only pole
+    goal deliver ironPlate 120
+end
+puzzle coalForTwo
+    chapter "Live wires"
+    name "Coal for two"
+    about "One speck of coal must feed a coal furnace and the steam plant for an arc furnace, which smelts copper without copper working. Deliver 40 iron plates and 40 copper plates."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 1 2 size 1 1 amount 100000
+    patch waterField at 2 3 size 1 1 amount 1000
+    patch copperField at 4 1 size 1 1 amount 100000
+    stock ironPlate 82 gear 19 brick 20 wire 14 steel 4
+    place none
+    researched electricity metallurgy routing
+    only belt splitter drill furnace arc steam pump pipe pole depot
+    goal deliver ironPlate 40
+    goal deliver copperPlate 40
+    limit 9000
+end
+puzzle lightsOn
+    chapter "Live wires"
+    name "Lights on"
+    about "Copper, wire, bricks and plates: research electricity, then metallurgy, as fast as you can."
+    fresh
+    patch ironField at 0 0 size 12 2 amount 100000
+    patch coalField at 0 3 size 12 2 amount 100000
+    patch copperField at 0 6 size 6 2 amount 100000
+    patch stoneField at 6 6 size 6 2 amount 100000
+    stock ironPlate 150 gear 30
+    place none
+    researched copperWorking masonry
+    only belt drill furnace workshop depot
+    goal research metallurgy
+    limit 18000
+end
+puzzle powerStation
+    chapter "Live wires"
+    name "Power station"
+    about "Power drills and arc furnaces are hungry, and one steam plant won't feed them all. Deliver 300 iron plates and 150 bricks."
+    fresh
+    patch ironField at 1 0 size 1 1 amount 100000
+    patch ironField at 1 2 size 1 1 amount 100000
+    patch stoneField at 1 4 size 1 1 amount 100000
+    patch coalField at 6 1 size 1 1 amount 100000
+    patch coalField at 6 3 size 1 1 amount 100000
+    patch waterField at 4 2 size 1 1 amount 1000
+    stock ironPlate 100 gear 38 brick 50 wire 56 steel 24
+    place none
+    researched electricity metallurgy poweredMining
+    only belt drill powerDrill arc steam pump pipe pole depot
+    goal deliver ironPlate 300
+    goal deliver brick 150
+    limit 15000
+end
+
+puzzle firstAssembly
+    chapter "Machine shop"
+    name "On the line"
+    about "An assembly line makes gears three times faster than a workshop, if you keep it fed and powered. Deliver 80 gears."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch coalField at 5 4 size 1 1 amount 100000
+    patch waterField at 8 4 size 1 1 amount 1000
+    stock ironPlate 75 gear 30 brick 20 wire 14 steel 14 circuit 6
+    place none
+    researched electricity metallurgy automation
+    only belt drill arc assembly steam pump pipe pole depot
+    goal deliver gear 80
+end
+puzzle everyLump
+    chapter "Machine shop"
+    name "Every lump"
+    about "There are only 90 lumps of coal under this ground, and gears take twice as much as wire. Deliver 50 gears and 100 wire."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 0 2 size 1 2 amount 45
+    patch copperField at 0 5 size 1 1 amount 100000
+    stock ironPlate 100 gear 25
+    place none
+    researched copperWorking routing
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 50
+    goal deliver wire 100
+    limit 15600
+end
+puzzle wireDrawing
+    chapter "Machine shop"
+    name "Wire drawing"
+    about "One copper patch and no copper working, but power can do the work. Deliver 400 wire."
+    fresh
+    patch copperField at 0 0 size 1 1 amount 100000
+    patch coalField at 3 3 size 1 1 amount 100000
+    patch waterField at 6 3 size 1 1 amount 1000
+    stock ironPlate 50 gear 27 brick 20 wire 20 steel 18 circuit 6
+    place none
+    researched electricity metallurgy poweredMining automation
+    only belt drill powerDrill arc assembly steam pump pipe pole depot
+    goal deliver wire 400
+    limit 13200
+end
+puzzle rooftop
+    chapter "Machine shop"
+    name "Rooftop"
+    about "This buyer only takes deliveries on the roof, two floors up, and you can afford a single pair of hoists. Deliver 30 gears and 60 wire."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 1 1 size 1 1 amount 100000
+    patch copperField at 0 4 size 1 1 amount 100000
+    patch coalField at 1 5 size 1 1 amount 100000
+    stock ironPlate 100 gear 24
+    place pillar 5 2 east
+    place pillar 5 2 east level 1
+    place depot 5 2 east level 2
+    researched copperWorking elevation
+    only belt drill furnace workshop hoist chute pillar
+    goal deliver gear 30
+    goal deliver wire 60
+end
+puzzle automationRace
+    chapter "Machine shop"
+    name "Automation race"
+    about "The steel and circuits for automation are in the stock; the 60 gears are not. Research automation, then draw 150 wire on an assembly line."
+    fresh
+    patch ironField at 0 0 size 12 2 amount 100000
+    patch coalField at 0 3 size 12 2 amount 100000
+    patch copperField at 0 6 size 6 2 amount 100000
+    patch waterField at 11 6 size 1 1 amount 1000
+    stock ironPlate 140 gear 30 steel 54 circuit 46 brick 20 wire 14
+    place none
+    researched electricity metallurgy electronics
+    only belt drill furnace workshop arc assembly steam pump pipe pole depot
+    goal research automation
+    goal deliver wire 150
+    limit 21000
+end
+puzzle badAir
+    chapter "Machine shop"
+    name "Bad air"
+    about "The gear furnace keeps choking and nobody knows why. Find out, and deliver 60 gears and 200 wire."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch coalField at 1 -1 size 1 1 amount 100000
+    patch coalField at 0 1 size 1 1 amount 100000
+    patch waterField at 1 3 size 1 1 amount 1000
+    patch copperField at 5 3 size 1 1 amount 100000
+    patch stoneField at 3 4 size 1 1 amount 100000
+    stock ironPlate 100 gear 43 brick 30 wire 38 steel 26 circuit 6
+    place drill 0 0 east
+    place drill 1 -1 south
+    place furnace 1 0 east
+    place workshop 2 0 east
+    place depot 3 0 east
+    place drill 0 1 east
+    place steam 1 1 east
+    place pipe 1 2 east
+    place pump 1 3 east
+    place powerDrill 5 3 north
+    place arc 5 2 east
+    place assembly 6 2 east
+    place depot 7 2 east
+    place powerDrill 3 4 north
+    place arc 3 3 east
+    place depot 4 3 east
+    place pole 4 1 east
+    researched electricity metallurgy automation poweredMining
+    only belt pipe pole steam
+    goal deliver gear 60
+    goal deliver wire 200
+    limit 17400
+end
+puzzle noBelts
+    chapter "Machine shop"
+    name "No belts"
+    about "Not a single belt: drills, furnaces and assembly lines must hand on to each other, right into the one depot. Deliver 100 gears and 300 wire."
+    fresh
+    patch ironField at 2 5 size 1 1 amount 100000
+    patch copperField at 8 5 size 1 1 amount 100000
+    patch coalField at 5 8 size 1 1 amount 100000
+    patch waterField at 7 7 size 1 1 amount 1000
+    stock ironPlate 46 gear 43 brick 30 wire 38 steel 36 circuit 12
+    place depot 5 5 east
+    researched electricity metallurgy automation poweredMining
+    only powerDrill drill arc assembly steam pump pipe pole
+    goal deliver gear 100
+    goal deliver wire 300
+end
+puzzle loadTest
+    chapter "Machine shop"
+    name "Load test"
+    about "The new power plant has to prove itself. Put 2500 units of energy to work."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch stoneField at 0 5 size 3 3 amount 100000
+    patch coalField at 6 0 size 1 4 amount 100000
+    patch waterField at 8 0 size 1 4 amount 1000
+    stock ironPlate 110 gear 40 brick 30 wire 26 steel 18 circuit 6
+    place none
+    researched electricity metallurgy automation
+    only belt drill arc assembly steam pump pipe pole depot
+    goal metric energy 2500
+    limit 19800
+end
+puzzle busyWeek
+    chapter "Machine shop"
+    name "Busy week"
+    about "Bricks for just one steam plant, and three orders that all want power: 120 gears, 240 wire and 60 bricks."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch copperField at 0 5 size 3 3 amount 100000
+    patch stoneField at 0 10 size 2 3 amount 100000
+    patch coalField at 2 11 size 1 3 amount 100000
+    patch coalField at 7 3 size 1 1 amount 100000
+    patch waterField at 10 3 size 1 1 amount 1000
+    stock ironPlate 176 gear 66 brick 30 wire 26 steel 28 circuit 12
+    place none
+    researched electricity metallurgy automation masonry
+    only belt drill furnace arc assembly steam pump pipe pole depot
+    goal deliver gear 120
+    goal deliver wire 240
+    goal deliver brick 60
+    limit 15600
+end
+puzzle motorWorks
+    chapter "Machine shop"
+    name "Motor works"
+    about "Motors take 200 gears and 200 wire to research, all in the stock at once. The steel is ready. Research motors."
+    fresh
+    patch ironField at 0 0 size 3 7 amount 100000
+    patch copperField at 0 9 size 3 3 amount 100000
+    patch coalField at 7 4 size 1 1 amount 100000
+    patch coalField at 7 6 size 1 1 amount 100000
+    patch waterField at 9 5 size 1 1 amount 1000
+    stock ironPlate 170 gear 80 brick 50 wire 40 steel 122 circuit 18
+    place none
+    researched electricity metallurgy automation
+    only belt drill arc assembly steam pump pipe pole depot
+    goal research motors
+    limit 18000
+end
+
+puzzle hardRock
+    chapter "Deep earth"
+    name "Hard rock"
+    about "Only a power drill cuts tungsten, and an arc furnace bakes it with coal into carbide. Deliver 20 carbide."
+    fresh
+    patch tungstenField at 0 0 size 1 1 amount 100000
+    patch coalField at 1 1 size 1 1 amount 100000
+    patch coalField at 3 3 size 1 1 amount 100000
+    patch waterField at 6 3 size 1 1 amount 1000
+    stock ironPlate 60 gear 20 brick 20 wire 20 steel 8
+    place none
+    researched electricity metallurgy poweredMining tungsten
+    only belt drill powerDrill arc steam pump pipe pole depot
+    goal deliver carbide 20
+end
+puzzle blackGold
+    chapter "Deep earth"
+    name "Black gold"
+    about "A derrick pumps crude, pipes carry it with water to a refinery, and out comes plastic, with tar from the left side. Deliver 40 plastic."
+    fresh
+    patch oilField at 0 0 size 1 1 amount 100000
+    patch waterField at 2 2 size 1 1 amount 1000
+    patch coalField at 4 1 size 1 1 amount 100000
+    stock ironPlate 60 gear 21 brick 30 wire 12 steel 30 circuit 10
+    place none
+    researched electricity metallurgy automation petroleum
+    only belt drill derrick refinery burner steam pump pipe pole depot
+    goal deliver plastic 40
+    limit 9000
+end
+puzzle wasteNot
+    chapter "Deep earth"
+    name "Waste not"
+    about "No coal here: burn the refinery's tar for power, with one solar panel to start, and find a home for the tar the burner can't use. Deliver 100 plastic."
+    fresh
+    patch oilField at 0 0 size 1 1 amount 100000
+    patch waterField at 2 2 size 1 1 amount 1000
+    stock ironPlate 40 gear 12 brick 30 wire 12 steel 36 circuit 14 copperPlate 20
+    place none
+    researched electricity metallurgy automation petroleum solarPower routing
+    only belt splitter derrick refinery burner pump pipe pole solar depot
+    goal deliver plastic 100
+end
+puzzle onePipe
+    chapter "Deep earth"
+    name "One pipe"
+    about "The oil and water lie far off, side by side, with plates for just one pipeline; luckily pipes carry both. Deliver 60 plastic."
+    fresh
+    patch oilField at 30 0 size 1 1 amount 100000
+    patch waterField at 30 2 size 1 1 amount 1000
+    patch coalField at 2 2 size 1 1 amount 100000
+    stock ironPlate 93 gear 19 brick 40 wire 22 steel 36 circuit 10
+    place depot 0 0 east
+    researched electricity metallurgy automation petroleum
+    only belt drill derrick refinery burner steam pump pipe pole depot
+    goal deliver plastic 60
+    limit 12600
+end
+puzzle pipeBridge
+    chapter "Deep earth"
+    name "Pipe bridge"
+    about "A pipeline runs right across the way to the depot, and there are no tunnels or hoists. Lift the pipe instead: deliver 40 iron plates and 40 plastic."
+    fresh
+    patch oilField at 10 -11 size 1 1 amount 100000
+    patch waterField at 10 11 size 1 1 amount 1000
+    patch ironField at 5 2 size 1 1 amount 100000
+    patch coalField at 6 3 size 1 1 amount 100000
+    stock ironPlate 99 gear 18 brick 30 wire 14 steel 36 circuit 14 copperPlate 20
+    place derrick 10 -11 east
+    place pipe 10 -10 south count 21
+    place pump 10 11 east
+    place refinery 11 0 east
+    place depot 12 0 east
+    place splitter 11 -1 north
+    place burner 11 -2 north
+    place depot 12 -1 east
+    place pole 12 -4 east
+    place pole 12 -9 east
+    place solar 13 -4 east
+    place depot 14 2 east
+    researched electricity metallurgy automation petroleum solarPower elevation routing
+    only belt drill furnace pipe pillar
+    goal deliver ironPlate 40
+    goal deliver plastic 40
+end
+puzzle carbideRun
+    chapter "Deep earth"
+    name "Carbide run"
+    about "One power drill cuts tungsten three times as fast as an arc furnace can use it, and carbide is hungry for power. Deliver 60 carbide."
+    fresh
+    patch tungstenField at 0 0 size 1 1 amount 100000
+    patch coalField at 1 -1 size 1 1 amount 100000
+    patch coalField at 1 1 size 1 1 amount 100000
+    patch coalField at 3 -1 size 1 1 amount 100000
+    patch coalField at 8 1 size 1 1 amount 100000
+    patch coalField at 8 3 size 1 1 amount 100000
+    patch waterField at 6 2 size 1 1 amount 1000
+    stock ironPlate 125 gear 37 brick 50 wire 46 steel 16
+    place none
+    researched electricity metallurgy poweredMining tungsten routing
+    only belt splitter drill powerDrill arc steam pump pipe pole depot
+    goal deliver carbide 60
+    limit 10800
+end
+puzzle leftHand
+    chapter "Deep earth"
+    name "Left hand"
+    about "The refinery stopped after its first batch, and the gear line beside it has to stay. Deliver 40 plastic and 30 gears."
+    fresh
+    patch ironField at 0 -1 size 1 1 amount 100000
+    patch coalField at 1 -2 size 1 1 amount 100000
+    patch oilField at 0 0 size 1 1 amount 100000
+    patch waterField at 1 1 size 1 1 amount 1000
+    patch coalField at 3 3 size 1 1 amount 100000
+    patch waterField at 6 3 size 1 1 amount 1000
+    stock ironPlate 94 gear 31 brick 30 wire 12 steel 30 circuit 10
+    place drill 0 -1 east
+    place drill 1 -2 south
+    place furnace 1 -1 east
+    place workshop 2 -1 east
+    place depot 3 -1 east
+    place derrick 0 0 east
+    place pipe 1 0 east
+    place pump 1 1 east
+    place refinery 2 0 east
+    place depot 3 0 east
+    place drill 3 3 east
+    place steam 4 3 east
+    place pipe 5 3 east
+    place pump 6 3 east
+    place pole 4 1 east
+    researched electricity metallurgy automation petroleum
+    only belt refinery
+    goal deliver plastic 40
+    goal deliver gear 30
+end
+puzzle fuelSwitch
+    chapter "Deep earth"
+    name "Fuel switch"
+    about "The coal under the steam plant is almost gone. Switch to burning tar before the lights go out, and deliver 300 iron plates."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch coalField at 5 4 size 1 1 amount 10
+    patch waterField at 8 4 size 1 1 amount 1000
+    patch oilField at 5 8 size 1 1 amount 100000
+    patch waterField at 6 9 size 1 1 amount 1000
+    stock ironPlate 90 gear 30 brick 50 wire 26 steel 40 circuit 10
+    place drill 1 1 east
+    place drill 2 0 south
+    place drill 2 2 north
+    place arc 2 1 east
+    place depot 3 1 east
+    place drill 5 4 east
+    place steam 6 4 east
+    place pipe 7 4 east
+    place pump 8 4 east
+    place pole 4 3 east
+    researched electricity metallurgy automation petroleum
+    only belt derrick refinery burner pump pipe pole depot
+    goal deliver ironPlate 300
+    limit 15000
+end
+puzzle saveTheCoal
+    chapter "Deep earth"
+    name "Save the coal"
+    about "No steam plants: the only coal is for carbide, so power everything with burning tar. Deliver 30 carbide and 60 plastic."
+    fresh
+    patch oilField at 0 0 size 1 1 amount 100000
+    patch waterField at 1 -1 size 1 1 amount 1000
+    patch tungstenField at 6 0 size 1 1 amount 100000
+    patch coalField at 7 1 size 1 1 amount 100000
+    stock ironPlate 50 gear 21 brick 70 wire 30 steel 70 circuit 24 copperPlate 20
+    place none
+    researched electricity metallurgy automation petroleum poweredMining tungsten solarPower
+    only belt drill powerDrill arc derrick refinery burner pump pipe pole solar depot
+    goal deliver carbide 30
+    goal deliver plastic 60
+    limit 13200
+end
+puzzle robotics
+    chapter "Deep earth"
+    name "Robotics"
+    about "Thirty motors wait in the stock; robotics also needs 30 carbide and 60 plastic there at once. Research robotics."
+    fresh
+    patch coalField at 0 0 size 2 1 amount 100000
+    patch waterField at 4 0 size 1 1 amount 1000
+    patch oilField at 15 0 size 1 1 amount 100000
+    patch waterField at 14 1 size 1 1 amount 1000
+    patch tungstenField at -15 0 size 1 1 amount 100000
+    patch coalField at -14 1 size 1 1 amount 100000
+    stock ironPlate 90 gear 30 brick 40 wire 38 steel 40 circuit 10 motor 30
+    place none
+    researched electricity metallurgy poweredMining automation tungsten petroleum motors
+    only belt drill powerDrill arc derrick refinery burner steam pump pipe pole depot
+    goal research robotics
+    limit 21000
+end

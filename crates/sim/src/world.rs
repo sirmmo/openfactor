@@ -185,10 +185,23 @@ enum Kind {
     Machine(Machine),
 }
 
+/// Everything a machine holds, inputs and made goods together.
+fn held(machine: &Machine) -> BTreeMap<ItemId, u64> {
+    let mut all = machine.bins.clone();
+    for (&item, &count) in &machine.made {
+        *all.entry(item).or_default() += count;
+    }
+    all
+}
+
 #[derive(Clone, Debug)]
 struct Machine {
     unit: UnitId,
+    /// What it holds to work with (or, for a routing unit, to pass on).
     bins: BTreeMap<ItemId, u64>,
+    /// What its recipes made, waiting to leave. Kept apart from `bins` so an
+    /// input that another of its recipes makes is never sent back out.
+    made: BTreeMap<ItemId, u64>,
     job: Option<Job>,
     /// See [`Command::Configure`].
     setting: Option<u16>,
@@ -396,7 +409,7 @@ impl Shared {
         let mut network_clear = true;
         for give in &rule.gives {
             match give.scope {
-                Scope::Local(item) => outputs_clear &= !machine.bins.contains_key(&item),
+                Scope::Local(item) => outputs_clear &= !machine.made.contains_key(&item),
                 Scope::Network(resource) => network_clear &= self.charge_of(resource, site.id) <= u64::from(give.amount),
                 _ => {}
             }
@@ -451,7 +464,7 @@ impl Shared {
             let amount_wide = u64::from(amount);
             match scope {
                 Scope::Local(item) => {
-                    *machine.bins.entry(item).or_default() += amount_wide;
+                    *machine.made.entry(item).or_default() += amount_wide;
                     stat(&mut self.stats, item).produced += amount_wide;
                 }
                 Scope::Global(item) => {
@@ -718,6 +731,7 @@ impl World {
                 Kind::Machine(Machine {
                     unit,
                     bins: BTreeMap::new(),
+                    made: BTreeMap::new(),
                     job: None,
                     setting: None,
                     next_port: 0,
@@ -827,7 +841,7 @@ impl World {
         self.shared.refund(&cost);
         // Items on a removed belt are accounted for in `rebuild_lines`.
         if let Kind::Machine(machine) = &entity.kind {
-            for (&item, &count) in &machine.bins {
+            for (&item, &count) in machine.bins.iter().chain(&machine.made) {
                 stat(&mut self.shared.stats, item).destroyed += count;
             }
             for link in &self.content.unit(machine.unit).links {
@@ -1208,7 +1222,7 @@ impl World {
             let mut sent = [false; 3];
             for &(item, port) in &unit.outputs {
                 let port = port_index(port);
-                if sent[port] || !machine.bins.contains_key(&item) {
+                if sent[port] || !machine.made.contains_key(&item) {
                     continue;
                 }
                 if let Some(target) = entity.targets[port].filter(|&t| self.can_receive(t, item)) {
@@ -1294,7 +1308,9 @@ impl World {
             Source::Line(index) => self.lines[index as usize].pop_head(),
             Source::Machine(id) => {
                 let machine = self.machine_mut(id);
-                subtract(&mut machine.bins, offer.item, 1);
+                // Routing units pass on what they hold; others send what they made.
+                let from = if machine.made.contains_key(&offer.item) { &mut machine.made } else { &mut machine.bins };
+                subtract(from, offer.item, 1);
                 machine.next_port = (offer.port + 1) % PORTS.len() as u8;
             }
         }
@@ -1376,7 +1392,7 @@ impl World {
 
     fn output_stuck(&self, entity: &Entity, machine: &Machine, unit: &UnitDef) -> bool {
         unit.outputs.iter().any(|&(item, port)| {
-            machine.bins.contains_key(&item)
+            machine.made.contains_key(&item)
                 && entity.targets[port_index(port)].map_or(true, |target| !self.can_receive(target, item))
         })
     }
@@ -1451,7 +1467,7 @@ impl World {
                 Building::Unit(machine.unit),
                 machine.setting,
                 machine.job.map(|job| (job.rule, job.remaining)),
-                machine.bins.iter().map(|(&item, &count)| (item, count)).collect(),
+                held(machine).into_iter().collect(),
             ),
         };
         let (sends_to, receives_from) = self.lift_ends(entity);
@@ -1540,7 +1556,7 @@ impl World {
     pub fn stock(&self, pos: Pos, item: ItemId) -> u64 {
         let entity = self.tiles.get(&pos).and_then(|id| self.machines.get(id));
         match entity.map(|entity| &entity.kind) {
-            Some(Kind::Machine(machine)) => machine.bins.get(&item).copied().unwrap_or(0),
+            Some(Kind::Machine(machine)) => held(machine).get(&item).copied().unwrap_or(0),
             _ => 0,
         }
     }
@@ -1555,7 +1571,7 @@ impl World {
         }
         for entity in self.machines.values() {
             if let Kind::Machine(machine) = &entity.kind {
-                for (&item, &count) in &machine.bins {
+                for (&item, &count) in machine.bins.iter().chain(&machine.made) {
                     *totals.entry(item).or_default() += count;
                 }
             }
@@ -1826,10 +1842,12 @@ fn hash_kind(h: &mut Hasher, kind: &Kind) {
                     h.write(u64::from(job.remaining));
                 }
             }
-            h.write(machine.bins.len() as u64);
-            for (item, count) in &machine.bins {
-                h.write(u64::from(item.0));
-                h.write(*count);
+            for bins in [&machine.bins, &machine.made] {
+                h.write(bins.len() as u64);
+                for (item, count) in bins {
+                    h.write(u64::from(item.0));
+                    h.write(*count);
+                }
             }
         }
     }

@@ -319,3 +319,654 @@ puzzle rushHour
     goal deliver brick 120
     limit 6000
 end
+
+puzzle paintShop
+    chapter "Racing line"
+    name "Paint shop"
+    about "Pellets from the resin, paint from the pool: shape and sell 10 car bodies."
+    fresh
+    place none
+    stock brick 60
+    researched racing
+    only belt hopper tap shaper shop
+    goal deliver body 10
+end
+puzzle fourWheels
+    chapter "Racing line"
+    name "Four wheels"
+    about "The body line runs, but nobody presses wheels. Twenty-one bricks to finish it and build 10 cars."
+    fresh
+    stock brick 100
+    researched racing
+    place hopper 3 5 east
+    place shaper 4 5 east
+    place belt 5 5 east count 3
+    place assembler 8 5 east
+    place shop 9 5 east
+    place tap 14 2 south
+    place belt 14 3 south
+    place belt 14 4 west count 10
+    place belt 4 4 south
+    only belt hopper press
+    goal metric cars 10
+    limit 4800
+end
+puzzle farPaint
+    chapter "Racing line"
+    name "Far paint"
+    about "The paint pool is across the room and every belt costs a brick. Build 15 cars."
+    fresh
+    patch resin at 0 0 size 4 10 amount 1
+    patch pool at 24 12 size 2 2 amount 1
+    place none
+    stock brick 106
+    researched racing
+    only belt hopper tap press shaper assembler shop
+    goal metric cars 15
+    limit 7800
+end
+puzzle pitCrew
+    chapter "Racing line"
+    name "Pit crew"
+    about "Sixty bricks and no racing yet. Earn the research, then build 5 cars."
+    fresh
+    place none
+    stock brick 60
+    only belt hopper mould shop tap press shaper assembler
+    goal research racing
+    goal metric cars 5
+    limit 9600
+end
+puzzle oneDrop
+    chapter "Racing line"
+    name "One drop"
+    about "A single tile of paint pool. Split its paint between two car lines and build 30 cars."
+    fresh
+    patch resin at 0 0 size 4 10 amount 1
+    patch pool at 8 0 size 1 1 amount 1
+    place none
+    stock brick 190
+    researched racing
+    only belt splitter hopper tap press shaper assembler shop
+    goal metric cars 30
+    limit 9600
+end
+puzzle everyPellet
+    chapter "Racing line"
+    name "Every pellet"
+    about "Room for one hopper: its pellets must feed the body shaper and the wheel press. Build 8 cars."
+    fresh
+    patch resin at 2 4 size 1 1 amount 1
+    patch pool at 14 0 size 3 3 amount 1
+    place none
+    stock brick 95
+    researched racing
+    only belt splitter hopper tap press shaper assembler shop
+    goal metric cars 8
+end
+puzzle spareParts
+    chapter "Racing line"
+    name "Spare parts"
+    about "The garage wants parts as well as cars: sell 10 bodies and 40 wheels, and build 10 cars."
+    fresh
+    place none
+    stock brick 140
+    researched racing
+    only belt splitter hopper tap press shaper assembler shop
+    goal deliver body 10
+    goal deliver wheel 40
+    goal metric cars 10
+    limit 9600
+end
+puzzle backToFront
+    chapter "Racing line"
+    name "Back to front"
+    about "Someone built this car line facing the wrong ways, and spent every brick doing it. Fix it and build 10 cars."
+    fresh
+    stock brick 93
+    researched racing
+    place hopper 3 5 east
+    place shaper 4 5 south
+    place assembler 5 5 east
+    place shop 6 5 east
+    place hopper 3 6 east
+    place belt 4 6 east
+    place press 5 6 east
+    place tap 14 2 east
+    place belt 14 3 south
+    place belt 14 4 west count 10
+    place belt 4 4 south
+    only belt hopper tap press shaper assembler shop
+    goal metric cars 10
+end
+puzzle showroom
+    chapter "Racing line"
+    name "Showroom"
+    about "Fill the showroom and the till: have 12 racing cars and 150 bricks in the stock at once."
+    fresh
+    place none
+    stock brick 160
+    researched racing
+    only belt hopper mould tap press shaper assembler shop
+    goal stock car 12
+    goal stock brick 150
+    limit 9000
+end
+puzzle grandPrix
+    chapter "Racing line"
+    name "Grand prix"
+    about "Two scraps of resin at opposite ends, the paint pool between them. Build 50 cars."
+    fresh
+    patch resin at 0 0 size 2 3 amount 1
+    patch resin at 0 12 size 2 3 amount 1
+    patch pool at 10 6 size 2 2 amount 1
+    place none
+    stock brick 200
+    researched racing
+    only belt hopper tap press shaper assembler shop
+    goal metric cars 50
+    limit 10800
+end
+
+puzzle firstBox
+    chapter "Gift boxes"
+    name "Six to a box"
+    about "The boxer packs six bricks into a brick set. Sell 4 sets."
+    fresh
+    place none
+    stock brick 40
+    researched boxing
+    only belt hopper mould boxer shop
+    goal deliver set 4
+end
+puzzle pocketMoney
+    chapter "Gift boxes"
+    name "Pocket money"
+    about "Twenty-four bricks: one hopper, one mould, one shop. Save up for a boxer and sell 10 sets."
+    fresh
+    place none
+    stock brick 24
+    researched boxing
+    only belt hopper mould boxer shop
+    goal deliver set 10
+end
+puzzle boxingDay
+    chapter "Gift boxes"
+    name "Boxing day"
+    about "Forty bricks and no boxer yet. Sell bricks to pay for the research, then sell 10 sets."
+    fresh
+    place none
+    stock brick 40
+    only belt hopper mould boxer shop
+    goal research boxing
+    goal deliver set 10
+    limit 9600
+end
+puzzle threeSides
+    chapter "Gift boxes"
+    name "Three sides"
+    about "No belts today. Pack three moulds around one boxer and sell 30 sets."
+    fresh
+    patch resin at 0 0 size 5 5 amount 1
+    place none
+    stock brick 64
+    researched boxing
+    only hopper mould boxer shop
+    goal deliver set 30
+end
+puzzle halfAndHalf
+    chapter "Gift boxes"
+    name "Half and half"
+    about "One speck of resin. Sell 40 loose bricks and 8 sets from the same mould."
+    fresh
+    patch resin at 2 4 size 1 1 amount 1
+    place none
+    stock brick 50
+    researched boxing
+    only belt splitter hopper mould boxer shop
+    goal deliver brick 40
+    goal deliver set 8
+    limit 10200
+end
+puzzle tradeIn
+    chapter "Gift boxes"
+    name "Trade-in"
+    about "An old car line with no paint pool to feed it. Pull it down for its bricks and sell 20 sets."
+    fresh
+    patch resin at 0 0 size 4 10 amount 1
+    stock brick 73
+    researched racing boxing
+    place hopper 3 5 east
+    place shaper 4 5 east
+    place assembler 5 5 east
+    place shop 6 5 east
+    place hopper 3 6 east
+    place belt 4 6 east
+    place press 5 6 north
+    only belt hopper mould boxer shop
+    goal deliver set 20
+    limit 7200
+end
+puzzle fixedHoppers
+    chapter "Gift boxes"
+    name "Bolted down"
+    about "Four hoppers are bolted to the floor, facing every way. Moulds, belts and a boxer only: sell 25 sets."
+    fresh
+    stock brick 110
+    researched boxing
+    place hopper 2 1 north
+    place hopper 1 4 west
+    place hopper 2 7 south
+    place hopper 3 4 east
+    place shop 8 4 east
+    only belt mould boxer
+    goal deliver set 25
+end
+puzzle giftAndSavings
+    chapter "Gift boxes"
+    name "Gifts and savings"
+    about "Sell 15 sets, and have 200 bricks in the stock at once."
+    fresh
+    place none
+    stock brick 80
+    researched boxing
+    only belt hopper mould boxer shop
+    goal deliver set 15
+    goal stock brick 200
+    limit 10200
+end
+puzzle nightShift
+    chapter "Gift boxes"
+    name "Night shift"
+    about "A huge order and all night to fill it: research boxing from forty bricks and sell 150 sets."
+    fresh
+    place none
+    stock brick 40
+    only belt hopper mould boxer shop
+    goal research boxing
+    goal deliver set 150
+end
+puzzle christmasRush
+    chapter "Gift boxes"
+    name "Christmas rush"
+    about "Two small squares of resin, far apart, and not enough bricks to fill both. Sell 50 sets."
+    fresh
+    patch resin at 0 0 size 2 2 amount 1
+    patch resin at 0 10 size 2 2 amount 1
+    place none
+    stock brick 130
+    researched boxing
+    only belt hopper mould boxer shop
+    goal deliver set 50
+    limit 10800
+end
+
+puzzle underpass
+    chapter "Sorting room"
+    name "Underpass"
+    about "A brick-set line runs right across the room, and going round it costs more than you have. Tunnel under it and sell 60 wheels."
+    fresh
+    patch resin at 0 0 size 4 4 amount 1
+    patch resin at -12 5 size 1 1 amount 1
+    stock brick 106
+    researched boxing logistics
+    place hopper -12 5 east
+    place mould -11 5 east
+    place belt -10 5 east count 24
+    place boxer 14 5 east
+    place shop 15 5 east
+    place shop 3 9 east
+    only belt hopper press tunnel
+    goal deliver wheel 60
+    limit 4800
+end
+puzzle sortItOut
+    chapter "Sorting room"
+    name "Sort it out"
+    about "Bricks and wheels share one belt. Box the bricks, sell the wheels: 10 sets and 100 wheels."
+    fresh
+    stock brick 80
+    researched boxing logistics
+    place hopper 3 4 east
+    place mould 4 4 south
+    place hopper 3 6 east
+    place press 4 6 north
+    place belt 4 5 east count 7
+    only belt sorter boxer shop
+    goal deliver set 10
+    goal deliver wheel 100
+    limit 7800
+end
+puzzle paperwork
+    chapter "Sorting room"
+    name "Paperwork"
+    about "Logistics costs 100 bricks and 5 racing cars. Earn both and finish the research."
+    fresh
+    place none
+    stock brick 120
+    researched racing
+    only belt hopper mould tap press shaper assembler shop
+    goal research logistics
+    limit 8400
+end
+puzzle mixedDelivery
+    chapter "Sorting room"
+    name "Mixed delivery"
+    about "Pellets and paint arrive on one belt, far more than a body shaper can use. Sort them, find a home for the extra, and sell 12 bodies and 30 bricks."
+    fresh
+    patch resin at 19 1 size 2 1 amount 1
+    patch pool at 21 1 size 1 1 amount 1
+    stock brick 90
+    researched racing logistics
+    place hopper 19 1 south
+    place hopper 20 1 south
+    place tap 21 1 south
+    place belt 21 2 west count 16
+    only belt splitter sorter shaper mould shop
+    goal deliver body 12
+    goal deliver brick 30
+    limit 6000
+end
+puzzle sixLanes
+    chapter "Sorting room"
+    name "Six lanes"
+    about "Six conveyors cross the room and you may not build a single belt. Hopper, press and tunnels: sell 40 wheels."
+    fresh
+    patch resin at 3 0 size 1 1 amount 1
+    stock brick 146
+    researched logistics
+    place belt -6 3 east count 16
+    place belt -6 4 east count 16
+    place belt -6 5 east count 16
+    place belt -6 7 east count 16
+    place belt -6 8 east count 16
+    place belt -6 9 east count 16
+    place shop 3 11 east
+    only hopper press tunnel
+    goal deliver wheel 40
+end
+puzzle keyhole
+    chapter "Sorting room"
+    name "Keyhole"
+    about "The body shaper's only free side is boxed in by a brick line. Drop paint into it and build 12 cars."
+    fresh
+    stock brick 140
+    researched racing logistics
+    place hopper 3 5 east
+    place shaper 4 5 east
+    place assembler 5 5 east
+    place shop 6 5 east
+    place hopper 3 6 east
+    place belt 4 6 east
+    place press 5 6 north
+    place hopper 3 4 north
+    place mould 3 3 east
+    place belt 4 3 east
+    place belt 5 3 south
+    place shop 5 4 east
+    only belt tap tunnel
+    goal metric cars 12
+end
+puzzle museumPiece
+    chapter "Sorting room"
+    name "Museum pieces"
+    about "Five old racing cars and 130 bricks, and no belts allowed. Trade them for logistics and sell 30 bricks."
+    fresh
+    patch resin at 0 0 size 1 1 amount 1
+    stock brick 140 car 5
+    place shop 7 0 east
+    only hopper mould tunnel
+    goal deliver brick 30
+end
+puzzle fastLane
+    chapter "Sorting room"
+    name "Fast lane"
+    about "Six wheel presses pour more than a plain belt can carry. Sell 1200 wheels at the far shop."
+    fresh
+    patch resin at 0 0 size 1 6 amount 1
+    stock brick 215
+    researched logistics
+    place shop 30 7 east
+    only belt fast hopper press
+    goal deliver wheel 1200
+    limit 12000
+end
+puzzle twinLines
+    chapter "Sorting room"
+    name "Twin lines"
+    about "Two brick-set lines stand between the paint pool and the resin, and you can afford one tunnel pair. Build 12 cars."
+    fresh
+    patch resin at 0 0 size 4 10 amount 1
+    patch resin at 8 -12 size 1 1 amount 1
+    patch resin at 10 -12 size 1 1 amount 1
+    patch pool at 14 0 size 3 3 amount 1
+    stock brick 226
+    researched racing boxing logistics
+    place hopper 8 -12 south
+    place mould 8 -11 south
+    place belt 8 -10 south count 24
+    place boxer 8 14 south
+    place shop 8 15 south
+    place hopper 10 -12 south
+    place mould 10 -11 south
+    place belt 10 -10 south count 24
+    place boxer 10 14 south
+    place shop 10 15 south
+    only belt hopper tap press shaper assembler shop tunnel
+    goal metric cars 12
+    limit 7800
+end
+puzzle clearingHouse
+    chapter "Sorting room"
+    name "Clearing house"
+    about "Bricks, wheels and bodies tumble down one belt. Box the bricks, assemble the rest: 8 sets, 10 cars and 50 wheels sold."
+    fresh
+    stock brick 165
+    researched racing boxing logistics
+    place hopper 3 1 east
+    place mould 4 1 south
+    place hopper 3 3 east
+    place press 4 3 north
+    place hopper 3 0 east
+    place belt 4 0 east
+    place belt 5 0 south
+    place shaper 5 1 south
+    place tap 14 1 west
+    place belt 13 1 west count 8
+    place belt 4 2 east count 6
+    place belt 10 2 south count 4
+    only belt sorter splitter boxer assembler shop
+    goal deliver set 8
+    goal metric cars 10
+    goal deliver wheel 50
+    limit 6600
+end
+
+puzzle everyPatent
+    chapter "Master workshop"
+    name "Every patent"
+    about "Fifty bricks and no research at all. Finish brick sets and logistics."
+    fresh
+    place none
+    stock brick 50
+    only belt hopper mould shop tap press shaper assembler
+    goal research boxing
+    goal research logistics
+    limit 11400
+end
+puzzle toyFair
+    chapter "Master workshop"
+    name "Toy fair"
+    about "A three-by-three resin floor and four stalls to fill: sell 60 bricks, 100 wheels and 10 sets, and build 10 cars."
+    fresh
+    patch resin at 0 0 size 3 3 amount 1
+    patch pool at 14 0 size 3 3 amount 1
+    place none
+    stock brick 205
+    researched racing boxing
+    only belt splitter hopper tap mould press shaper assembler boxer shop
+    goal deliver brick 60
+    goal deliver wheel 100
+    goal deliver set 10
+    goal metric cars 10
+    limit 10800
+end
+puzzle beltFree
+    chapter "Master workshop"
+    name "Not a belt in sight"
+    about "Build a car line with no belts at all: machines touching machines, and tunnels from the far paint pool. Build 15 cars."
+    fresh
+    patch resin at 3 5 size 2 2 amount 1
+    patch pool at 4 -9 size 1 1 amount 1
+    place none
+    stock brick 115
+    researched racing logistics
+    only hopper tap press shaper assembler shop tunnel
+    goal metric cars 15
+end
+puzzle twoTiles
+    chapter "Master workshop"
+    name "Two tiles"
+    about "Two tiles of resin must feed a body shaper, a wheel press and a brick mould. Build 12 cars and sell 3 sets."
+    fresh
+    patch resin at 2 4 size 1 2 amount 1
+    patch pool at 10 4 size 1 1 amount 1
+    place none
+    stock brick 130
+    researched racing boxing
+    only belt splitter hopper tap mould press shaper assembler boxer shop
+    goal metric cars 12
+    goal deliver set 3
+    limit 8400
+end
+puzzle mondayMorning
+    chapter "Master workshop"
+    name "Monday morning"
+    about "Over the weekend the workshop broke in three places, and wheels got into the brick sets. Fix it: 10 cars, 10 sets and 50 wheels sold."
+    fresh
+    patch resin at 0 0 size 4 11 amount 1
+    patch pool at 14 0 size 3 3 amount 1
+    stock brick 178
+    researched racing boxing logistics
+    place hopper 3 5 east
+    place shaper 4 5 east
+    place assembler 5 5 west
+    place shop 6 5 east
+    place hopper 3 6 east
+    place belt 4 6 east
+    place press 5 6 north
+    place tap 14 2 south
+    place belt 14 3 south
+    place belt 14 4 west count 4
+    place belt 9 4 west count 5
+    place belt 4 4 south
+    place hopper 3 8 east
+    place mould 4 8 east
+    place boxer 5 8 east
+    place shop 6 8 east
+    place hopper 3 9 east
+    place mould 4 9 east
+    place belt 5 9 north
+    place hopper 3 10 east
+    place belt 4 10 east
+    place press 5 10 north
+    only belt sorter splitter hopper tap mould press shaper assembler boxer shop
+    goal metric cars 10
+    goal deliver set 10
+    goal deliver wheel 50
+end
+puzzle islands
+    chapter "Master workshop"
+    name "Islands"
+    about "Four specks of resin at the corners of the room, one drop of paint in the middle. Build 15 cars and sell 10 sets."
+    fresh
+    patch resin at 0 0 size 1 1 amount 1
+    patch resin at 12 0 size 1 1 amount 1
+    patch resin at 0 12 size 1 1 amount 1
+    patch resin at 12 12 size 1 1 amount 1
+    patch pool at 6 6 size 1 1 amount 1
+    place none
+    stock brick 160
+    researched racing boxing
+    only belt hopper tap mould press shaper assembler boxer shop
+    goal metric cars 15
+    goal deliver set 10
+    limit 8400
+end
+puzzle renovation
+    chapter "Master workshop"
+    name "Renovation"
+    about "A brick factory covers every tile of resin and has spent every brick. Rebuild it to make 10 cars and sell 10 sets."
+    fresh
+    patch resin at 3 3 size 1 8 amount 1
+    patch pool at -6 8 size 1 1 amount 1
+    stock brick 130
+    researched racing boxing
+    place hopper 3 3 east
+    place mould 4 3 east
+    place hopper 3 4 east
+    place mould 4 4 east
+    place hopper 3 5 east
+    place mould 4 5 east
+    place hopper 3 6 east
+    place mould 4 6 east
+    place hopper 3 7 east
+    place mould 4 7 east
+    place hopper 3 8 east
+    place mould 4 8 east
+    place hopper 3 9 east
+    place mould 4 9 east
+    place hopper 3 10 east
+    place mould 4 10 east
+    place belt 5 3 south count 8
+    place shop 5 11 east
+    only belt hopper tap mould press shaper assembler boxer shop
+    goal metric cars 10
+    goal deliver set 10
+    limit 7800
+end
+puzzle productionRun
+    chapter "Master workshop"
+    name "Production run"
+    about "Sixty bricks, no research, and a season's order: 80 racing cars and 40 brick sets."
+    fresh
+    place none
+    stock brick 60
+    only belt splitter hopper tap mould press shaper assembler boxer shop
+    goal research racing
+    goal research boxing
+    goal metric cars 80
+    goal deliver set 40
+end
+puzzle closingTime
+    chapter "Master workshop"
+    name "Closing time"
+    about "Three tiles of resin and no room to earn bricks. Make the cars and sets, then close up: 10 cars, 10 sets and 185 bricks in the stock at once."
+    fresh
+    patch resin at 0 1 size 1 3 amount 1
+    patch pool at 14 0 size 3 3 amount 1
+    place none
+    stock brick 200
+    researched racing boxing
+    only belt hopper tap mould press shaper assembler boxer shop
+    goal stock car 10
+    goal stock set 10
+    goal stock brick 185
+    limit 12600
+end
+puzzle toyBox
+    chapter "Master workshop"
+    name "Toy box"
+    about "The whole catalogue: finish logistics, sell 100 bricks, 150 wheels and 20 sets, and build 25 cars."
+    fresh
+    place none
+    stock brick 150
+    researched racing boxing
+    only belt splitter hopper tap mould press shaper assembler boxer shop
+    goal research logistics
+    goal deliver brick 100
+    goal deliver wheel 150
+    goal deliver set 20
+    goal metric cars 25
+    limit 14400
+end

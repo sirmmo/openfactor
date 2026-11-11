@@ -181,7 +181,7 @@ end</code></pre>
   <div class="scroll"><table>
     <tr><td><code>goal deliver &lt;R&gt; &lt;n&gt;</code></td><td>That many delivered to <code>stores shared</code> units. Also <code>goal make</code> (made by any building), <code>goal stock</code> (in the shared stock at once), <code>goal metric &lt;metric&gt; &lt;n&gt;</code> and <code>goal research &lt;id&gt;</code>. A puzzle needs at least one.</td></tr>
     <tr><td><code>fresh</code></td><td>The puzzle starts a new world: the pack's map, stock and opening buildings, except for whichever of <code>patch</code>, <code>stock</code> and <code>place</code> the puzzle gives itself (<code>stock none</code> and <code>place none</code> start empty). <code>researched &lt;id&gt;…</code> starts it with research done. Without <code>fresh</code> the puzzle carries on in the factory already there.</td></tr>
-    <tr><td><code>only &lt;building&gt;…</code></td><td>Only these can be built while it runs. The opening buildings (<code>place</code>) can be anything, and are paid for from the stock like everything else.</td></tr>
+    <tr><td><code>only &lt;building&gt;…</code></td><td>Only these can be built while it runs. The opening buildings (<code>place</code>) may include buildings the list leaves out; like everything else they are paid for from the stock, and locked ones need their research among the puzzle&#39;s <code>researched</code>.</td></tr>
     <tr><td><code>limit &lt;ticks&gt;</code></td><td>Time allowed; past it the puzzle is lost, though the factory keeps running.</td></tr>
     <tr><td><code>chapter "&lt;name&gt;"</code></td><td>Lists the puzzle under that chapter in the new-game window. Puzzles of a chapter go together, in the order written.</td></tr>
   </table></div>

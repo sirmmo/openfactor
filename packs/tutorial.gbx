@@ -131,3 +131,683 @@ puzzle allTogether
     goal deliver gear 30
     goal deliver wire 60
 end
+
+# Chapter puzzles: each on a fresh map, each teaching or practising one idea.
+# Their solutions are in crates/sim/tests/solutions/tutorial.sol.
+
+puzzle hello
+    chapter "Groundwork"
+    name "Hello, drill"
+    about "A drill and a depot are already here. Lay a belt between them and deliver 10 iron ore."
+    fresh
+    place drill 2 1 east
+    place depot 7 1 east
+    only belt
+    goal deliver ironOre 10
+end
+puzzle roundTheBend
+    chapter "Groundwork"
+    name "Round the bend"
+    about "The depot is down and to the left of the copper. Belts can turn: drag one line, then another. Deliver 20 copper ore."
+    fresh
+    place depot 8 6 east
+    only belt drill
+    goal deliver copperOre 20
+end
+puzzle pocketMoney
+    chapter "Groundwork"
+    name "Pocket money"
+    about "Ten plates buy a drill and a depot, and not one belt. A drill can face straight into a depot. Deliver 15 coal."
+    fresh
+    stock ironPlate 10
+    place none
+    only belt drill depot
+    goal deliver coal 15
+end
+puzzle fourSides
+    chapter "Groundwork"
+    name "Four sides"
+    about "Four specks of ore around one depot, and no belts. A depot takes from every side: deliver 30 iron ore, 20 copper ore and 20 coal."
+    fresh
+    patch ironField at 4 3 size 1 1 amount 100000
+    patch ironField at 3 4 size 1 1 amount 100000
+    patch copperField at 5 4 size 1 1 amount 100000
+    patch coalField at 4 5 size 1 1 amount 100000
+    place depot 4 4 east
+    only drill
+    goal deliver ironOre 30
+    goal deliver copperOre 20
+    goal deliver coal 20
+    limit 4800
+end
+puzzle threeOres
+    chapter "Groundwork"
+    name "Three ores, one belt"
+    about "A belt carries any mix of things, and a depot takes them all. Deliver 25 of each ore to a single depot."
+    fresh
+    place none
+    only belt drill depot
+    goal deliver ironOre 25
+    goal deliver copperOre 25
+    goal deliver coal 25
+    limit 6000
+end
+puzzle combSeam
+    chapter "Groundwork"
+    name "Narrow seam"
+    about "The coal runs in a thin line. Drills can feed a belt from its side, so line them up along one belt. Deliver 150 coal."
+    fresh
+    patch coalField at 3 0 size 1 6 amount 100000
+    place depot 4 8 east
+    stock ironPlate 60
+    only belt drill
+    goal deliver coal 150
+    limit 5400
+end
+puzzle everyLastOre
+    chapter "Groundwork"
+    name "Every last ore"
+    about "Four tiny deposits of ten ore each, and money for three drills. Removing a building gives back all it cost. Deliver 40 iron ore."
+    fresh
+    patch ironField at 3 4 size 1 1 amount 10
+    patch ironField at 5 4 size 1 1 amount 10
+    patch ironField at 4 3 size 1 1 amount 10
+    patch ironField at 4 5 size 1 1 amount 10
+    stock ironPlate 20
+    place none
+    only belt drill depot
+    goal deliver ironOre 40
+end
+puzzle longHaul
+    chapter "Groundwork"
+    name "Long haul"
+    about "The iron is thirty tiles from the depot, and the plates just cover the belt. Deliver 20 iron ore."
+    fresh
+    patch ironField at 30 4 size 2 2 amount 100000
+    place depot 0 4 east
+    stock ironPlate 40
+    only belt drill
+    goal deliver ironOre 20
+end
+puzzle meetInTheMiddle
+    chapter "Groundwork"
+    name "Meet in the middle"
+    about "Copper in one corner, coal in the other, the depot between them. Deliver 25 of each, on a budget."
+    fresh
+    patch copperField at 0 0 size 2 2 amount 100000
+    patch coalField at 20 12 size 2 2 amount 100000
+    place depot 10 6 east
+    stock ironPlate 45
+    only belt drill
+    goal deliver copperOre 25
+    goal deliver coal 25
+    limit 6000
+end
+puzzle quarry
+    chapter "Groundwork"
+    name "Quarry"
+    about "Forty plates for a whole quarry: deliver 300 iron ore. Every plate spent on belt is a drill you don't have."
+    fresh
+    stock ironPlate 40
+    place none
+    only belt drill depot
+    goal deliver ironOre 300
+    limit 7800
+end
+
+puzzle firstFire
+    chapter "Fire and coal"
+    name "First fire"
+    about "This furnace has iron ore but no coal. Dig some coal and feed it in from the other side: deliver 10 iron plates."
+    fresh
+    place drill 2 3 south
+    place belt 2 4 south
+    place furnace 2 5 east
+    place depot 3 5 east
+    only belt drill
+    goal deliver ironPlate 10
+end
+puzzle cheekToCheek
+    chapter "Fire and coal"
+    name "Cheek to cheek"
+    about "Twenty plates and no belts. Drills can face straight into a furnace, and a furnace straight into a depot. Deliver 20 iron plates."
+    fresh
+    patch ironField at 2 2 size 1 1 amount 100000
+    patch coalField at 3 3 size 1 1 amount 100000
+    stock ironPlate 20
+    place none
+    only drill furnace depot
+    goal deliver ironPlate 20
+end
+puzzle copperGlow
+    chapter "Fire and coal"
+    name "Copper glow"
+    about "A furnace smelts copper ore just as well, but the coal is across the map. Deliver 30 copper plates."
+    fresh
+    place none
+    only belt drill furnace depot
+    goal deliver copperPlate 30
+end
+puzzle payday
+    chapter "Fire and coal"
+    name "Payday"
+    about "Plates that reach a depot join your stock and pay for building. Start with 25 and have 100 iron plates at once."
+    fresh
+    stock ironPlate 25
+    place none
+    only belt drill furnace depot
+    goal stock ironPlate 100
+end
+puzzle shareTheCoal
+    chapter "Fire and coal"
+    name "Share the coal"
+    about "One speck of coal, two of iron. A coal drill digs enough for two furnaces: a splitter shares it out. Deliver 160 iron plates."
+    fresh
+    patch ironField at 3 4 size 1 1 amount 100000
+    patch ironField at 7 4 size 1 1 amount 100000
+    patch coalField at 5 5 size 1 1 amount 100000
+    place none
+    only belt splitter drill furnace depot
+    goal deliver ironPlate 160
+    limit 10800
+end
+puzzle twoOresOneFire
+    chapter "Fire and coal"
+    name "One furnace, two ores"
+    about "You may not build a furnace, but this one has four sides: iron ore, copper ore, coal, and the way out. Deliver 20 of each plate."
+    fresh
+    patch ironField at 2 5 size 1 1 amount 100000
+    patch copperField at 5 2 size 1 1 amount 100000
+    patch coalField at 5 8 size 1 1 amount 100000
+    place furnace 5 5 east
+    only belt drill depot
+    goal deliver ironPlate 20
+    goal deliver copperPlate 20
+end
+puzzle everyLump
+    chapter "Fire and coal"
+    name "Every lump"
+    about "Three small coal deposits, thirty lumps in all, and each lump smelts two plates. Waste none: deliver 60 iron plates."
+    fresh
+    patch ironField at 0 0 size 5 4 amount 100000
+    patch coalField at 6 1 size 1 3 amount 10
+    place none
+    only belt splitter drill furnace depot
+    goal deliver ironPlate 60
+end
+puzzle whereToSmelt
+    chapter "Fire and coal"
+    name "Where to smelt"
+    about "Iron in the west, coal in the east, the depot to the north, and just enough plates if the furnace stands in the right place. Deliver 30 iron plates."
+    fresh
+    patch ironField at 0 6 size 1 1 amount 100000
+    patch coalField at 20 6 size 1 1 amount 100000
+    place depot 10 0 east
+    stock ironPlate 45
+    only belt drill furnace
+    goal deliver ironPlate 30
+    limit 6600
+end
+puzzle hotStreak
+    chapter "Fire and coal"
+    name "Hot streak"
+    about "A furnace eats one iron drill's ore and half a coal drill's coal. Build three and deliver 250 iron plates."
+    fresh
+    place none
+    only belt splitter drill furnace depot
+    goal deliver ironPlate 250
+    limit 12600
+end
+puzzle foundry
+    chapter "Fire and coal"
+    name "Foundry"
+    about "Forty plates to start: get iron plates flowing first, they pay for the rest. Deliver 120 iron plates and 120 copper plates."
+    fresh
+    stock ironPlate 40
+    place none
+    only belt splitter drill furnace depot
+    goal deliver ironPlate 120
+    goal deliver copperPlate 120
+    limit 16200
+end
+
+puzzle firstGear
+    chapter "Workshop"
+    name "First gear"
+    about "Plates are on their way to the depot, but there's a gap. Put a workshop in it and deliver 10 gears."
+    fresh
+    place drill 2 3 south
+    place belt 2 4 south
+    place furnace 2 5 east
+    place belt 3 5 east
+    place depot 5 5 east
+    place drill 2 7 north
+    place belt 2 6 north
+    only workshop
+    goal deliver gear 10
+end
+puzzle chainGang
+    chapter "Workshop"
+    name "Chain gang"
+    about "Drill, furnace, workshop, depot, each facing into the next, and exactly the plates for that. Deliver 40 wire."
+    fresh
+    patch copperField at 2 2 size 1 1 amount 100000
+    patch coalField at 3 3 size 1 1 amount 100000
+    stock ironPlate 26
+    place none
+    only drill furnace workshop depot
+    goal deliver wire 40
+end
+puzzle shareThePlates
+    chapter "Workshop"
+    name "Share the plates"
+    about "A splitter sends one line two ways. Deliver 30 iron plates and 15 gears from a single furnace."
+    fresh
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver ironPlate 30
+    goal deliver gear 15
+end
+puzzle oneOfEverything
+    chapter "Workshop"
+    name "One of everything"
+    about "One furnace smelting both ores, straight into one workshop. A workshop makes whatever its plates allow: deliver 10 gears and 20 wire."
+    fresh
+    patch ironField at 2 5 size 1 1 amount 100000
+    patch copperField at 5 2 size 1 1 amount 100000
+    patch coalField at 5 8 size 1 1 amount 100000
+    stock ironPlate 40
+    place none
+    only belt drill furnace workshop depot
+    goal deliver gear 10
+    goal deliver wire 20
+end
+puzzle hungryWorkshop
+    chapter "Workshop"
+    name "Hungry workshop"
+    about "A workshop making gears eats plates faster than one furnace smelts them. Feed it from two: deliver 60 gears."
+    fresh
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 60
+    limit 11400
+end
+puzzle gearsAndWire
+    chapter "Workshop"
+    name "Gears and wire"
+    about "Two workshops, two lines: deliver 30 gears and 60 wire."
+    fresh
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 30
+    goal deliver wire 60
+    limit 9000
+end
+puzzle savingUp
+    chapter "Workshop"
+    name "Saving up"
+    about "Thirty plates. Gears cost plates, and you also have to save: deliver 20 gears and have 80 iron plates at once."
+    fresh
+    stock ironPlate 30
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 20
+    goal stock ironPlate 80
+end
+puzzle connectTheDots
+    chapter "Workshop"
+    name "Connect the dots"
+    about "Everything is built and nothing is joined. Only belts: carry ore and coal to the furnace, plates to the workshop and gears to the depot. Deliver 10 gears."
+    fresh
+    place drill 1 2 east
+    place drill 0 8 east
+    place furnace 7 5 south
+    place workshop 10 2 north
+    place depot 14 6 east
+    only belt
+    goal deliver gear 10
+end
+puzzle wireWorks
+    chapter "Workshop"
+    name "Wire works"
+    about "One copper drill, one furnace and one workshop make a perfect wire line, and one coal drill feeds two of them. Deliver 300 wire."
+    fresh
+    patch copperField at 0 0 size 6 3 amount 100000
+    patch coalField at 0 6 size 6 2 amount 100000
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver wire 300
+    limit 11400
+end
+puzzle bigOrder
+    chapter "Workshop"
+    name "Big order"
+    about "Forty plates and an order for 40 gears and 80 wire. Iron plates first: they pay for everything else."
+    fresh
+    stock ironPlate 40
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 40
+    goal deliver wire 80
+    limit 14400
+end
+
+puzzle wrongWay
+    chapter "Mend and finish"
+    name "One wrong turn"
+    about "This factory would work if one belt didn't face backwards. Remove it and lay it the right way: deliver 20 iron plates."
+    fresh
+    place drill 2 3 south
+    place belt 2 4 south
+    place furnace 2 5 east
+    place belt 3 5 east
+    place belt 4 5 west
+    place belt 5 5 east
+    place depot 6 5 east
+    place drill 2 7 north
+    place belt 2 6 north
+    only belt
+    goal deliver ironPlate 20
+end
+puzzle turnAround
+    chapter "Mend and finish"
+    name "Turn around"
+    about "Both drills were built facing the wrong way. Removing gives back what they cost, so build them again facing right. Deliver 30 wire."
+    fresh
+    patch copperField at 12 0 size 4 4 amount 100000
+    patch coalField at 12 6 size 1 1 amount 100000
+    place drill 12 3 west
+    place furnace 12 4 east
+    place workshop 13 4 east
+    place depot 14 4 east
+    place belt 12 5 north
+    place drill 12 6 south
+    only drill
+    goal deliver wire 30
+end
+puzzle potholes
+    chapter "Mend and finish"
+    name "Potholes"
+    about "The belts have three holes in them. Find them and fill them: deliver 15 gears."
+    fresh
+    place drill 0 2 east
+    place belt 1 2 east count 3
+    place belt 5 2 east count 4
+    place furnace 9 2 east
+    place belt 10 2 east
+    place belt 12 2 east
+    place workshop 13 2 east
+    place depot 14 2 east
+    place drill 4 7 east
+    place belt 5 7 east count 4
+    place belt 9 7 north count 2
+    place belt 9 4 north count 2
+    only belt
+    goal deliver gear 15
+    limit 5400
+end
+puzzle scrapyard
+    chapter "Mend and finish"
+    name "Scrapyard"
+    about "Not a plate in the stock, and a yard full of things nobody needs. Clear what you don't need, keep the depot that's well placed, and deliver 30 iron plates."
+    fresh
+    stock ironPlate 31
+    place depot 3 5 east
+    place splitter 6 1 east count 4
+    place depot 6 8 east
+    place depot 8 8 east
+    only belt drill furnace
+    goal deliver ironPlate 30
+    limit 7200
+end
+puzzle trafficJam
+    chapter "Mend and finish"
+    name "Traffic jam"
+    about "Ore and coal share one belt into the furnace, and it has jammed. Give the coal a side of its own: deliver 40 iron plates."
+    fresh
+    place drill 1 3 south
+    place belt 1 4 east count 3
+    place furnace 4 4 east
+    place depot 5 4 east
+    place drill 2 7 north
+    place belt 2 6 north count 2
+    only belt drill
+    goal deliver ironPlate 40
+end
+puzzle dryWell
+    chapter "Mend and finish"
+    name "Dry well"
+    about "The little iron deposit under this drill is nearly gone. There's plenty more to the east: deliver 50 iron plates."
+    fresh
+    patch ironField at 2 3 size 1 1 amount 15
+    patch ironField at 8 0 size 3 3 amount 100000
+    patch coalField at 0 7 size 5 3 amount 100000
+    place drill 2 3 south
+    place belt 2 4 south
+    place furnace 2 5 east
+    place depot 3 5 east
+    place drill 2 7 north
+    place belt 2 6 north
+    only belt drill
+    goal deliver ironPlate 50
+    limit 7200
+end
+puzzle leakyLine
+    chapter "Mend and finish"
+    name "Leaky line"
+    about "The workshop gets only a third of the plates; the rest leak into depots. Plug the leak and deliver 50 gears in time."
+    fresh
+    place drill 2 3 south
+    place belt 2 4 south
+    place furnace 2 5 east
+    place drill 2 7 north
+    place belt 2 6 north
+    place splitter 3 5 east
+    place depot 4 5 east
+    place workshop 3 4 east
+    place depot 4 4 east
+    place belt 3 6 east
+    place depot 4 6 east
+    only belt drill furnace
+    goal deliver gear 50
+    limit 12000
+end
+puzzle changeOfPlan
+    chapter "Mend and finish"
+    name "Change of plan"
+    about "This little smelter makes iron plates, but wire is wanted now. There's copper beside the furnace: deliver 30 wire."
+    fresh
+    patch ironField at 2 2 size 1 1 amount 100000
+    patch coalField at 3 1 size 1 1 amount 100000
+    patch copperField at 3 3 size 1 1 amount 100000
+    stock ironPlate 26
+    place drill 2 2 east
+    place drill 3 1 south
+    place furnace 3 2 east
+    place depot 4 2 east
+    only drill workshop depot
+    goal deliver wire 30
+end
+puzzle starvingFurnace
+    chapter "Mend and finish"
+    name "Starving furnace"
+    about "The coal belt ends at the iron furnace, and the copper furnace beside it gets none. Swap one belt for a splitter: deliver 30 copper plates."
+    fresh
+    patch ironField at 2 3 size 1 1 amount 100000
+    patch copperField at 4 3 size 1 1 amount 100000
+    patch coalField at 3 6 size 1 1 amount 100000
+    place drill 2 3 south
+    place furnace 2 4 south
+    place depot 2 5 east
+    place drill 4 3 south
+    place furnace 4 4 south
+    place depot 4 5 east
+    place drill 3 6 north
+    place belt 3 5 north
+    place belt 3 4 west
+    only belt splitter
+    goal deliver copperPlate 30
+end
+puzzle overhaul
+    chapter "Mend and finish"
+    name "Overhaul"
+    about "A gear line and a wire line, and neither works: a backwards belt, a drill facing nowhere, a hole and a missing workshop. Deliver 30 gears and 60 wire in time."
+    fresh
+    place drill 2 3 south
+    place belt 2 4 north
+    place furnace 2 5 east
+    place workshop 3 5 east
+    place depot 4 5 east
+    place drill 2 7 north
+    place belt 2 6 north
+    place drill 12 3 east
+    place furnace 12 4 east
+    place depot 14 4 east
+    place drill 3 7 east
+    place belt 4 7 east count 8
+    place belt 12 7 north count 2
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 30
+    goal deliver wire 60
+    limit 8400
+end
+
+puzzle seedMoney
+    chapter "Graduation"
+    name "Seed money"
+    about "Twenty plates: just one small smelter where iron and coal touch. Let it pay for a second, and have 150 iron plates at once."
+    fresh
+    patch ironField at 2 2 size 1 1 amount 100000
+    patch coalField at 3 3 size 1 1 amount 100000
+    patch ironField at 6 2 size 1 1 amount 100000
+    patch coalField at 7 3 size 1 1 amount 100000
+    stock ironPlate 20
+    place none
+    only drill furnace depot
+    goal stock ironPlate 150
+    limit 11400
+end
+puzzle rationing
+    chapter "Graduation"
+    name "Rationing"
+    about "This iron deposit holds 44 ore, barely enough for 10 iron plates and 15 gears. Plan where every plate goes."
+    fresh
+    patch ironField at 2 3 size 1 1 amount 44
+    patch coalField at 0 7 size 5 3 amount 100000
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver ironPlate 10
+    goal deliver gear 15
+end
+puzzle beltStrike
+    chapter "Graduation"
+    name "Belt strike"
+    about "No belts today. One coal speck between iron and copper: a splitter, two furnaces and two workshops, all touching. Deliver 30 gears and 60 wire."
+    fresh
+    patch ironField at 0 2 size 1 1 amount 100000
+    patch copperField at 4 2 size 1 1 amount 100000
+    patch coalField at 2 3 size 1 1 amount 100000
+    place none
+    only drill splitter furnace workshop depot
+    goal deliver gear 30
+    goal deliver wire 60
+    limit 9000
+end
+puzzle outpost
+    chapter "Graduation"
+    name "Outpost"
+    about "Copper far to the east, coal far to the south, and the only depot at home. The plates just cover the belts: deliver 100 wire."
+    fresh
+    patch copperField at 24 0 size 2 2 amount 100000
+    patch coalField at 0 12 size 2 2 amount 100000
+    place depot 0 0 east
+    stock ironPlate 62
+    only belt splitter drill furnace workshop
+    goal deliver wire 100
+    limit 8400
+end
+puzzle mineClosure
+    chapter "Graduation"
+    name "Mine closure"
+    about "Four small iron deposits, money for two drills. When a deposit runs dry, move its drill: deliver 70 iron plates."
+    fresh
+    patch coalField at 2 4 size 1 1 amount 100000
+    patch ironField at 5 3 size 1 1 amount 20
+    patch ironField at 7 3 size 1 1 amount 20
+    patch ironField at 5 5 size 1 1 amount 20
+    patch ironField at 7 5 size 1 1 amount 20
+    stock ironPlate 30
+    place none
+    only belt drill furnace depot
+    goal deliver ironPlate 70
+end
+puzzle stockpile
+    chapter "Graduation"
+    name "Stockpile"
+    about "Forty plates to start. Make 40 gears, and also have 200 iron plates in the stock at once."
+    fresh
+    stock ironPlate 40
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 40
+    goal stock ironPlate 200
+    limit 14400
+end
+puzzle oneCoal
+    chapter "Graduation"
+    name "One coal"
+    about "Iron on one side, copper on the other, a single speck of coal between. Deliver 40 gears and 80 wire."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch copperField at 8 0 size 3 3 amount 100000
+    patch coalField at 5 6 size 1 1 amount 100000
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 40
+    goal deliver wire 80
+    limit 11400
+end
+puzzle cleanSlate
+    chapter "Graduation"
+    name "Clean slate"
+    about "A wire factory, not a plate to spare, and an order for gears. Take apart what you must, it all comes back, and deliver 30 gears."
+    fresh
+    stock ironPlate 37
+    place drill 12 3 south
+    place furnace 12 4 east
+    place workshop 13 4 east
+    place depot 14 4 east
+    place drill 3 7 east
+    place belt 4 7 east count 8
+    place belt 12 7 north count 3
+    only belt drill furnace workshop depot
+    goal deliver gear 30
+end
+puzzle grandTour
+    chapter "Graduation"
+    name "Grand tour"
+    about "Iron in one corner, copper in the other, coal far to the south. Deliver 20 gears and 40 wire."
+    fresh
+    patch ironField at 0 0 size 3 3 amount 100000
+    patch copperField at 30 0 size 3 3 amount 100000
+    patch coalField at 15 15 size 3 3 amount 100000
+    stock ironPlate 110
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 20
+    goal deliver wire 40
+    limit 8400
+end
+puzzle finalExam
+    chapter "Graduation"
+    name "Final exam"
+    about "Forty plates and the whole order: 50 gears, 100 wire, and 100 iron plates in the stock at once. The factory is yours."
+    fresh
+    stock ironPlate 40
+    place none
+    only belt splitter drill furnace workshop depot
+    goal deliver gear 50
+    goal deliver wire 100
+    goal stock ironPlate 100
+    limit 16800
+end

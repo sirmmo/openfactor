@@ -231,3 +231,679 @@ puzzle dustStorm
     goal deliver oxygen 60
     limit 10800
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/outpost.sol.
+
+puzzle groundBreak
+    chapter "Landfall"
+    name "Breaking ground"
+    about "A bare plain and fifty metal. Build an excavator, a powered smelter and a dock, and ship 30 metal."
+    fresh
+    place none
+    stock metal 50
+    only belt excavator smelter dock pylon panel
+    goal deliver metal 30
+end
+puzzle looseWire
+    chapter "Landfall"
+    name "Loose wire"
+    about "The panels landed far from the smelter, and six metal is all that's left: three pylons. Bring the power over and ship 40 metal."
+    fresh
+    stock metal 50
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place panel 16 9 east
+    place panel 17 9 east
+    only pylon
+    goal deliver metal 40
+    limit 9000
+end
+puzzle backwards
+    chapter "Landfall"
+    name "Backwards"
+    about "The crew unpacked everything facing the wrong way, and spent every scrap of metal doing it. Taking a building down gives its metal back. Ship 40 metal."
+    fresh
+    stock metal 46
+    place excavator 5 2 west
+    place belt 6 2 west
+    place belt 7 2 west
+    place smelter 8 2 west
+    place belt 9 2 west
+    place belt 10 2 west
+    place dock 11 2 east
+    place pylon 8 8 east
+    place panel 7 9 east
+    place panel 9 9 east
+    only belt excavator smelter dock pylon panel
+    goal deliver metal 40
+end
+puzzle farPlain
+    chapter "Landfall"
+    name "Far plain"
+    about "The only regolith is a long way from the dock, and there's just enough metal for the road. Ship 40 metal."
+    fresh
+    patch regolithField at 22 11 size 3 3 amount 100000
+    place dock 3 12 east
+    place pylon 5 14 east
+    place panel 6 14 east
+    place panel 7 14 east
+    stock metal 62
+    only belt excavator smelter pylon
+    goal deliver metal 40
+end
+puzzle narrowPlain
+    chapter "Landfall"
+    name "One road"
+    about "Room for two excavators on a narrow strip, and one road out. A smelter can't keep up with both: split the road. Ship 150 metal."
+    fresh
+    patch regolithField at 2 2 size 2 1 amount 100000
+    patch iceField at 14 0 size 5 5 amount 100000
+    place none
+    stock metal 75
+    only belt splitter excavator smelter dock pylon panel
+    goal deliver metal 150
+    limit 15600
+end
+puzzle thinSeam
+    chapter "Landfall"
+    name "Thin seam"
+    about "A thin seam of regolith, twelve to a tile, and money for two excavators. Move them along as the seam runs dry. Ship 30 metal."
+    fresh
+    patch regolithField at 2 0 size 1 6 amount 12
+    place none
+    stock metal 50
+    only belt excavator smelter dock pylon panel
+    goal deliver metal 30
+end
+puzzle nestEgg
+    chapter "Landfall"
+    name "Nest egg"
+    about "Build up, then stop spending: have 150 metal in the stock at once."
+    fresh
+    place none
+    stock metal 60
+    only belt splitter excavator smelter dock pylon panel
+    goal stock metal 150
+    limit 13800
+end
+puzzle blueprints
+    chapter "Landfall"
+    name "Blueprints"
+    about "The workshop plans cost 80 metal and the base has 34. Research fabrication as soon as you can."
+    fresh
+    only belt splitter excavator smelter dock pylon panel
+    goal research fabrication
+    limit 9600
+end
+puzzle twoOrders
+    chapter "Landfall"
+    name "Two orders"
+    about "The base wants 60 metal and 20 hull plates. Each plate is pressed from three metal."
+    fresh
+    researched fabrication
+    only belt splitter excavator smelter workshop dock pylon panel
+    goal deliver metal 60
+    goal deliver plate 20
+    limit 12000
+end
+puzzle foundry
+    chapter "Landfall"
+    name "Foundry"
+    about "From a bare plain and sixty metal: research fabrication and ship 30 hull plates."
+    fresh
+    place none
+    stock metal 60
+    only belt splitter excavator smelter workshop dock pylon panel
+    goal research fabrication
+    goal deliver plate 30
+    limit 22200
+end
+puzzle firstThaw
+    chapter "Meltwater"
+    name "First thaw"
+    about "Drill the ice sheet, melt the ice with a little power and ship 30 water."
+    fresh
+    only belt splitter excavator drill smelter melter dock pylon panel
+    goal deliver water 30
+end
+puzzle iceFloes
+    chapter "Meltwater"
+    name "Ice floes"
+    about "No ice sheet here, just four scattered blocks of twenty. Gather them up and ship 60 water."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 14 0 size 1 1 amount 20
+    patch iceField at 17 1 size 1 1 amount 20
+    patch iceField at 15 4 size 1 1 amount 20
+    patch iceField at 18 4 size 1 1 amount 20
+    only belt splitter excavator drill smelter melter dock pylon panel
+    goal deliver water 60
+end
+puzzle onePanel
+    chapter "Meltwater"
+    name "One panel"
+    about "One solar panel and no way to build another. It can't run the smelter and two melters at once. Ship 90 water."
+    fresh
+    stock metal 80
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    place panel 7 5 east
+    only belt splitter drill melter dock pylon
+    goal deliver water 90
+    limit 7200
+end
+puzzle handToHand
+    chapter "Meltwater"
+    name "Hand to hand"
+    about "No conveyors came down with this crate. Hand ice to melters and water to a dock directly, and ship 150 water."
+    fresh
+    place none
+    stock metal 80
+    only drill melter dock pylon panel
+    goal deliver water 150
+    limit 7800
+end
+puzzle lifePlans
+    chapter "Meltwater"
+    name "Life support plans"
+    about "The life support plans cost 60 metal and 20 water. Research them as soon as you can."
+    fresh
+    only belt splitter excavator drill smelter melter dock pylon panel
+    goal research lifeSupport
+    limit 10200
+end
+puzzle icePocket
+    chapter "Meltwater"
+    name "Ice pocket"
+    about "A pocket of ice, two tiles by two, a hundred ice in all. Drill every tile and ship 90 water."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 14 0 size 2 2 amount 25
+    only belt splitter excavator drill smelter melter dock pylon panel
+    goal deliver water 90
+end
+puzzle sharedSun
+    chapter "Meltwater"
+    name "Shared sun"
+    about "Two panels and no more: share their power between smelting and melting. Ship 80 metal and 80 water."
+    fresh
+    only belt splitter excavator drill smelter melter dock pylon
+    goal deliver metal 80
+    goal deliver water 80
+    limit 12600
+end
+puzzle coldRoad
+    chapter "Meltwater"
+    name "Cold road"
+    about "The nearest ice is far out on the plain, and no dock or panel can be built out there. Bring 60 water home."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 26 14 size 2 2 amount 100000
+    only belt drill melter pylon
+    goal deliver water 60
+    limit 9600
+end
+puzzle lastIce
+    chapter "Meltwater"
+    name "The last of the ice"
+    about "Three blocks of ice, eleven to a block. Research life support, which costs 20 water, and keep 10 water in the stock."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 14 1 size 3 1 amount 11
+    only belt splitter excavator drill smelter melter dock pylon panel
+    goal research lifeSupport
+    goal stock water 10
+end
+puzzle springThaw
+    chapter "Meltwater"
+    name "Spring thaw"
+    about "From a bare plain and eighty metal: ship 100 metal and 300 water."
+    fresh
+    place none
+    stock metal 80
+    only belt splitter excavator drill smelter melter dock pylon panel
+    goal deliver metal 100
+    goal deliver water 300
+    limit 15600
+end
+puzzle firstBreath
+    chapter "Thin air"
+    name "First breath"
+    about "Water and power make oxygen. Ship 20 oxygen."
+    fresh
+    researched lifeSupport
+    only belt splitter excavator drill smelter melter electrolyser dock pylon panel
+    goal deliver oxygen 20
+end
+puzzle greenThumb
+    chapter "Thin air"
+    name "Green thumb"
+    about "Two hull plates came down with the crate: enough for one greenhouse. Grow and ship 40 food."
+    fresh
+    researched lifeSupport
+    stock metal 80 plate 2
+    only belt splitter excavator drill smelter melter greenhouse dock pylon panel
+    goal deliver food 40
+    limit 8400
+end
+puzzle plansAndAir
+    chapter "Thin air"
+    name "Plans and air"
+    about "Research life support with the water you ship, then turn that water into 30 oxygen."
+    fresh
+    only belt splitter excavator drill smelter melter electrolyser dock pylon panel
+    goal research lifeSupport
+    goal deliver oxygen 30
+    limit 15600
+end
+puzzle iceWorld
+    chapter "Thin air"
+    name "Ice world"
+    about "No regolith on this world, so no more metal than the 68 you brought. One block of ice must give both 20 oxygen and 20 food."
+    fresh
+    patch iceField at 14 1 size 1 1 amount 100000
+    researched lifeSupport
+    place none
+    stock metal 68 plate 2
+    only belt splitter drill melter electrolyser greenhouse dock pylon panel
+    goal deliver oxygen 20
+    goal deliver food 20
+    limit 9000
+end
+puzzle repairCrew
+    chapter "Thin air"
+    name "Repair crew"
+    about "The air plant was set up in a hurry, and every bit of metal went into it. Find what's wrong and ship 30 oxygen."
+    fresh
+    researched lifeSupport
+    stock metal 92
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    place panel 7 5 east
+    place panel 9 5 east
+    place drill 14 1 east
+    place melter 13 1 west
+    place electrolyser 12 1 north
+    place dock 11 1 east
+    place pylon 12 6 east
+    place panel 12 7 east
+    only belt splitter excavator drill smelter melter electrolyser dock pylon panel
+    goal deliver oxygen 30
+end
+puzzle glassAndSteel
+    chapter "Thin air"
+    name "Glass and steel"
+    about "A greenhouse needs two hull plates, and none came down. Press them yourself, then grow and ship 40 food."
+    fresh
+    researched lifeSupport fabrication
+    only belt splitter excavator drill smelter workshop melter greenhouse dock pylon panel
+    goal deliver food 40
+    limit 10200
+end
+puzzle thinIce
+    chapter "Thin air"
+    name "Thin ice"
+    about "Two blocks of ice, ninety in all. An electrolyser makes one oxygen from two water. Ship 15 water and 30 oxygen."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 14 1 size 2 1 amount 45
+    researched lifeSupport
+    only belt splitter excavator drill smelter melter electrolyser dock pylon panel
+    goal deliver water 15
+    goal deliver oxygen 30
+end
+puzzle greenhouseRow
+    chapter "Thin air"
+    name "Greenhouse row"
+    about "Plates for three greenhouses, and one ice drill can water them all. Ship 150 food."
+    fresh
+    researched lifeSupport
+    stock metal 80 plate 6
+    only belt splitter excavator drill smelter melter greenhouse dock pylon
+    goal deliver food 150
+    limit 10800
+end
+puzzle airRibbon
+    chapter "Thin air"
+    name "Ribbon of ice"
+    about "A ribbon of ice three tiles long. Run three air plants side by side, and find them the power. Ship 90 oxygen."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 14 0 size 1 3 amount 100000
+    researched lifeSupport
+    only belt splitter excavator drill smelter melter electrolyser dock pylon panel
+    goal deliver oxygen 90
+    limit 12000
+end
+puzzle selfSufficient
+    chapter "Thin air"
+    name "Self-sufficient"
+    about "From a bare plain: research life support, then ship 50 oxygen and 50 food."
+    fresh
+    place none
+    stock metal 100 plate 2
+    only belt splitter excavator drill smelter melter electrolyser greenhouse dock pylon panel
+    goal research lifeSupport
+    goal deliver oxygen 50
+    goal deliver food 50
+    limit 21000
+end
+puzzle moveInDay
+    chapter "Hab ring"
+    name "Move-in day"
+    about "A habitat takes oxygen, water and food, each from its own side. House a crew of 5."
+    fresh
+    researched lifeSupport
+    stock metal 130 plate 12
+    only belt splitter excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 5
+end
+puzzle halfBuilt
+    chapter "Hab ring"
+    name "Half-built"
+    about "The last crew left the air plant half-built and the stock empty. Finish it, find it enough power and house a crew of 10."
+    fresh
+    researched lifeSupport
+    stock metal 98 plate 12
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    place panel 7 5 east
+    place panel 9 5 east
+    place drill 15 4 south
+    place melter 15 5 south
+    place splitter 15 6 south
+    place electrolyser 15 7 south
+    place greenhouse 16 6 south
+    place pylon 13 7 east
+    place panel 12 7 east
+    only belt splitter excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 10
+    limit 12000
+end
+puzzle jammed
+    chapter "Hab ring"
+    name "Jammed"
+    about "Food and oxygen share one belt into the habitat, and the water never got there. Untangle it and house a crew of 10."
+    fresh
+    researched lifeSupport
+    stock metal 127 plate 12
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    place panel 7 5 east
+    place panel 9 5 east
+    place drill 15 4 south
+    place melter 15 5 south
+    place splitter 15 6 south
+    place electrolyser 15 7 south
+    place belt 15 8 south
+    place habitat 15 9 south
+    place greenhouse 16 6 south
+    place belt 16 7 south
+    place belt 16 8 west
+    place pylon 13 7 east
+    place panel 12 7 east
+    place panel 13 8 east
+    only belt splitter excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 10
+    limit 10200
+end
+puzzle noSplitters
+    chapter "Hab ring"
+    name "No splitters"
+    about "No splitters came down with this crate, so every line needs its own ice drill. House a crew of 10."
+    fresh
+    researched lifeSupport
+    stock metal 160 plate 12
+    only belt excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 10
+    limit 10800
+end
+puzzle homeMade
+    chapter "Hab ring"
+    name "Home-made"
+    about "Plenty of metal, but not one hull plate. Press the twelve plates a habitat and a greenhouse need, and house a crew of 5."
+    fresh
+    researched lifeSupport fabrication
+    stock metal 160
+    only belt splitter excavator drill smelter workshop melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 5
+    limit 10200
+end
+puzzle ration
+    chapter "Hab ring"
+    name "Rations"
+    about "One block of ice, sixty in all, and each crew member needs six water's worth of air, water and food. Every belt and buffer holds some back: house a crew of 8."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch iceField at 15 4 size 1 1 amount 60
+    researched lifeSupport
+    stock metal 130 plate 12
+    only belt splitter excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 8
+end
+puzzle longCommute
+    chapter "Hab ring"
+    name "Long commute"
+    about "The habitat was set down far south of the ice. Get air, water and food down to it and house a crew of 8."
+    fresh
+    researched lifeSupport
+    stock metal 160 plate 12
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    place panel 7 5 east
+    place panel 9 5 east
+    place habitat 15 21 south
+    only belt splitter excavator drill smelter melter electrolyser greenhouse dock pylon panel
+    goal metric crew 8
+    limit 10200
+end
+puzzle airToSpare
+    chapter "Hab ring"
+    name "Air to spare"
+    about "House a crew of 8, and ship 30 oxygen on top for the rovers."
+    fresh
+    researched lifeSupport
+    stock metal 170 plate 12
+    only belt splitter excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal metric crew 8
+    goal deliver oxygen 30
+    limit 11400
+end
+puzzle crewRace
+    chapter "Hab ring"
+    name "Crew on the way"
+    about "The crew lands soon and life support isn't even researched. Research it and house a crew of 5."
+    fresh
+    stock metal 80 plate 12
+    only belt splitter excavator drill smelter melter electrolyser greenhouse habitat dock pylon panel
+    goal research lifeSupport
+    goal metric crew 5
+    limit 20400
+end
+puzzle colony
+    chapter "Hab ring"
+    name "Colony"
+    about "A bare plain, a hundred metal and nothing researched. Research life support and fabrication, press your own plates and house a crew of 10."
+    fresh
+    place none
+    stock metal 100
+    only belt splitter excavator drill smelter workshop melter electrolyser greenhouse habitat dock pylon panel
+    goal research lifeSupport
+    goal research fabrication
+    goal metric crew 10
+    limit 29400
+end
+puzzle sortingRoom
+    chapter "Crystal night"
+    name "Sorting room"
+    about "Regolith and ice lie side by side, far from the dock, and there's metal for just one road. Send both down it and sort them at the end. Ship 40 metal and 40 water."
+    fresh
+    patch regolithField at 0 4 size 1 1 amount 100000
+    patch iceField at 0 5 size 1 1 amount 100000
+    researched fabrication
+    stock metal 82 plate 1
+    place dock 21 5 east
+    place pylon 20 8 east
+    place panel 21 8 east
+    only belt sorter excavator drill smelter melter
+    goal deliver metal 40
+    goal deliver water 40
+end
+puzzle crystalPlans
+    chapter "Crystal night"
+    name "Crystal plans"
+    about "Crystal research costs 80 metal and 20 hull plates. Research it as soon as you can."
+    fresh
+    researched fabrication
+    only belt splitter excavator smelter workshop dock pylon panel
+    goal research crystals
+    limit 15600
+end
+puzzle cuttingEdge
+    chapter "Crystal night"
+    name "Cutting edge"
+    about "Crystal cutters need no power, but they need hull plates: you have eight. Ship 40 crystals."
+    fresh
+    researched fabrication crystals
+    stock metal 80 plate 8
+    only belt splitter cutter dock
+    goal deliver crystal 40
+end
+puzzle blackout
+    chapter "Crystal night"
+    name "Blackout"
+    about "The night is long and the panels are buried in dust. Light the base with a crystal reactor and ship 150 metal."
+    fresh
+    researched fabrication crystals
+    stock metal 90 plate 24 crystal 10
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place excavator 5 1 east
+    place belt 6 1 south
+    place excavator 5 3 east
+    place belt 6 3 east count 2
+    place smelter 8 3 east
+    place belt 9 3 north
+    place excavator 5 4 east
+    place belt 6 4 north
+    place pylon 8 4 east
+    only belt splitter cutter reactor pylon
+    goal deliver metal 150
+    limit 12000
+end
+puzzle fullPress
+    chapter "Crystal night"
+    name "Full press"
+    about "A small square of regolith and 120 metal to spend, with nothing coming back: every bit of metal goes into plates. Ship 60 hull plates."
+    fresh
+    patch regolithField at 2 2 size 2 2 amount 100000
+    researched fabrication
+    place none
+    stock metal 120
+    only belt splitter excavator smelter workshop dock pylon panel
+    goal deliver plate 60
+    limit 16200
+end
+puzzle fuelOrFreight
+    chapter "Crystal night"
+    name "Fuel or freight"
+    about "No sun, and a single crystal to cut. It must fuel the reactor that runs the smelter and fill the freight order too. Ship 80 metal and 40 crystals."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch crystalField at 5 13 size 1 1 amount 100000
+    researched fabrication crystals
+    stock metal 80 plate 24 crystal 10
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    only belt splitter excavator smelter cutter reactor dock pylon
+    goal deliver metal 80
+    goal deliver crystal 40
+    limit 14400
+end
+puzzle fuelLine
+    chapter "Crystal night"
+    name "Fuel line"
+    about "The only crystals are far to the south, and 24 metal won't buy a road that long. Power the smelter and ship 60 metal."
+    fresh
+    patch regolithField at 0 0 size 6 6 amount 100000
+    patch crystalField at 5 30 size 1 1 amount 100000
+    researched fabrication crystals
+    stock metal 58 plate 24 crystal 10
+    place excavator 5 2 east
+    place belt 6 2 east count 2
+    place smelter 8 2 east
+    place belt 9 2 east count 2
+    place dock 11 2 east
+    place pylon 8 4 east
+    only belt cutter reactor pylon
+    goal deliver metal 60
+end
+puzzle supplyRun
+    chapter "Crystal night"
+    name "Supply run"
+    about "The supply ship leaves soon. Have 100 metal, 30 hull plates and 30 crystals in the stock, all at once."
+    fresh
+    researched fabrication crystals
+    stock metal 80 plate 8
+    only belt splitter excavator smelter workshop cutter dock pylon panel
+    goal stock metal 100
+    goal stock plate 30
+    goal stock crystal 30
+    limit 21600
+end
+puzzle darkSide
+    chapter "Crystal night"
+    name "Dark side"
+    about "No sun reaches this side and no metal lies under it: just what you brought. Run a crew's life support on a crystal reactor and house a crew of 8."
+    fresh
+    patch iceField at 14 0 size 5 5 amount 100000
+    patch crystalField at 4 13 size 4 3 amount 100000
+    researched lifeSupport fabrication crystals
+    place none
+    stock metal 95 plate 36 crystal 10
+    only belt splitter drill melter electrolyser greenhouse habitat cutter reactor dock pylon
+    goal metric crew 8
+end
+puzzle longNight
+    chapter "Crystal night"
+    name "The long night"
+    about "A bare plain and 120 metal. Research fabrication and then crystals, press the plates they take, and ship 30 crystals."
+    fresh
+    place none
+    stock metal 120
+    only belt splitter excavator smelter workshop cutter dock pylon panel
+    goal research crystals
+    goal deliver crystal 30
+    limit 25200
+end

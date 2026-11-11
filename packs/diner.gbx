@@ -281,3 +281,754 @@ puzzle saturday
     goal make pizza 25
     limit 18000
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/diner.sol.
+
+puzzle firstOrder
+    chapter "Salad Days"
+    name "First order"
+    about "An empty kitchen and 60 coins. Chop, toss and serve 10 salads."
+    fresh
+    place none
+    stock coin 60
+    only belt crate board bowl table till
+    goal metric served 10
+end
+puzzle halfSet
+    chapter "Salad Days"
+    name "Half set"
+    about "The cook left gaps in the counter and forgot the till. Finish the line and take 90 coins."
+    fresh
+    place crate 3 4 east
+    place board 4 4 east
+    place bowl 6 4 east
+    place table 8 4 east
+    stock coin 46
+    only belt till
+    goal deliver coin 90
+    limit 6000
+end
+puzzle tinyPantry
+    chapter "Salad Days"
+    name "Tiny pantry"
+    about "Room for one crate, but one board chops enough for two salad bars. Serve 60 dishes."
+    fresh
+    patch pantry at 3 5 size 1 1 amount 1
+    place none
+    only belt splitter crate board bowl table till
+    goal metric served 60
+    limit 7200
+end
+puzzle sortingSchool
+    chapter "Salad Days"
+    name "Saving up"
+    about "Sorters cost 80 coins of research. Open a salad bar and research sorting."
+    fresh
+    place none
+    stock coin 60
+    only belt crate board bowl table till
+    goal research sorting
+end
+puzzle acrossTheHall
+    chapter "Salad Days"
+    name "Across the hall"
+    about "The dining room is far from the pantry, and 70 coins only just pay for the shortest counter. Serve 30 dishes."
+    fresh
+    patch pantry at 0 0 size 2 2 amount 1
+    place table 18 10 east
+    place till 19 10 east
+    stock coin 70
+    only belt crate board bowl
+    goal metric served 30
+    limit 7200
+end
+puzzle catering
+    chapter "Salad Days"
+    name "Catering"
+    about "A caterer picks up salads at the till. Send it 20 salads, and serve enough at the table to take 60 coins."
+    fresh
+    place none
+    stock coin 80
+    only belt splitter crate board bowl table till
+    goal deliver salad 20
+    goal deliver coin 60
+    limit 7800
+end
+puzzle backToFront
+    chapter "Salad Days"
+    name "Back to front"
+    about "Someone set up the line facing every which way, and spent every coin. Pick up what's wrong (it is refunded) and serve 30 dishes."
+    fresh
+    place crate 3 6 east
+    place board 4 6 west
+    place bowl 5 6 south
+    place table 6 6 north
+    place till 7 6 east
+    stock coin 44
+    only belt crate board bowl table till
+    goal metric served 30
+    limit 7200
+end
+puzzle connectTheDots
+    chapter "Salad Days"
+    name "Join the dots"
+    about "Everything is in place, scattered across the kitchen. With belts alone, serve 25 dishes."
+    fresh
+    place crate 3 3 east
+    place board 7 1 south
+    place bowl 10 6 east
+    place table 14 3 north
+    place till 14 0 east
+    stock coin 70
+    only belt
+    goal metric served 25
+end
+puzzle terrace
+    chapter "Salad Days"
+    name "The terrace"
+    about "Four tables wait on the terrace, and the pantry has room for just two crates. Keep every table busy: serve 160 dishes."
+    fresh
+    patch pantry at 3 4 size 1 1 amount 1
+    patch pantry at 3 8 size 1 1 amount 1
+    place table 10 3 east
+    place table 10 5 east
+    place table 10 7 east
+    place table 10 9 east
+    place belt 11 3 south count 8
+    place till 11 11 east
+    stock coin 166
+    only belt splitter crate board bowl
+    goal metric served 160
+    limit 10200
+end
+puzzle rainyDay
+    chapter "Salad Days"
+    name "Rainy-day fund"
+    about "Start with 50 coins and grow: have 500 coins in the till at once."
+    fresh
+    place none
+    stock coin 50
+    only belt splitter crate board bowl table till
+    goal stock coin 500
+    limit 11400
+end
+
+puzzle firstBurger
+    chapter "Fire and Buns"
+    name "Light the grill"
+    about "Grilling is researched. Pipe gas to a grill and an oven, and make 5 burgers."
+    fresh
+    place none
+    stock coin 220
+    researched grilling
+    only belt splitter till table crate shelf coldRoom board bowl mixer grill oven pass gasMain gasPipe
+    goal make burger 5
+end
+puzzle bakery
+    chapter "Fire and Buns"
+    name "Morning bakery"
+    about "The baker wants buns by the dozen: deliver 40 buns to the till. 90 coins, and no belts to spare."
+    fresh
+    place none
+    stock coin 90
+    researched grilling
+    only belt till shelf mixer oven gasMain gasPipe
+    goal deliver bun 40
+    limit 6000
+end
+puzzle cookingSchool
+    chapter "Fire and Buns"
+    name "Cooking school"
+    about "Grilling costs 120 coins and 10 salads in the stock. Send salads to a till and research it."
+    fresh
+    only belt splitter crate board bowl table till
+    goal research grilling
+    limit 7800
+end
+puzzle cellarMain
+    chapter "Fire and Buns"
+    name "Gas in the cellar"
+    about "The only gas main is at the far end of the cellar. Pipe it to a grill and deliver 30 patties."
+    fresh
+    place gasMain 20 12 east
+    stock coin 95
+    researched grilling
+    only belt till coldRoom grill gasPipe
+    goal deliver patty 30
+    limit 6600
+end
+puzzle burgerBudget
+    chapter "Fire and Buns"
+    name "Shoestring burgers"
+    about "175 coins: barely enough for a whole burger bar, so waste nothing. Take 240 coins."
+    fresh
+    place none
+    stock coin 175
+    researched grilling
+    only belt till table crate shelf coldRoom board mixer grill oven pass gasMain gasPipe
+    goal deliver coin 240
+    limit 11400
+end
+puzzle finishBar
+    chapter "Fire and Buns"
+    name "Finish the bar"
+    about "The burger bar is half built and the budget is down to 24 coins. Add the station, pipes and belts, and make 30 burgers."
+    fresh
+    place shelf 3 4 east
+    place mixer 4 4 east
+    place oven 5 4 east
+    place belt 6 4 east
+    place gasMain 6 5 east
+    place coldRoom 3 6 east
+    place grill 4 6 east
+    place table 8 6 east
+    place till 9 6 east
+    place crate 3 8 east
+    place board 4 8 east
+    place belt 5 8 east count 2
+    stock coin 169
+    researched grilling
+    only belt pass gasPipe
+    goal make burger 30
+    limit 6600
+end
+puzzle threeTiles
+    chapter "Fire and Buns"
+    name "Three tiles"
+    about "The pantry has room for one shelf, one cold room and one crate. Make 20 burgers and 20 salads."
+    fresh
+    patch pantry at 3 4 size 1 1 amount 1
+    patch pantry at 3 6 size 1 1 amount 1
+    patch pantry at 3 8 size 1 1 amount 1
+    place none
+    stock coin 230
+    researched grilling
+    only belt splitter till table crate shelf coldRoom board bowl mixer grill oven pass gasMain gasPipe
+    goal make burger 20
+    goal make salad 20
+    limit 9000
+end
+puzzle noCounter
+    chapter "Fire and Buns"
+    name "No counter"
+    about "The belts are on back order. Fit the burger bar together so every machine hands straight to the next. Make 30 burgers."
+    fresh
+    place none
+    stock coin 200
+    researched grilling
+    only till table crate shelf coldRoom board mixer grill oven pass gasMain gasPipe
+    goal make burger 30
+    limit 9000
+end
+puzzle oneOven
+    chapter "Fire and Buns"
+    name "One shelf, two stations"
+    about "Room for a single flour shelf, but one oven bakes buns for two. Make 90 burgers."
+    fresh
+    patch pantry at 3 2 size 1 1 amount 1
+    patch pantry at 3 4 size 1 1 amount 1
+    patch pantry at 3 6 size 1 1 amount 1
+    patch pantry at 3 8 size 1 1 amount 1
+    patch pantry at 3 10 size 1 1 amount 1
+    place none
+    stock coin 500
+    researched grilling
+    only belt splitter till table crate shelf coldRoom board mixer grill oven pass gasMain gasPipe
+    goal make burger 90
+    limit 13800
+end
+puzzle climbTheMenu
+    chapter "Fire and Buns"
+    name "Up the menu"
+    about "From a salad bar to a pizza licence: research grilling, then research pizza with 10 burgers."
+    fresh
+    only belt splitter till table crate shelf coldRoom board bowl mixer grill oven pass gasMain gasPipe
+    goal research baking
+end
+
+puzzle firstPizza
+    chapter "Stone Oven"
+    name "Toppings"
+    about "Dough, cheese and chopped veg meet on the bench; the oven does the rest. Make 5 pizzas."
+    fresh
+    place none
+    stock coin 200
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal make pizza 5
+end
+puzzle benchJam
+    chapter "Stone Oven"
+    name "Jammed bench"
+    about "Cheese and chopped veg share one belt into the bench, and it keeps jamming. Fix it and make 20 pizzas."
+    fresh
+    place shelf 3 5 east
+    place mixer 4 5 east
+    place bench 5 5 east
+    place oven 6 5 east
+    place table 7 5 east
+    place till 8 5 east
+    place gasPipe 6 4 east
+    place gasMain 7 4 east
+    place fridge 3 6 east
+    place belt 4 6 east
+    place belt 5 6 north
+    place crate 3 7 east
+    place board 4 7 east
+    place belt 5 7 north
+    stock coin 140
+    researched grilling baking
+    only belt crate board
+    goal make pizza 20
+    limit 8400
+end
+puzzle takeawayOven
+    chapter "Stone Oven"
+    name "One oven, two orders"
+    about "150 coins buy a single oven. The takeaway wants 20 buns and 10 pizzas from it at the till."
+    fresh
+    place none
+    stock coin 150
+    researched grilling baking
+    only belt splitter till crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal deliver bun 20
+    goal deliver pizza 10
+    limit 7800
+end
+puzzle doubleOven
+    chapter "Stone Oven"
+    name "Two ovens, one bench"
+    about "The bench tops a pizza a second; an oven bakes one every two. Room for one of each pantry unit: make 40 pizzas."
+    fresh
+    patch pantry at 3 4 size 1 3 amount 1
+    place none
+    stock coin 240
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal make pizza 40
+    limit 11400
+end
+puzzle gasTap
+    chapter "Stone Oven"
+    name "The gas tap"
+    about "No pipes for sale: the gas comes from one tap across the room. Bring the pizzas to it and make 20."
+    fresh
+    place gasMain 12 0 east
+    place gasPipe 12 1 east
+    stock coin 175
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board mixer bench oven
+    goal make pizza 20
+    limit 10200
+end
+puzzle bakingLicence
+    chapter "Stone Oven"
+    name "Pizza licence"
+    about "A burger bar, and pizza research costs 10 burgers in the stock. Research it and make 10 pizzas."
+    fresh
+    place shelf 3 4 east
+    place mixer 4 4 east
+    place oven 5 4 east
+    place belt 6 4 east
+    place belt 7 4 south count 2
+    place gasPipe 4 5 east count 2
+    place gasMain 6 5 east
+    place coldRoom 3 6 east
+    place grill 4 6 east
+    place belt 5 6 east count 2
+    place pass 7 6 east
+    place table 8 6 east
+    place till 9 6 east
+    place crate 3 8 east
+    place board 4 8 east
+    place belt 5 8 east count 2
+    place belt 7 8 north count 2
+    stock coin 247
+    researched grilling
+    goal research baking
+    goal make pizza 10
+end
+puzzle scatteredPantry
+    chapter "Stone Oven"
+    name "Three corners"
+    about "The pantry is split over three far corners of the building. Bring it all together and take 150 coins."
+    fresh
+    patch pantry at 0 7 size 1 1 amount 1
+    patch pantry at 8 0 size 1 1 amount 1
+    patch pantry at 8 14 size 1 1 amount 1
+    place none
+    stock coin 160
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal deliver coin 150
+    limit 9000
+end
+puzzle changeOfMenu
+    chapter "Stone Oven"
+    name "Change of menu"
+    about "The meat never came. Turn the burger bar into a pizzeria; every coin has to come from what you take down. Make 25 pizzas."
+    fresh
+    place shelf 3 4 east
+    place mixer 4 4 east
+    place oven 5 4 east
+    place belt 6 4 east
+    place belt 7 4 south count 2
+    place gasPipe 4 5 east count 2
+    place gasMain 6 5 east
+    place grill 4 6 east
+    place belt 5 6 east count 2
+    place pass 7 6 east
+    place table 8 6 east
+    place till 9 6 east
+    place crate 3 8 east
+    place board 4 8 east
+    place belt 5 8 east count 2
+    place belt 7 8 north count 2
+    stock coin 153
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal make pizza 25
+    limit 15600
+end
+puzzle pizzaFund
+    chapter "Stone Oven"
+    name "Pizza money"
+    about "The bank wants to see 1000 coins in the till at once. Pizza pays best."
+    fresh
+    place none
+    stock coin 160
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board bowl mixer bench oven gasMain gasPipe
+    goal stock coin 1000
+    limit 21000
+end
+puzzle fridayRush
+    chapter "Stone Oven"
+    name "Friday rush"
+    about "Every table wants pizza. Make 100 of them before closing."
+    fresh
+    place none
+    stock coin 400
+    researched grilling baking
+    only belt splitter till table crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal make pizza 100
+    limit 14400
+end
+
+puzzle takeawayWindow
+    chapter "Order Up"
+    name "Takeaway window"
+    about "Salads and burgers leave the kitchen on one belt. Research sorting, send 15 burgers to the takeaway till and serve the salads for 150 coins."
+    fresh
+    place shelf 3 4 east
+    place mixer 4 4 east
+    place oven 5 4 east
+    place belt 6 4 east
+    place belt 7 4 south count 2
+    place gasPipe 4 5 east count 2
+    place gasMain 6 5 east
+    place coldRoom 3 6 east
+    place grill 4 6 east
+    place belt 5 6 east count 2
+    place pass 7 6 east
+    place belt 8 6 east count 4
+    place crate 3 8 east
+    place board 4 8 east
+    place belt 5 8 east count 2
+    place belt 7 8 north count 2
+    place crate 3 10 east
+    place board 4 10 east
+    place bowl 5 10 east
+    place belt 6 10 east count 5
+    place belt 11 10 north count 4
+    stock coin 204
+    researched grilling
+    only belt splitter sorter table till
+    goal deliver burger 15
+    goal deliver coin 150
+    limit 7800
+end
+puzzle coinsInTheSalad
+    chapter "Order Up"
+    name "Coins in the salad"
+    about "The first table drops its coins back onto the salad belt, and the second table chokes on them. Take 120 coins."
+    fresh
+    place crate 3 5 east
+    place board 4 5 east
+    place bowl 5 5 east
+    place belt 6 5 east count 4
+    place splitter 10 5 east
+    place table 10 4 north
+    place belt 10 3 east count 2
+    place belt 12 3 south count 2
+    place belt 11 5 east count 3
+    place table 14 5 east
+    place till 15 5 east
+    stock coin 91
+    researched sorting
+    only belt splitter sorter till
+    goal deliver coin 120
+    limit 7800
+end
+puzzle misEnPlace
+    chapter "Order Up"
+    name "Prep for tomorrow"
+    about "Tomorrow's cook wants everything ready in the stock: 40 chopped veg, 20 dough, 20 patties and 20 cheese."
+    fresh
+    place none
+    stock coin 140
+    researched grilling baking
+    only belt splitter till crate shelf coldRoom fridge board mixer grill gasMain gasPipe
+    goal deliver chopped 40
+    goal deliver dough 20
+    goal deliver patty 20
+    goal deliver cheese 20
+end
+puzzle tableForOne
+    chapter "Order Up"
+    name "Table for one"
+    about "One table, and it always serves salad before burgers, and burgers before pizza. Make 20 salads, 20 burgers and 10 pizzas, and take 300 coins."
+    fresh
+    place table 10 6 east
+    place till 11 6 east
+    stock coin 332
+    researched grilling baking
+    only belt splitter till crate shelf coldRoom fridge board bowl mixer grill oven bench pass gasMain gasPipe
+    goal make salad 20
+    goal make burger 20
+    goal make pizza 10
+    goal deliver coin 300
+    limit 14400
+end
+puzzle twoWayOven
+    chapter "Order Up"
+    name "Buns or pizza"
+    about "One oven, one door: it bakes pizza whenever it has a raw one, and buns otherwise. Make 10 pizzas, then switch it to buns for 15 burgers."
+    fresh
+    place none
+    stock coin 270
+    researched grilling baking sorting
+    goal make burger 15
+    goal make pizza 10
+end
+puzzle inspectionDay
+    chapter "Order Up"
+    name "Inspection day"
+    about "The inspector is coming and the burger bar has four faults. Find them, make 20 burgers and take 90 coins."
+    fresh
+    place shelf 3 4 east
+    place mixer 4 4 east
+    place oven 5 4 east
+    place belt 6 4 east
+    place belt 7 4 south
+    place belt 7 5 north
+    place gasPipe 5 5 east
+    place gasMain 6 5 east
+    place coldRoom 3 6 east
+    place grill 4 6 east
+    place belt 5 6 east count 2
+    place pass 7 6 east
+    place table 8 6 north
+    place till 9 6 east
+    place crate 3 8 east
+    place board 4 8 south
+    place belt 5 8 east count 2
+    place belt 7 8 north count 2
+    stock coin 169
+    researched grilling
+    only belt gasPipe board table
+    goal make burger 20
+    goal deliver coin 90
+    limit 6000
+end
+puzzle deliveryVan
+    chapter "Order Up"
+    name "Delivery van"
+    about "Veg and meat are unloaded far from the dining room, and there's money for one belt. Deliver 30 patties to the till and serve 20 dishes."
+    fresh
+    patch pantry at 0 0 size 2 1 amount 1
+    place till 25 1 east
+    place table 23 4 south
+    place till 23 5 south
+    stock coin 147
+    researched grilling sorting
+    only belt sorter crate coldRoom board bowl grill gasMain gasPipe
+    goal deliver patty 30
+    goal metric served 20
+    limit 8400
+end
+puzzle seedMoney
+    chapter "Order Up"
+    name "Seed money"
+    about "45 coins, and a pizzeria costs three times that. Make 30 pizzas."
+    fresh
+    place none
+    stock coin 45
+    researched grilling baking
+    goal make pizza 30
+end
+puzzle oneOfEach
+    chapter "Order Up"
+    name "One of each"
+    about "The pantry fits one crate, one shelf, one cold room and one fridge. Share them out: make 20 burgers and 20 pizzas."
+    fresh
+    patch pantry at 3 1 size 1 1 amount 1
+    patch pantry at 3 6 size 1 1 amount 1
+    patch pantry at 3 9 size 1 1 amount 1
+    patch pantry at 3 11 size 1 1 amount 1
+    place none
+    stock coin 320
+    researched grilling baking
+    only belt splitter till table crate shelf coldRoom fridge board mixer grill oven bench pass gasMain gasPipe
+    goal make burger 20
+    goal make pizza 20
+    limit 14400
+end
+puzzle mixedDelivery
+    chapter "Order Up"
+    name "Mixed delivery"
+    about "Veg, flour and meat arrive on one long belt, all mixed up. Take what each machine needs and let the rest go: make 30 burgers."
+    fresh
+    patch pantry at 0 0 size 3 1 amount 1
+    place table 29 6 east
+    place till 30 6 east
+    stock coin 257
+    researched grilling sorting
+    only belt splitter sorter till crate shelf coldRoom board mixer grill oven pass gasMain gasPipe
+    goal make burger 30
+    limit 12000
+end
+
+puzzle spillOver
+    chapter "Dinner Rush"
+    name "Spill-over"
+    about "Cheese and veg share one belt into the bench again, and this time the crate stays put. Give what the bench can't take somewhere else to go, and make 25 pizzas."
+    fresh
+    place shelf 3 5 east
+    place mixer 4 5 east
+    place bench 5 5 east
+    place oven 6 5 east
+    place table 7 5 east
+    place till 8 5 east
+    place gasPipe 6 4 east
+    place gasMain 7 4 east
+    place fridge 3 6 east
+    place belt 4 6 east
+    place belt 5 6 north
+    place crate 3 7 east
+    place board 4 7 east
+    place belt 5 7 north
+    stock coin 175
+    researched grilling baking sorting
+    only belt splitter sorter till
+    goal make pizza 25
+    limit 8400
+end
+puzzle mainLine
+    chapter "Dinner Rush"
+    name "Main line"
+    about "One gas main in the pantry corner, and no more for sale. Pipe it to a grill and two ovens: make 30 burgers and 20 pizzas."
+    fresh
+    place gasMain 0 0 east
+    stock coin 400
+    researched grilling baking
+    only belt splitter till table crate shelf coldRoom fridge board mixer grill oven bench pass gasPipe
+    goal make burger 30
+    goal make pizza 20
+    limit 15000
+end
+puzzle longShelf
+    chapter "Dinner Rush"
+    name "The long shelf"
+    about "The pantry is one long shelf along the north wall. Make 30 burgers and 20 pizzas."
+    fresh
+    patch pantry at 0 0 size 8 1 amount 1
+    place none
+    stock coin 400
+    researched grilling baking
+    only belt splitter till table crate shelf coldRoom fridge board mixer grill oven bench pass gasMain gasPipe
+    goal make burger 30
+    goal make pizza 20
+end
+puzzle stocktake
+    chapter "Dinner Rush"
+    name "Stocktake"
+    about "Tonight the owner counts the stock: 400 coins, 15 burgers and 10 pizzas, all at once."
+    fresh
+    place none
+    stock coin 350
+    researched grilling baking
+    goal stock coin 400
+    goal stock burger 15
+    goal stock pizza 10
+end
+puzzle marketCart
+    chapter "Dinner Rush"
+    name "Market cart"
+    about "Veg, flour and cheese arrive mixed on one long belt. The bench needs each from its own side, and nothing may block the line. Make 20 pizzas."
+    fresh
+    patch pantry at 0 0 size 3 1 amount 1
+    place table 25 6 east
+    place till 26 6 east
+    stock coin 230
+    researched grilling baking sorting
+    only belt splitter sorter till crate shelf fridge board mixer bench oven gasMain gasPipe
+    goal make pizza 20
+    limit 13200
+end
+puzzle oneTill
+    chapter "Dinner Rush"
+    name "One till"
+    about "There's one till and no other for sale, so every table's coins must find their way to it. Take 600 coins."
+    fresh
+    place till 12 6 east
+    stock coin 360
+    researched grilling baking
+    only belt splitter table crate shelf coldRoom fridge board bowl mixer grill oven bench pass gasMain gasPipe
+    goal deliver coin 600
+    limit 14400
+end
+puzzle tastingMenu
+    chapter "Dinner Rush"
+    name "Tasting menu"
+    about "From the little salad bar to the full menu: make 30 burgers and 30 pizzas."
+    fresh
+    researched grilling baking
+    goal make burger 30
+    goal make pizza 30
+end
+puzzle fromScratch
+    chapter "Dinner Rush"
+    name "From scratch"
+    about "50 coins, an empty room and nothing researched. Make 20 pizzas."
+    fresh
+    place none
+    stock coin 50
+    goal make pizza 20
+end
+puzzle officeLunch
+    chapter "Dinner Rush"
+    name "Office lunch"
+    about "No tables today, so no coins come in: the office collects 30 salads, 20 burgers and 10 pizzas at one till. Make the budget stretch."
+    fresh
+    place none
+    stock coin 320
+    researched grilling baking
+    only belt splitter till crate shelf coldRoom fridge board bowl mixer grill oven bench pass gasMain gasPipe
+    goal deliver salad 30
+    goal deliver burger 20
+    goal deliver pizza 10
+end
+puzzle closingTime
+    chapter "Dinner Rush"
+    name "Closing time"
+    about "The last service of the week: serve 300 dishes and close with 1500 coins in the till."
+    fresh
+    place none
+    stock coin 300
+    researched grilling baking sorting
+    goal metric served 300
+    goal stock coin 1500
+    limit 19200
+end

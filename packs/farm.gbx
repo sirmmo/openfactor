@@ -255,3 +255,985 @@ puzzle marketDay
     goal deliver juice 20
     limit 21600
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/farm.sol.
+
+puzzle theSpring
+    chapter "Wet Furrows"
+    name "The spring"
+    about "Farms grow grain only with water. Pump the spring, lay a pipe beside a farm and sell 15 grain."
+    fresh
+    patch pond at 4 4 size 1 1 amount 1
+    patch field at 5 2 size 2 5 amount 1
+    stock plank 40
+    place market 10 4 east
+    only belt farm pump pipe
+    goal deliver grain 15
+end
+puzzle farWater
+    chapter "Wet Furrows"
+    name "Far water"
+    about "The only pond is a long way from the field. Pipes are cheap: run one there and sell 80 grain."
+    fresh
+    patch field at 2 2 size 4 4 amount 1
+    patch pond at 24 3 size 2 2 amount 1
+    stock plank 85
+    place market 4 8 east
+    only belt farm pump pipe
+    goal deliver grain 80
+    limit 6600
+end
+puzzle fromStumps
+    chapter "Wet Furrows"
+    name "From the stumps"
+    about "Six planks and a pile of wood. Saw your own planks first, then farm: sell 40 grain."
+    fresh
+    patch forest at 0 0 size 3 3 amount 1000
+    patch field at 8 0 size 3 3 amount 1
+    patch pond at 12 1 size 1 1 amount 1
+    stock plank 16 wood 10
+    place market 4 1 east
+    only belt farm pump pipe woodcutter sawmill
+    goal deliver grain 40
+    limit 6600
+end
+puzzle snugPlot
+    chapter "Wet Furrows"
+    name "Snug plot"
+    about "Four tiles of farmland around a pond, two markets, and planks for a pump, one pipe and three farms. Sell 150 grain."
+    fresh
+    patch pond at 5 4 size 1 1 amount 1
+    patch field at 4 5 size 3 2 amount 1
+    stock plank 51
+    place market 4 6 east
+    place market 6 6 east
+    only belt farm pump pipe
+    goal deliver grain 150
+    limit 9000
+end
+puzzle crookedRows
+    chapter "Wet Furrows"
+    name "Crooked rows"
+    about "Someone built this farm all wrong and spent every plank. Take it apart (you get the planks back) and sell 60 grain."
+    fresh
+    patch field at 5 3 size 4 2 amount 1
+    patch pond at 9 3 size 1 1 amount 1
+    stock plank 51
+    place farm 5 3 east
+    place farm 6 3 west
+    place farm 7 4 north
+    place farm 8 3 south
+    place pipe 1 1 east count 4
+    place belt 5 5 east count 4
+    place belt 9 5 south
+    place market 9 6 east
+    only belt farm pump pipe
+    goal deliver grain 60
+    limit 6600
+end
+puzzle acrossTheTrack
+    chapter "Wet Furrows"
+    name "Across the track"
+    about "The timber track cuts the pond off from the field, and pipes can't cross it. Find a way round and sell 60 grain."
+    fresh
+    patch forest at 0 4 size 3 3 amount 100000
+    patch pond at 10 2 size 1 1 amount 1
+    patch field at 8 8 size 5 2 amount 1
+    stock plank 60 wood 20
+    place woodcutter 2 5 east
+    place belt 3 5 east count 16
+    place sawmill 19 5 east
+    place market 20 5 east
+    only belt farm pump pipe
+    goal deliver grain 60
+end
+puzzle twoOrders
+    chapter "Wet Furrows"
+    name "Two orders"
+    about "The village wants 200 planks and 150 grain, and there is no market yet. One market has four sides."
+    fresh
+    stock plank 50 wood 30
+    place none
+    only belt woodcutter sawmill farm pump pipe market
+    goal deliver plank 200
+    goal deliver grain 150
+    limit 9000
+end
+puzzle fullBarns
+    chapter "Wet Furrows"
+    name "Full barns"
+    about "Farms cost planks, and the barn wants both: have 150 planks and 100 grain in the stock at once."
+    fresh
+    goal stock plank 150
+    goal stock grain 100
+end
+puzzle twoSprings
+    chapter "Wet Furrows"
+    name "Two springs"
+    about "A pump waters ten farms and a cart track carries about eleven grain a second. Sell 1000 grain, quickly."
+    fresh
+    patch field at 2 4 size 16 1 amount 1
+    patch field at 2 6 size 16 1 amount 1
+    patch pond at 1 5 size 1 1 amount 1
+    patch pond at 18 5 size 1 1 amount 1
+    stock plank 250
+    place market 18 3 east
+    place market 18 7 east
+    only belt farm pump pipe
+    goal deliver grain 1000
+    limit 12000
+end
+puzzle learnMilling
+    chapter "Wet Furrows"
+    name "Learning to mill"
+    about "Milling costs 20 grain to learn. Learn it, then grind 30 flour for the market."
+    fresh
+    only belt farm pump pipe mill woodcutter sawmill
+    goal research milling
+    goal deliver flour 30
+    limit 10800
+end
+
+puzzle firstLoaf
+    chapter "Daily Loaf"
+    name "First loaf"
+    about "Two grain make one flour; flour and a log in the oven make bread. Bake 10 loaves."
+    fresh
+    patch forest at 0 0 size 2 2 amount 100000
+    patch field at 5 0 size 2 3 amount 1
+    patch pond at 8 1 size 1 1 amount 1
+    stock plank 90
+    place market 5 5 east
+    researched milling
+    only belt farm pump pipe mill bakery woodcutter
+    goal deliver bread 10
+end
+puzzle handToHand
+    chapter "Daily Loaf"
+    name "Hand to hand"
+    about "No cart tracks today: every building must hand its goods straight to the next. Sell 40 bread."
+    fresh
+    patch field at 3 4 size 3 3 amount 1
+    patch forest at 6 2 size 2 3 amount 100000
+    patch pond at 2 5 size 1 1 amount 1
+    stock plank 90
+    place market 7 5 east
+    researched milling
+    only farm pump pipe mill bakery woodcutter
+    goal deliver bread 40
+    limit 9000
+end
+puzzle oneTree
+    chapter "Daily Loaf"
+    name "One tree"
+    about "A single tree must fuel the oven and saw the planks you build with. A fork shares it. Sell 50 bread."
+    fresh
+    patch forest at 3 3 size 1 1 amount 100000
+    patch field at 10 4 size 3 3 amount 1
+    patch pond at 14 5 size 1 1 amount 1
+    stock plank 40 wood 20
+    place market 7 3 east
+    researched milling
+    only belt splitter woodcutter sawmill farm pump pipe mill bakery
+    goal deliver bread 50
+    limit 13800
+end
+puzzle jammedOven
+    chapter "Daily Loaf"
+    name "Jammed oven"
+    about "Wood and flour share one track into the oven, and it has jammed. Each input needs a side of its own. Sell 40 bread."
+    fresh
+    patch pond at 1 3 size 1 1 amount 1
+    patch field at 3 2 size 1 3 amount 1
+    patch forest at 6 1 size 2 2 amount 100000
+    stock plank 85
+    place pump 1 3 east
+    place pipe 2 2 south count 3
+    place farm 3 2 east
+    place farm 3 3 east
+    place farm 3 4 east
+    place belt 4 2 south count 4
+    place mill 4 6 east
+    place belt 5 6 east count 4
+    place bakery 9 6 east
+    place market 10 6 east
+    place woodcutter 6 2 south
+    place belt 6 3 south count 3
+    researched milling
+    only belt farm pump pipe mill bakery woodcutter
+    goal deliver bread 40
+    limit 7800
+end
+puzzle flourAndBread
+    chapter "Daily Loaf"
+    name "Flour and bread"
+    about "The market wants 40 flour and 40 bread from the same mill. Split it."
+    fresh
+    researched milling
+    goal deliver flour 40
+    goal deliver bread 40
+    limit 14400
+end
+puzzle bakeSale
+    chapter "Daily Loaf"
+    name "Bake sale"
+    about "Stock up for the fair: have 80 bread and 150 planks in the stock at once."
+    fresh
+    researched milling
+    goal stock bread 80
+    goal stock plank 150
+end
+puzzle longStudies
+    chapter "Daily Loaf"
+    name "Long studies"
+    about "Nothing is known yet. Learn milling with grain, then dairying with bread."
+    fresh
+    goal research dairying
+    limit 13200
+end
+puzzle overTheHill
+    chapter "Daily Loaf"
+    name "Over the hill"
+    about "The field and the forest are far apart. Carry flour to the oven, or wood to the mill: sell 40 bread."
+    fresh
+    patch forest at 0 0 size 3 3 amount 100000
+    patch field at 24 0 size 2 4 amount 1
+    patch pond at 27 1 size 1 1 amount 1
+    stock plank 130
+    place market 4 5 east
+    researched milling
+    only belt farm pump pipe mill bakery woodcutter
+    goal deliver bread 40
+end
+puzzle allThree
+    chapter "Daily Loaf"
+    name "All three"
+    about "One market wants it all: 80 grain, 40 flour and 40 bread."
+    fresh
+    patch field at 5 2 size 6 1 amount 1
+    patch pond at 3 1 size 1 1 amount 1
+    patch forest at 13 5 size 2 3 amount 100000
+    stock plank 160
+    place market 7 8 east
+    researched milling
+    only belt splitter farm pump pipe mill bakery woodcutter
+    goal deliver grain 80
+    goal deliver flour 40
+    goal deliver bread 40
+    limit 12600
+end
+puzzle bakersRow
+    chapter "Daily Loaf"
+    name "Bakers' row"
+    about "One pond waters ten farms. Turn all of it into bread: sell 300 loaves."
+    fresh
+    patch pond at 1 2 size 1 1 amount 1
+    patch field at 2 3 size 20 1 amount 1
+    patch forest at 2 6 size 20 1 amount 100000
+    stock plank 280
+    place market 12 7 east
+    researched milling
+    only belt farm pump pipe mill bakery woodcutter
+    goal deliver bread 300
+    limit 15600
+end
+
+puzzle firstPress
+    chapter "Orchard and Herd"
+    name "First pressing"
+    about "Three apples make one juice, and a press is slower than you think. Sell 15 apple juice."
+    fresh
+    patch orchard at 0 0 size 3 3 amount 1
+    stock plank 50
+    place market 6 1 east
+    researched orchards
+    only belt picker press
+    goal deliver juice 15
+end
+puzzle orchardSquare
+    chapter "Orchard and Herd"
+    name "Orchard square"
+    about "A market in the middle of the orchard, and no carts allowed. Pickers hand apples to presses, presses hand juice to the market. Sell 80 juice."
+    fresh
+    patch orchard at 3 3 size 5 5 amount 1
+    stock plank 115
+    place market 5 5 east
+    researched orchards
+    only picker press
+    goal deliver juice 80
+    limit 7200
+end
+puzzle firstMilk
+    chapter "Orchard and Herd"
+    name "First milk"
+    about "Cows want grain to eat and water to drink. Feed a ranch and sell 40 milk."
+    fresh
+    patch pond at 0 5 size 1 1 amount 1
+    patch field at 2 1 size 1 2 amount 1
+    patch pasture at 2 6 size 1 2 amount 1
+    stock plank 70 bread 4
+    place market 5 6 east
+    researched milling dairying
+    only belt farm pump pipe ranch
+    goal deliver milk 40
+    limit 7800
+end
+puzzle farmyard
+    chapter "Orchard and Herd"
+    name "Farmyard"
+    about "Planks for the buildings and not one more. Feed two herds and churn 20 cheese."
+    fresh
+    patch field at 5 2 size 1 2 amount 1
+    patch field at 5 7 size 1 2 amount 1
+    patch pasture at 5 4 size 1 1 amount 1
+    patch pasture at 5 6 size 1 1 amount 1
+    patch pond at 3 5 size 1 1 amount 1
+    stock plank 75 bread 8
+    place market 6 5 east
+    researched milling dairying
+    only belt farm pump pipe ranch dairy
+    goal deliver cheese 20
+    limit 8400
+end
+puzzle sortingGate
+    chapter "Orchard and Herd"
+    name "Sorting gate"
+    about "Apples and grain arrive on one track. Sort them: sell 20 juice and 20 flour."
+    fresh
+    patch orchard at 2 0 size 1 2 amount 1
+    patch field at 2 4 size 1 2 amount 1
+    patch pond at 0 5 size 1 1 amount 1
+    stock plank 110 bread 2
+    place picker 2 0 east
+    place picker 2 1 east
+    place belt 3 0 south count 3
+    place belt 3 3 east count 12
+    place farm 2 4 east
+    place farm 2 5 east
+    place belt 3 5 north count 2
+    place pump 0 5 east
+    place pipe 1 4 south count 2
+    place market 15 3 east
+    researched milling orchards sorting
+    only belt sorter press mill
+    goal deliver juice 20
+    goal deliver flour 20
+    limit 7200
+end
+puzzle cowsCostBread
+    chapter "Orchard and Herd"
+    name "Cows cost bread"
+    about "A ranch costs four loaves and you have none. Bake first, then churn 15 cheese."
+    fresh
+    patch forest at 0 1 size 2 2 amount 100000
+    patch field at 4 2 size 4 1 amount 1
+    patch field at 8 4 size 1 1 amount 1
+    patch pond at 9 3 size 1 1 amount 1
+    patch pasture at 6 4 size 2 1 amount 1
+    stock plank 140
+    place market 2 3 east
+    researched milling dairying
+    only belt farm pump pipe mill bakery woodcutter ranch dairy
+    goal deliver cheese 15
+    limit 9600
+end
+puzzle fanOut
+    chapter "Orchard and Herd"
+    name "Fan out"
+    about "Six pickers fill a track faster than any press can work. A fork has three ways out: sell 100 juice."
+    fresh
+    patch orchard at 0 1 size 3 2 amount 1
+    stock plank 120
+    place market 7 3 east
+    researched orchards
+    only belt splitter picker press
+    goal deliver juice 100
+    limit 12000
+end
+puzzle breakfast
+    chapter "Orchard and Herd"
+    name "Breakfast"
+    about "A little of everything on a little farm: sell 30 bread, 20 juice and 10 cheese."
+    fresh
+    patch pond at 1 2 size 1 1 amount 1
+    patch field at 2 3 size 3 1 amount 1
+    patch pasture at 5 3 size 1 1 amount 1
+    patch forest at 2 6 size 1 1 amount 100000
+    patch orchard at 7 5 size 1 1 amount 1
+    patch orchard at 6 6 size 1 1 amount 1
+    patch orchard at 8 6 size 1 1 amount 1
+    stock plank 170 bread 4
+    place market 10 7 east
+    researched milling orchards dairying
+    only belt farm pump pipe mill bakery woodcutter picker press ranch dairy
+    goal deliver bread 30
+    goal deliver juice 20
+    goal deliver cheese 10
+    limit 9600
+end
+puzzle threeOnACart
+    chapter "Orchard and Herd"
+    name "Three on a cart"
+    about "Wood, grain and apples share one track, and you may not gather more. Sort it all out: sell 30 bread and 20 juice."
+    fresh
+    patch forest at 2 0 size 1 1 amount 100000
+    patch orchard at 2 2 size 1 2 amount 1
+    patch field at 2 5 size 1 2 amount 1
+    patch pond at 0 6 size 1 1 amount 1
+    stock plank 150 bread 4
+    place woodcutter 2 0 east
+    place picker 2 2 east
+    place picker 2 3 east
+    place farm 2 5 east
+    place farm 2 6 east
+    place pump 0 6 east
+    place pipe 1 5 south count 2
+    place belt 3 0 south count 7
+    place belt 3 7 east count 14
+    place market 17 7 east
+    researched milling orchards sorting
+    only belt splitter sorter mill bakery press
+    goal deliver bread 30
+    goal deliver juice 20
+    limit 9600
+end
+puzzle herdAndOrchard
+    chapter "Orchard and Herd"
+    name "Herd and orchard"
+    about "Bake bread to pay for orchards and dairying, then sell 20 juice and 20 cheese."
+    fresh
+    researched milling
+    goal research orchards
+    goal research dairying
+    goal deliver juice 20
+    goal deliver cheese 20
+end
+
+puzzle lastTrees
+    chapter "Lean Seasons"
+    name "The last trees"
+    about "Two trees are left, and the sawmill is eating one of them. The oven needs 30 logs: sell 60 bread."
+    fresh
+    patch forest at 2 2 size 1 1 amount 30
+    patch forest at 2 6 size 1 1 amount 14
+    patch field at 8 4 size 2 2 amount 1
+    patch pond at 11 4 size 1 1 amount 1
+    stock plank 116 wood 10
+    place woodcutter 2 2 east
+    place sawmill 3 2 east
+    place market 4 2 east
+    researched milling
+    only belt farm pump pipe mill bakery woodcutter
+    goal deliver bread 60
+end
+puzzle salvage
+    chapter "Lean Seasons"
+    name "Salvage"
+    about "Not a plank left, only an old dairy, an orchard and a kitchen nobody uses. Taking a building down pays back what it cost. Sell 40 bread."
+    fresh
+    patch pond at 1 3 size 1 1 amount 1
+    patch field at 3 2 size 1 3 amount 1
+    patch forest at 8 0 size 2 2 amount 100000
+    patch pasture at 12 5 size 2 1 amount 1
+    patch orchard at 12 1 size 2 1 amount 1
+    stock plank 89 bread 14
+    place pump 1 3 east
+    place pipe 2 3 east
+    place ranch 12 5 west
+    place dairy 13 5 west
+    place picker 12 1 north
+    place picker 13 1 north
+    place press 14 3 east
+    place kitchen 10 8 east
+    place market 7 6 east
+    researched milling orchards dairying picnics
+    only belt farm pump pipe mill bakery woodcutter
+    goal deliver bread 40
+    limit 11400
+end
+puzzle twoMouths
+    chapter "Lean Seasons"
+    name "Two mouths"
+    about "Two farms' worth of grain, and both the mill and the cows are hungry. Sell 30 bread and 10 cheese."
+    fresh
+    patch pond at 0 3 size 1 1 amount 1
+    patch pond at 6 7 size 1 1 amount 1
+    patch field at 2 2 size 1 2 amount 1
+    patch pasture at 6 5 size 1 1 amount 1
+    patch forest at 5 5 size 1 1 amount 100000
+    stock plank 120 bread 4
+    place market 5 8 east
+    researched milling dairying
+    only belt splitter farm pump pipe mill bakery woodcutter ranch dairy
+    goal deliver bread 30
+    goal deliver cheese 10
+    limit 9000
+end
+puzzle fourFaults
+    chapter "Lean Seasons"
+    name "Four faults"
+    about "This farm was put up in a hurry and nothing works. Find the four mistakes: sell 30 bread and 15 juice."
+    fresh
+    patch field at 4 4 size 2 3 amount 1
+    patch pond at 2 5 size 1 1 amount 1
+    patch forest at 6 4 size 1 1 amount 100000
+    patch orchard at 10 3 size 1 1 amount 1
+    patch orchard at 9 4 size 1 1 amount 1
+    patch orchard at 11 4 size 1 1 amount 1
+    stock plank 110
+    place pump 2 5 east
+    place pipe 3 4 east
+    place pipe 4 4 east
+    place pipe 3 6 east
+    place pipe 4 6 east
+    place farm 4 5 east
+    place farm 5 4 south
+    place farm 5 6 north
+    place mill 5 5 south
+    place bakery 6 5 east
+    place woodcutter 6 4 north
+    place belt 7 5 east count 3
+    place market 10 5 east
+    place press 10 4 north
+    place picker 10 3 south
+    place picker 9 4 east
+    place picker 11 4 west
+    researched milling orchards
+    only belt farm pump pipe mill bakery woodcutter picker press
+    goal deliver bread 30
+    goal deliver juice 15
+    limit 7200
+end
+puzzle stonyGround
+    chapter "Lean Seasons"
+    name "Stony ground"
+    about "Only every other tile of this field is soil. Sell 300 grain."
+    fresh
+    patch field at 2 2 size 1 1 amount 1
+    patch field at 4 2 size 1 1 amount 1
+    patch field at 6 2 size 1 1 amount 1
+    patch field at 3 3 size 1 1 amount 1
+    patch field at 5 3 size 1 1 amount 1
+    patch field at 7 3 size 1 1 amount 1
+    patch field at 2 4 size 1 1 amount 1
+    patch field at 4 4 size 1 1 amount 1
+    patch field at 6 4 size 1 1 amount 1
+    patch field at 3 5 size 1 1 amount 1
+    patch field at 5 5 size 1 1 amount 1
+    patch field at 7 5 size 1 1 amount 1
+    patch pond at 0 3 size 1 1 amount 1
+    stock plank 110
+    place market 9 3 east
+    only belt farm pump pipe
+    goal deliver grain 300
+end
+puzzle scaffolding
+    chapter "Lean Seasons"
+    name "Scaffolding"
+    about "Planks for one thing at a time. Bake the bread that orchards cost, learn them, then sell 10 juice. Taking a building down pays back what it cost."
+    fresh
+    patch pond at 4 4 size 1 1 amount 1
+    patch field at 6 3 size 1 1 amount 1
+    patch field at 6 5 size 1 1 amount 1
+    patch forest at 7 3 size 1 1 amount 100000
+    patch orchard at 10 4 size 1 1 amount 1
+    patch orchard at 9 3 size 1 1 amount 1
+    patch orchard at 9 5 size 1 1 amount 1
+    stock plank 73
+    place market 8 4 east
+    researched milling
+    only belt farm pump pipe mill bakery woodcutter picker press
+    goal research orchards
+    goal deliver juice 10
+    limit 12000
+end
+puzzle oldTrack
+    chapter "Lean Seasons"
+    name "The old track"
+    about "No new cart tracks today: the old one will have to do, and a building can stand in for a piece of it. Sell 40 bread."
+    fresh
+    patch pond at 0 3 size 1 1 amount 1
+    patch field at 2 4 size 4 1 amount 1
+    patch forest at 12 4 size 1 1 amount 100000
+    stock plank 111
+    place belt 0 5 east count 21
+    place market 21 5 east
+    researched milling
+    only farm pump pipe mill bakery woodcutter
+    goal deliver bread 40
+    limit 10200
+end
+puzzle theRing
+    chapter "Lean Seasons"
+    name "The ring"
+    about "A dry year: one spring, in the middle of the field. Ring it with farms and sell 600 grain."
+    fresh
+    patch field at 2 2 size 5 5 amount 1
+    patch pond at 4 4 size 1 1 amount 1
+    stock plank 160
+    place market 8 1 east
+    place market 8 7 east
+    only belt farm pump pipe
+    goal deliver grain 600
+    limit 13200
+end
+puzzle packUp
+    chapter "Lean Seasons"
+    name "Pack up"
+    about "A travelling fair: make 30 juice and 15 cheese, then take everything down. Have 100 planks, 30 juice and 15 cheese in the stock at once."
+    fresh
+    patch orchard at 6 3 size 1 1 amount 1
+    patch orchard at 5 4 size 1 1 amount 1
+    patch orchard at 7 4 size 1 1 amount 1
+    patch field at 6 8 size 1 1 amount 1
+    patch pasture at 6 7 size 1 1 amount 1
+    patch pond at 4 7 size 1 1 amount 1
+    stock plank 110 bread 4
+    place market 6 5 east
+    researched orchards dairying
+    only belt farm pump pipe picker press ranch dairy
+    goal stock plank 100
+    goal stock juice 30
+    goal stock cheese 15
+end
+puzzle hardWinter
+    chapter "Lean Seasons"
+    name "Hard winter"
+    about "Nothing built and nothing known: a bare valley, 60 planks and 20 wood. Sell 50 bread."
+    fresh
+    stock plank 60 wood 20
+    place none
+    goal deliver bread 50
+    limit 15600
+end
+
+puzzle firstBasket
+    chapter "Picnic Fair"
+    name "First basket"
+    about "Bread, cheese and juice already arrive from three sides. Put a kitchen where they meet, facing the way to the market, and pack 5 baskets."
+    fresh
+    patch pond at 0 5 size 1 1 amount 1
+    patch field at 2 5 size 1 1 amount 1
+    patch field at 3 4 size 1 1 amount 1
+    patch field at 3 6 size 1 1 amount 1
+    patch forest at 4 4 size 1 1 amount 100000
+    patch pond at 12 2 size 1 1 amount 1
+    patch field at 10 1 size 1 1 amount 1
+    patch pasture at 10 2 size 1 1 amount 1
+    patch orchard at 9 7 size 1 1 amount 1
+    patch orchard at 11 7 size 1 1 amount 1
+    patch orchard at 10 8 size 1 1 amount 1
+    stock plank 185 bread 14
+    place pump 0 5 east
+    place pipe 1 4 south count 3
+    place pipe 2 4 east
+    place pipe 2 6 east
+    place farm 2 5 east
+    place farm 3 4 south
+    place farm 3 6 north
+    place mill 3 5 east
+    place bakery 4 5 east
+    place woodcutter 4 4 south
+    place belt 5 5 east count 5
+    place pump 12 2 east
+    place pipe 11 1 south count 2
+    place farm 10 1 south
+    place ranch 10 2 south
+    place dairy 10 3 south
+    place belt 10 4 south
+    place press 10 7 north
+    place picker 9 7 east
+    place picker 11 7 west
+    place picker 10 8 north
+    place belt 10 6 north
+    place market 14 5 east
+    researched milling orchards dairying picnics
+    only belt kitchen
+    goal metric baskets 5
+end
+
+puzzle halfBuilt
+    chapter "Picnic Fair"
+    name "Half built"
+    about "The kitchen has bread and juice, but the cows are out on the far pasture. Bring their cheese in and pack 10 baskets."
+    fresh
+    patch pond at 0 5 size 1 1 amount 1
+    patch field at 2 5 size 1 1 amount 1
+    patch field at 3 4 size 1 1 amount 1
+    patch field at 3 6 size 1 1 amount 1
+    patch forest at 4 4 size 1 1 amount 100000
+    patch orchard at 9 7 size 1 1 amount 1
+    patch orchard at 11 7 size 1 1 amount 1
+    patch orchard at 10 8 size 1 1 amount 1
+    patch field at 17 0 size 1 1 amount 1
+    patch pasture at 17 1 size 1 1 amount 1
+    patch pond at 19 1 size 1 1 amount 1
+    stock plank 191 bread 14
+    place pump 0 5 east
+    place pipe 1 4 south count 3
+    place pipe 2 4 east
+    place pipe 2 6 east
+    place farm 2 5 east
+    place farm 3 4 south
+    place farm 3 6 north
+    place mill 3 5 east
+    place bakery 4 5 east
+    place woodcutter 4 4 south
+    place belt 5 5 east count 5
+    place press 10 7 north
+    place picker 9 7 east
+    place picker 11 7 west
+    place picker 10 8 north
+    place belt 10 6 north
+    place kitchen 10 5 east
+    place belt 11 5 east count 3
+    place market 14 5 east
+    researched milling orchards dairying picnics
+    only belt farm pump pipe ranch dairy
+    goal metric baskets 10
+    limit 7800
+end
+
+puzzle picnicLicence
+    chapter "Picnic Fair"
+    name "Picnic licence"
+    about "Learning picnics costs 60 bread, 20 juice and 10 cheese. The bakery is running: add the rest and learn it."
+    fresh
+    patch pond at 0 5 size 1 1 amount 1
+    patch field at 2 5 size 1 1 amount 1
+    patch field at 3 4 size 1 1 amount 1
+    patch field at 3 6 size 1 1 amount 1
+    patch forest at 4 4 size 1 1 amount 100000
+    patch pond at 12 2 size 1 1 amount 1
+    patch field at 10 1 size 1 1 amount 1
+    patch pasture at 10 2 size 1 1 amount 1
+    patch orchard at 9 7 size 1 1 amount 1
+    patch orchard at 11 7 size 1 1 amount 1
+    patch orchard at 10 8 size 1 1 amount 1
+    stock plank 160
+    place pump 0 5 east
+    place pipe 1 4 south count 3
+    place pipe 2 4 east
+    place pipe 2 6 east
+    place farm 2 5 east
+    place farm 3 4 south
+    place farm 3 6 north
+    place mill 3 5 east
+    place bakery 4 5 east
+    place woodcutter 4 4 south
+    place belt 5 5 east count 5
+    place market 10 5 east
+    researched milling orchards dairying
+    only belt farm pump pipe mill bakery woodcutter picker press ranch dairy
+    goal research picnics
+    limit 12000
+end
+
+puzzle picnicInABox
+    chapter "Picnic Fair"
+    name "Picnic in a box"
+    about "No cart tracks: every building hands its goods straight to the next, and the kitchen takes from three sides. Pack 10 baskets."
+    fresh
+    patch field at 7 10 size 1 1 amount 1
+    patch field at 8 9 size 1 1 amount 1
+    patch field at 8 11 size 1 1 amount 1
+    patch field at 10 7 size 1 1 amount 1
+    patch forest at 9 9 size 1 1 amount 100000
+    patch pasture at 10 8 size 1 1 amount 1
+    patch orchard at 9 11 size 1 1 amount 1
+    patch orchard at 11 11 size 1 1 amount 1
+    patch orchard at 10 12 size 1 1 amount 1
+    patch pond at 6 10 size 1 1 amount 1
+    patch pond at 12 8 size 1 1 amount 1
+    stock plank 180 bread 14
+    place market 11 10 east
+    researched milling orchards dairying picnics
+    only farm pump pipe mill bakery woodcutter ranch dairy picker press kitchen
+    goal metric baskets 10
+    limit 10200
+end
+
+puzzle villageFair
+    chapter "Picnic Fair"
+    name "Village fair"
+    about "Everything is known, nothing is built: bring bread, juice and cheese across the valley to one kitchen and pack 10 baskets."
+    fresh
+    researched milling orchards dairying picnics
+    goal metric baskets 10
+end
+
+puzzle sortTheHamper
+    chapter "Picnic Fair"
+    name "Sort the hamper"
+    about "Bread, cheese and juice come mixed on one track. Sort them into the kitchen's three sides, and give what it can't use a way to the market. Pack 10 baskets."
+    fresh
+    patch pond at 0 5 size 1 1 amount 1
+    patch field at 2 5 size 1 1 amount 1
+    patch field at 3 4 size 1 1 amount 1
+    patch field at 3 6 size 1 1 amount 1
+    patch forest at 4 4 size 1 1 amount 100000
+    patch pond at 12 2 size 1 1 amount 1
+    patch field at 10 1 size 1 1 amount 1
+    patch pasture at 10 2 size 1 1 amount 1
+    patch orchard at 9 7 size 1 1 amount 1
+    patch orchard at 11 7 size 1 1 amount 1
+    patch orchard at 10 8 size 1 1 amount 1
+    stock plank 245 bread 18
+    place pump 0 5 east
+    place pipe 1 4 south count 3
+    place pipe 2 4 east
+    place pipe 2 6 east
+    place farm 2 5 east
+    place farm 3 4 south
+    place farm 3 6 north
+    place mill 3 5 east
+    place bakery 4 5 east
+    place woodcutter 4 4 south
+    place belt 5 5 east count 5
+    place pump 12 2 east
+    place pipe 11 1 south count 2
+    place farm 10 1 south
+    place ranch 10 2 south
+    place dairy 10 3 south
+    place belt 10 4 south
+    place press 10 7 north
+    place picker 9 7 east
+    place picker 11 7 west
+    place picker 10 8 north
+    place belt 10 6 north
+    place belt 10 5 east count 12
+    place market 22 5 east
+    researched milling orchards dairying picnics
+    researched sorting
+    only belt splitter sorter kitchen
+    goal metric baskets 10
+    limit 9600
+end
+
+puzzle longRoad
+    chapter "Picnic Fair"
+    name "The long road"
+    about "Only milling is known. Learn orchards, dairying and picnics in turn, paying with what you make, and pack 5 baskets."
+    fresh
+    patch field at 7 10 size 1 1 amount 1
+    patch field at 8 9 size 1 1 amount 1
+    patch field at 8 11 size 1 1 amount 1
+    patch field at 10 7 size 1 1 amount 1
+    patch forest at 9 9 size 1 1 amount 100000
+    patch pasture at 10 8 size 1 1 amount 1
+    patch orchard at 9 11 size 1 1 amount 1
+    patch orchard at 11 11 size 1 1 amount 1
+    patch orchard at 10 12 size 1 1 amount 1
+    patch pond at 6 10 size 1 1 amount 1
+    patch pond at 12 8 size 1 1 amount 1
+    stock plank 300
+    place market 11 10 east
+    researched milling
+    goal metric baskets 5
+end
+
+puzzle soldOut
+    chapter "Picnic Fair"
+    name "Sold out"
+    about "The kitchen eats everything it is given, but the stalls want 40 bread and 20 juice of their own. Pack 8 baskets too."
+    fresh
+    patch pond at 0 5 size 1 1 amount 1
+    patch field at 2 5 size 1 1 amount 1
+    patch field at 3 4 size 1 1 amount 1
+    patch field at 3 6 size 1 1 amount 1
+    patch forest at 4 4 size 1 1 amount 100000
+    patch pond at 12 2 size 1 1 amount 1
+    patch field at 10 1 size 1 1 amount 1
+    patch pasture at 10 2 size 1 1 amount 1
+    patch orchard at 9 7 size 1 1 amount 1
+    patch orchard at 11 7 size 1 1 amount 1
+    patch orchard at 10 8 size 1 1 amount 1
+    stock plank 209 bread 14
+    place pump 0 5 east
+    place pipe 1 4 south count 3
+    place pipe 2 4 east
+    place pipe 2 6 east
+    place farm 2 5 east
+    place farm 3 4 south
+    place farm 3 6 north
+    place mill 3 5 east
+    place bakery 4 5 east
+    place woodcutter 4 4 south
+    place belt 5 5 east count 5
+    place pump 12 2 east
+    place pipe 11 1 south count 2
+    place farm 10 1 south
+    place ranch 10 2 south
+    place dairy 10 3 south
+    place belt 10 4 south
+    place press 10 7 north
+    place picker 9 7 east
+    place picker 11 7 west
+    place picker 10 8 north
+    place belt 10 6 north
+    place kitchen 10 5 east
+    place belt 11 5 east count 3
+    place market 14 5 east
+    researched milling orchards dairying picnics
+    only belt splitter market
+    goal metric baskets 8
+    goal deliver bread 40
+    goal deliver juice 20
+    limit 12600
+end
+
+puzzle thinHarvest
+    chapter "Picnic Fair"
+    name "Thin harvest"
+    about "One tile of farmland must feed both the mill and the cows. Pack 10 baskets."
+    fresh
+    patch field at 4 5 size 1 1 amount 1
+    patch forest at 7 4 size 1 1 amount 100000
+    patch pasture at 8 3 size 1 1 amount 1
+    patch orchard at 7 6 size 1 1 amount 1
+    patch orchard at 9 6 size 1 1 amount 1
+    patch orchard at 8 7 size 1 1 amount 1
+    patch pond at 3 6 size 1 1 amount 1
+    patch pond at 10 3 size 1 1 amount 1
+    stock plank 170 bread 14
+    place market 9 5 east
+    researched milling orchards dairying picnics
+    only belt splitter farm pump pipe mill bakery woodcutter ranch dairy picker press kitchen
+    goal metric baskets 10
+end
+
+puzzle grandPicnic
+    chapter "Picnic Fair"
+    name "Grand picnic"
+    about "The whole county is coming. One kitchen packs a basket every three seconds: pack 30 baskets in time."
+    fresh
+    patch field at 7 10 size 1 1 amount 1
+    patch field at 8 9 size 1 1 amount 1
+    patch field at 8 11 size 1 1 amount 1
+    patch field at 10 7 size 1 1 amount 1
+    patch forest at 9 9 size 1 1 amount 100000
+    patch pasture at 10 8 size 1 1 amount 1
+    patch orchard at 9 11 size 1 1 amount 1
+    patch orchard at 11 11 size 1 1 amount 1
+    patch orchard at 10 12 size 1 1 amount 1
+    patch pond at 6 10 size 1 1 amount 1
+    patch pond at 12 8 size 1 1 amount 1
+    patch field at 15 10 size 1 1 amount 1
+    patch field at 16 9 size 1 1 amount 1
+    patch field at 16 11 size 1 1 amount 1
+    patch field at 18 7 size 1 1 amount 1
+    patch forest at 17 9 size 1 1 amount 100000
+    patch pasture at 18 8 size 1 1 amount 1
+    patch orchard at 17 11 size 1 1 amount 1
+    patch orchard at 19 11 size 1 1 amount 1
+    patch orchard at 18 12 size 1 1 amount 1
+    patch pond at 14 10 size 1 1 amount 1
+    patch pond at 20 8 size 1 1 amount 1
+    stock plank 360 bread 28
+    place market 11 10 east
+    place market 19 10 east
+    researched milling orchards dairying picnics
+    goal metric baskets 30
+    limit 14400
+end

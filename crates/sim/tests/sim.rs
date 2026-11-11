@@ -1726,8 +1726,8 @@ fn damaged_or_foreign_saves_are_refused_without_panicking() {
     longer.push(0);
     assert!(matches!(World::load(&pack, &longer), Err(LoadError::Damaged(_))));
     let mut newer = bytes.clone();
-    newer[4] = 3;
-    assert_eq!(World::load(&pack, &newer).unwrap_err(), LoadError::Version(3));
+    newer[4] = 4;
+    assert_eq!(World::load(&pack, &newer).unwrap_err(), LoadError::Version(4));
     let other = Pack::parse(&fuzz_pack_text().replace("rate 7", "rate 8")).unwrap();
     assert_eq!(World::load(&other, &bytes).unwrap_err(), LoadError::OtherPack);
     let renamed = Pack::parse(&format!("{}\ndescribe ore \"Rocks.\"", fuzz_pack_text())).unwrap();
@@ -1941,4 +1941,57 @@ fn a_puzzle_needs_goals_and_only_a_fresh_one_has_a_map() {
         let error = Pack::parse(&format!("{base}{text}")).unwrap_err();
         assert!(error.message.contains(message), "{text}: {error}");
     }
+}
+
+#[test]
+fn a_unit_never_sends_back_out_an_input_another_of_its_recipes_makes() {
+    // The forge smelts ore into plates, or forges plates into widgets: plates
+    // fed in to be forged must stay in, and only what it made comes out.
+    let pack = Pack::parse(
+        r#"
+        resource ore
+        resource plate
+        resource widget
+        layer field
+        unit source placeOn field
+        unit forge
+        unit depot stores shared
+        unitRule dig
+            appliesTo source
+            rate 5
+            map field atLeast 1
+            local plate out 1
+        end
+        unitRule smelt
+            appliesTo forge
+            rate 10
+            local ore in 1
+            local plate out 1
+        end
+        unitRule shape
+            appliesTo forge
+            rate 10
+            local plate in 2
+            local widget out 1
+        end
+        patch field at 0 0 size 1 1 amount 1
+        "#,
+    )
+    .unwrap();
+    let (mut world, _) = World::start(&pack, Start::Free);
+    let commands = [
+        unit(0, 0, UnitId(0)),
+        place(1, 0, Dir::East, Building::Belt(BeltId(0))),
+        unit(2, 0, UnitId(1)),
+        place(3, 0, Dir::East, Building::Belt(BeltId(0))),
+        unit(4, 0, UnitId(2)),
+    ];
+    run(&mut world, &commands, 600);
+    let (plate, widget) = (ItemId(1), ItemId(2));
+    assert_eq!(world.stats(plate).delivered, 0, "plates leaked through the forge");
+    assert!(world.stats(widget).delivered > 20, "{:?} {:?}", world.stats(plate), world.stats(widget));
+    assert_conserved(&world);
+    // And it survives a save.
+    let loaded = World::load(&pack, &world.save()).unwrap();
+    assert_eq!(loaded.state_hash(), world.state_hash());
 }

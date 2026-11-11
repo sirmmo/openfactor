@@ -302,3 +302,981 @@ puzzle trafficSpike
     goal metric served 400
     limit 18000
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/network.sol.
+
+# Localhost: before any research, one program does everything.
+puzzle ping
+    chapter "Localhost"
+    name "Ping"
+    about "Before anything clever: a gateway on the users, a link, and the internet. Echo 30 requests straight back out."
+    fresh
+    patch users at 0 3 size 2 3 amount 1
+    stock response 40
+    place none
+    only belt gateway internet
+    goal deliver request 30
+end
+puzzle itWorks
+    chapter "Localhost"
+    name "It works"
+    about "A monolith turns requests into responses, with compute from a rack on its switch. Put one between the users and the internet and serve 15."
+    fresh
+    patch users at 0 3 size 2 3 amount 1
+    stock response 75
+    place switch 6 7 east
+    place rack 6 8 east
+    only belt gateway monolith internet
+    goal deliver response 15
+end
+puzzle lastMile
+    chapter "Localhost"
+    name "The last mile"
+    about "The users are in the far corner and the budget only just covers the cable. Deliver 40 responses."
+    fresh
+    patch users at 0 0 size 2 2 amount 1
+    stock response 100
+    place switch 22 13 east
+    place rack 22 14 east
+    place internet 24 12 east
+    only belt gateway monolith
+    goal deliver response 40
+    limit 10200
+end
+puzzle switchedFabric
+    chapter "Localhost"
+    name "Switched fabric"
+    about "The rack is across the room and there is money for three switches, not one more. Bring compute to the monolith and serve 30."
+    fresh
+    patch users at 0 3 size 2 2 amount 1
+    stock response 69
+    place gateway 1 4 east
+    place monolith 2 4 east
+    place internet 3 4 east
+    place rack 12 14 east
+    only switch
+    goal deliver response 30
+end
+puzzle healthChecks
+    chapter "Localhost"
+    name "Health checks"
+    about "Three users' worth of traffic. Monitoring wants 90 requests echoed, customers want 60 responses: share them out."
+    fresh
+    patch users at 0 2 size 1 3 amount 1
+    stock response 120
+    place switch 2 5 east
+    place rack 2 6 east
+    only belt gateway monolith internet
+    goal deliver request 90
+    goal deliver response 60
+end
+puzzle insideTheReach
+    chapter "Localhost"
+    name "Inside the reach"
+    about "One switch, fixed in the middle of the room: every monolith must stand within its reach. Serve 100 responses."
+    fresh
+    patch users at 0 0 size 2 12 amount 1
+    stock response 165
+    place switch 10 6 east
+    place rack 10 7 east
+    only belt gateway monolith internet
+    goal deliver response 100
+    limit 8400
+end
+puzzle chokePoint
+    chapter "Localhost"
+    name "Choke point"
+    about "Old cabling walls off the users, with a single gap. A link can only feed one monolith, so bring the compute over to them. Serve 150."
+    fresh
+    patch users at 0 0 size 2 13 amount 1
+    stock response 160
+    place belt 9 12 north count 6
+    place belt 9 5 north count 6
+    place internet 14 6 east
+    place switch 15 6 east
+    place rack 16 7 east
+    only belt gateway monolith switch
+    goal deliver response 150
+    limit 10800
+end
+puzzle branchOffices
+    chapter "Localhost"
+    name "Branch offices"
+    about "Three offices with one user each, far apart, and no data center yet. Bring all three online and serve 200 responses."
+    fresh
+    patch users at 0 0 size 1 1 amount 1
+    patch users at 0 14 size 1 1 amount 1
+    patch users at 24 0 size 1 1 amount 1
+    stock response 150
+    place none
+    only belt gateway monolith internet rack switch
+    goal deliver response 200
+    limit 17400
+end
+puzzle breakEven
+    chapter "Localhost"
+    name "Break even"
+    about "Seventy responses in the bank, barely one of everything. Grow, then stop spending: hold 300 responses at once."
+    fresh
+    patch users at 0 0 size 2 6 amount 1
+    stock response 70
+    place none
+    only belt gateway monolith internet rack switch
+    goal stock response 300
+    limit 24600
+end
+puzzle frontPage
+    chapter "Localhost"
+    name "Front page"
+    about "The site made the front page. A strip of users, a small budget and monoliths only: serve 400 responses before the crowd moves on."
+    fresh
+    patch users at 0 0 size 1 10 amount 1
+    stock response 120
+    place none
+    only belt gateway monolith internet rack switch
+    goal metric served 400
+    limit 15000
+end
+
+# Microservices: the monolith split into parts that each do one thing.
+puzzle malformed
+    chapter "Microservices"
+    name "Malformed"
+    about "The new pipeline served two pages and froze: one request in four is malformed, and the parser has nowhere to put the error. Serve 40 responses."
+    fresh
+    patch users   at 0 4 size 2 1 amount 1
+    patch storage at 5 4 size 1 1 amount 1
+    stock response 145
+    researched microservices
+    place gateway 1 4 east
+    place parser 2 4 east
+    place router 3 4 east
+    place belt 4 4 east
+    place database 5 4 east
+    place renderer 6 4 east
+    place internet 7 4 east
+    place switch 4 6 east
+    place rack 4 7 east
+    only logger
+    goal metric served 40
+end
+puzzle decomposed
+    chapter "Microservices"
+    name "Decomposed"
+    about "No monoliths this time. Parse, route, query and render: build the whole pipeline and serve 60 responses."
+    fresh
+    patch users   at 0 2 size 2 3 amount 1
+    patch storage at 8 2 size 1 3 amount 1
+    stock response 165
+    researched microservices
+    place none
+    only belt gateway parser router database renderer logger internet rack switch
+    goal metric served 60
+    limit 7800
+end
+puzzle nowhereToLog
+    chapter "Microservices"
+    name "Nowhere to log"
+    about "The partner only wants parsed JSON, and there is no budget for a log collector. Deliver 90 JSON; the errors still have to go somewhere."
+    fresh
+    patch users at 0 3 size 2 2 amount 1
+    stock response 75
+    researched microservices
+    place none
+    only belt gateway parser internet rack switch
+    goal deliver json 90
+end
+puzzle dataExport
+    chapter "Microservices"
+    name "Data export"
+    about "Analytics wants raw rows, not pages, and there is a single tile of storage. Keep its database busy: export 120 rows."
+    fresh
+    patch users   at 0 0 size 2 8 amount 1
+    patch storage at 9 4 size 1 1 amount 1
+    stock response 200
+    researched microservices
+    place none
+    only belt gateway parser router database logger internet rack switch
+    goal deliver rows 120
+    limit 9600
+end
+puzzle outage
+    chapter "Microservices"
+    name "Outage"
+    about "Last night's deploy broke the pipeline in three places. Find them, fix them and serve 50 responses."
+    fresh
+    patch users   at 0 4 size 2 1 amount 1
+    patch storage at 7 4 size 1 1 amount 1
+    stock response 160
+    researched microservices
+    place gateway 1 4 east
+    place parser 2 4 east
+    place logger 2 3 east
+    place router 3 4 north
+    place belt 4 4 east
+    place belt 5 4 west
+    place belt 6 4 east
+    place database 7 4 east
+    place renderer 8 4 east
+    place internet 9 4 east
+    place switch 4 6 east
+    place rack 4 7 east
+    goal metric served 50
+end
+puzzle hotAisle
+    chapter "Microservices"
+    name "Hot aisle"
+    about "Four pipelines and no racks yet. They need two racks' worth of compute, and racks side by side overheat. Serve 400 responses."
+    fresh
+    patch users   at 0 1 size 2 8 amount 1
+    patch storage at 4 1 size 1 8 amount 1
+    stock response 516
+    researched microservices
+    place switch 3 3 east
+    place switch 3 7 east
+    place gateway 1 2 east
+    place parser 2 2 east
+    place logger 2 1 east
+    place router 3 2 east
+    place database 4 2 east
+    place renderer 5 2 east
+    place internet 6 2 east
+    place gateway 1 4 east
+    place parser 2 4 east
+    place logger 2 3 east
+    place router 3 4 east
+    place database 4 4 east
+    place renderer 5 4 east
+    place internet 6 4 east
+    place gateway 1 6 east
+    place parser 2 6 east
+    place logger 2 5 east
+    place router 3 6 east
+    place database 4 6 east
+    place renderer 5 6 east
+    place internet 6 6 east
+    place gateway 1 8 east
+    place parser 2 8 east
+    place logger 2 7 east
+    place router 3 8 east
+    place database 4 8 east
+    place renderer 5 8 east
+    place internet 6 8 east
+    only rack switch
+    goal metric served 400
+    limit 8400
+end
+puzzle roundTrip
+    chapter "Microservices"
+    name "Round trip"
+    about "The users are here, the storage is across the room, and the responses have to come all the way back. Serve 80."
+    fresh
+    patch users   at 0 0 size 2 4 amount 1
+    patch storage at 24 7 size 2 2 amount 1
+    stock response 222
+    researched microservices
+    place internet 2 8 east
+    place switch 4 4 east
+    place rack 4 5 east
+    only belt gateway parser router database renderer logger rack switch
+    goal metric served 80
+    limit 10800
+end
+puzzle auditTrail
+    chapter "Microservices"
+    name "Audit trail"
+    about "Security wants 150 errors in the logs, and the budget buys one parser. Feed it from every user you have."
+    fresh
+    patch users at 0 2 size 1 3 amount 1
+    stock response 105
+    researched microservices
+    place switch 4 5 east
+    place rack 5 6 east
+    only belt gateway parser logger internet
+    goal metric logged 150
+    limit 15000
+end
+puzzle migration
+    chapter "Microservices"
+    name "Migration"
+    about "Two monoliths keep the lights on. Earn enough to research microservices, then build a pipeline that makes 60 rows."
+    fresh
+    patch users   at 0 0 size 2 6 amount 1
+    patch storage at 8 6 size 2 2 amount 1
+    stock response 126
+    place gateway 1 1 east
+    place monolith 2 1 east
+    place belt 3 1 south count 2
+    place gateway 1 3 east
+    place monolith 2 3 east
+    place belt 3 3 east
+    place internet 4 3 east
+    place switch 5 1 east
+    place rack 6 1 east
+    goal research microservices
+    goal make rows 60
+    limit 19800
+end
+puzzle production
+    chapter "Microservices"
+    name "Production"
+    about "A long room with users along one wall and storage along the other. Build out, keep the racks apart, and serve 600 responses."
+    fresh
+    patch users   at 0 0 size 2 12 amount 1
+    patch storage at 10 0 size 1 12 amount 1
+    stock response 220
+    researched microservices
+    place none
+    only belt gateway parser router database renderer logger internet rack switch
+    goal metric served 600
+    limit 18600
+end
+
+# Traffic control: load balancers, firewalls and message queues.
+puzzle roundRobin
+    chapter "Traffic control"
+    name "Round robin"
+    about "One user, one gateway, and monoliths too slow to keep up with it. Share its requests out with a load balancer and serve 90."
+    fresh
+    patch users at 0 5 size 1 1 amount 1
+    stock response 125
+    researched loadBalancing
+    place gateway 0 5 east
+    place switch 1 8 east
+    place rack 0 9 east
+    only belt balancer monolith internet
+    goal metric served 90
+    limit 9000
+end
+puzzle crossedWires
+    chapter "Traffic control"
+    name "Crossed wires"
+    about "Someone wired the parser's errors into the router's line, and the router chokes on the first one. Sort the traffic and serve 40 responses."
+    fresh
+    patch users   at 0 4 size 2 1 amount 1
+    patch storage at 6 4 size 1 1 amount 1
+    stock response 154
+    researched microservices loadBalancing
+    place gateway 1 4 east
+    place parser 2 4 east
+    place belt 2 3 east
+    place belt 3 3 south
+    place belt 3 4 east
+    place belt 4 4 east
+    place router 5 4 east
+    place database 6 4 east
+    place renderer 7 4 east
+    place internet 8 4 east
+    place switch 5 6 east
+    place rack 5 7 east
+    only firewall logger
+    goal metric served 40
+end
+puzzle renderFarm
+    chapter "Traffic control"
+    name "Render farm"
+    about "Two pipelines feed one database, which answers faster than any one renderer can draw. Finish the back end and serve 240 responses."
+    fresh
+    patch users   at 0 0 size 2 8 amount 1
+    patch storage at 9 4 size 1 1 amount 1
+    stock response 240
+    researched microservices loadBalancing
+    place gateway 1 4 east
+    place parser 2 4 east
+    place logger 2 3 east
+    place router 3 4 east
+    place belt 4 4 east count 5
+    place gateway 1 6 east
+    place parser 2 6 east
+    place logger 2 5 east
+    place router 3 6 east
+    place belt 4 6 east count 5
+    place belt 9 6 north count 2
+    place database 9 4 east
+    place switch 6 5 east
+    place rack 7 5 east
+    only belt balancer renderer internet switch
+    goal metric served 240
+    limit 12600
+end
+puzzle underTheWire
+    chapter "Traffic control"
+    name "Under the wire"
+    about "A live echo line runs right across the room, and it must keep running. Tunnel under it with message queues: echo 100 requests and serve 80 responses."
+    fresh
+    patch users   at 0 3 size 2 3 amount 1
+    patch users   at 10 14 size 1 1 amount 1
+    patch storage at 16 3 size 1 3 amount 1
+    stock response 211
+    researched microservices loadBalancing messaging
+    place gateway 10 14 north
+    place belt 10 13 north count 13
+    place internet 10 0 east
+    only belt queue gateway parser router database renderer logger internet rack switch
+    goal deliver request 100
+    goal metric served 80
+    limit 10800
+end
+puzzle backlog
+    chapter "Traffic control"
+    name "Backlog"
+    about "Research message queues against the clock. They need load balancing first, and 40 rows the pipeline is busy rendering."
+    fresh
+    patch users   at 0 3 size 2 3 amount 1
+    patch storage at 5 3 size 1 3 amount 1
+    stock response 160
+    researched microservices
+    place gateway 1 4 east
+    place parser 2 4 east
+    place logger 2 3 east
+    place router 3 4 east
+    place belt 4 4 east
+    place database 5 4 east
+    place belt 6 4 east
+    place renderer 7 4 east
+    place internet 8 4 east
+    place switch 4 6 east
+    place rack 4 7 east
+    goal research messaging
+    limit 22200
+end
+puzzle multiplex
+    chapter "Traffic control"
+    name "Multiplexing"
+    about "A wall of old pillars with a single gap. Send JSON and errors through it on one link, sort them on the far side, serve 100 responses and log 40 errors."
+    fresh
+    patch users   at 0 0 size 2 12 amount 1
+    patch storage at 8 5 size 1 1 amount 1
+    stock response 258
+    researched microservices loadBalancing stack
+    place mount 3 4 north count 11
+    place mount 3 6 south count 11
+    only belt gateway parser router database renderer logger firewall balancer internet rack switch
+    goal metric served 100
+    goal metric logged 40
+end
+puzzle apiAndSite
+    chapter "Traffic control"
+    name "API and site"
+    about "One user's traffic, two customers: the partner API wants 60 JSON, the website 60 responses. Share the parsed stream between them."
+    fresh
+    patch users   at 0 4 size 1 1 amount 1
+    patch storage at 7 4 size 1 1 amount 1
+    stock response 165
+    researched microservices loadBalancing
+    place switch 5 7 east
+    place rack 5 8 east
+    only belt gateway parser router database renderer logger balancer firewall internet switch
+    goal deliver json 60
+    goal metric served 60
+    limit 15600
+end
+puzzle serverRoom
+    chapter "Traffic control"
+    name "The server room"
+    about "Five rows of old hardware stand between the users and the storage. Queues reach eight tiles; switches can stand on top. Serve 80 responses."
+    fresh
+    patch users   at 0 6 size 2 4 amount 1
+    patch storage at 14 7 size 2 2 amount 1
+    stock response 562
+    researched microservices loadBalancing messaging stack
+    place mount 6 0 south count 18
+    place mount 7 0 south count 18
+    place mount 8 0 south count 18
+    place mount 9 0 south count 18
+    place mount 10 0 south count 18
+    place internet 3 9 east
+    place switch 3 11 east
+    place rack 4 12 east
+    only belt queue gateway parser router database renderer logger rack switch
+    goal metric served 80
+end
+puzzle fanInFanOut
+    chapter "Traffic control"
+    name "Fan in, fan out"
+    about "Three lone users in three corners, and money for one pipeline, not three. Gather their requests, share the work out again and serve 240."
+    fresh
+    patch users   at 0 0 size 1 1 amount 1
+    patch users   at 0 10 size 1 1 amount 1
+    patch users   at 2 12 size 1 1 amount 1
+    patch storage at 7 5 size 1 1 amount 1
+    patch storage at 5 7 size 1 1 amount 1
+    stock response 280
+    researched microservices loadBalancing
+    place none
+    only belt gateway parser router database renderer logger balancer firewall internet rack switch
+    goal metric served 240
+    limit 13200
+end
+puzzle peakHour
+    chapter "Traffic control"
+    name "Peak hour"
+    about "Two users' worth of traffic and the busiest hour of the year. Waste no request: serve 800 responses."
+    fresh
+    patch users at 0 5 size 1 2 amount 1
+    patch storage at 12 0 size 2 12 amount 1
+    stock response 200
+    researched microservices loadBalancing messaging
+    place none
+    goal metric served 800
+    limit 22800
+end
+
+# Keys and caches: answering from memory, and trusting signed requests.
+puzzle cacheHit
+    chapter "Keys and caches"
+    name "Cache hit"
+    about "There is no storage anywhere on this map, but a cache answers queries from memory. Finish the pipeline and serve 60 responses."
+    fresh
+    patch users at 0 4 size 2 1 amount 1
+    stock response 160 rows 30
+    researched microservices caching
+    place gateway 1 4 east
+    place parser 2 4 east
+    place logger 2 3 east
+    place router 3 4 east
+    place internet 7 4 east
+    place switch 4 6 east
+    place rack 4 7 east
+    only belt cache renderer
+    goal metric served 60
+end
+puzzle signedIn
+    chapter "Keys and caches"
+    name "Signed in"
+    about "These clients sign every request, so skip the parser: the auth service hands out tokens, and a signed request is worth two queries. Serve 200 responses."
+    fresh
+    patch users   at 0 4 size 1 1 amount 1
+    patch storage at 5 4 size 1 1 amount 1
+    stock response 200 rows 20
+    researched microservices loadBalancing authentication
+    place switch 4 6 east
+    place rack 4 7 east
+    only belt gateway auth router database renderer balancer internet
+    goal metric served 200
+    limit 12600
+end
+puzzle zeroCopy
+    chapter "Keys and caches"
+    name "Zero copy"
+    about "The budget covers the services and not one link more. Every service has to hand its work straight to the next. Serve 100 responses."
+    fresh
+    patch users at 0 4 size 1 1 amount 1
+    stock response 160 rows 50
+    researched microservices caching authentication
+    place none
+    only gateway auth router cache renderer internet rack switch
+    goal metric served 100
+end
+puzzle coldCache
+    chapter "Keys and caches"
+    name "Cold cache"
+    about "One tile of storage, far away, and caches cost rows you don't have. Export rows from its database to pay for caches, then serve 300 responses."
+    fresh
+    patch users   at 0 0 size 2 10 amount 1
+    patch storage at 12 1 size 1 1 amount 1
+    stock response 300
+    researched microservices caching
+    place none
+    only belt gateway parser router database cache renderer logger internet rack switch
+    goal metric served 300
+    limit 17400
+end
+puzzle bottleneck
+    chapter "Keys and caches"
+    name "Bottleneck"
+    about "Three pipelines, one database, one renderer, two responses a second. Find where the traffic jams, widen it, and serve 600."
+    fresh
+    patch users   at 0 2 size 2 5 amount 1
+    patch storage at 9 4 size 1 1 amount 1
+    stock response 370 rows 30
+    researched microservices loadBalancing caching
+    place gateway 1 2 east
+    place parser 2 2 east
+    place logger 2 1 east
+    place router 3 2 east
+    place belt 4 2 east count 5
+    place belt 9 2 south count 2
+    place gateway 1 4 east
+    place parser 2 4 east
+    place logger 2 3 east
+    place router 3 4 east
+    place belt 4 4 east count 5
+    place gateway 1 6 east
+    place parser 2 6 east
+    place logger 2 5 east
+    place router 3 6 east
+    place belt 4 6 east count 5
+    place belt 9 6 north count 2
+    place database 9 4 east
+    place belt 10 4 east
+    place renderer 11 4 east
+    place internet 12 4 east
+    place switch 5 3 east
+    place switch 5 5 east
+    place switch 8 5 east
+    place rack 6 8 east
+    only belt balancer cache renderer database rack switch
+    goal metric served 600
+    limit 15600
+end
+puzzle edgeCache
+    chapter "Keys and caches"
+    name "Edge"
+    about "Three lone users, far apart, no storage, and rows for just two caches. Serve 300 responses: two of them will have to share."
+    fresh
+    patch users at 2 0 size 1 1 amount 1
+    patch users at 2 14 size 1 1 amount 1
+    patch users at 24 7 size 1 1 amount 1
+    stock response 420 rows 60
+    researched microservices loadBalancing caching
+    place internet 13 7 east
+    only belt gateway parser router cache renderer logger balancer internet rack switch
+    goal metric served 300
+    limit 13200
+end
+puzzle sessionStore
+    chapter "Keys and caches"
+    name "Session store"
+    about "Rows are worth keeping too. Hold 120 rows and 250 responses in the stock at the same time."
+    fresh
+    patch users   at 0 0 size 2 6 amount 1
+    patch storage at 8 0 size 1 6 amount 1
+    stock response 150
+    researched microservices loadBalancing
+    place none
+    only belt gateway parser router database renderer logger balancer firewall internet rack switch
+    goal stock rows 120
+    goal stock response 250
+    limit 25800
+end
+puzzle roadmap
+    chapter "Keys and caches"
+    name "Roadmap"
+    about "Research both caching and authentication against the clock. One wants rows, the other JSON, both want responses."
+    fresh
+    patch users   at 0 2 size 2 6 amount 1
+    patch storage at 6 2 size 1 6 amount 1
+    stock response 700
+    researched microservices
+    place gateway 1 3 east
+    place parser 2 3 east
+    place logger 2 2 east
+    place router 3 3 east
+    place belt 4 3 east count 2
+    place database 6 3 east
+    place renderer 7 3 east
+    place internet 8 3 east
+    place switch 4 1 east
+    place rack 4 0 east
+    goal research caching
+    goal research authentication
+    limit 15600
+end
+puzzle thunderingHerd
+    chapter "Keys and caches"
+    name "Thundering herd"
+    about "Two users' worth of signed traffic and one cache to answer it all. Keep it full, keep the racks cool, serve 600 responses."
+    fresh
+    patch users at 0 3 size 1 2 amount 1
+    stock response 380 rows 70
+    researched microservices loadBalancing caching authentication
+    place none
+    only belt gateway auth router cache renderer balancer internet rack switch
+    goal metric served 600
+    limit 16800
+end
+puzzle blackFriday
+    chapter "Keys and caches"
+    name "Black Friday"
+    about "Two crowds of shoppers at opposite ends of the hall. Everything you know, as fast as it will go: serve 1500 responses."
+    fresh
+    patch users at 0 3 size 1 2 amount 1
+    patch users at 0 13 size 1 2 amount 1
+    stock response 400 rows 140
+    researched microservices loadBalancing caching authentication messaging
+    place none
+    goal metric served 1500
+    limit 22800
+end
+
+# Up the stack: four layers to build on, and lifts between them.
+puzzle secondFloor
+    chapter "Up the stack"
+    name "Second floor"
+    about "The ground floor is full of other people's hardware. Lift the requests upstairs and serve 30 responses from up there."
+    fresh
+    patch users at 4 4 size 1 1 amount 1
+    stock response 410
+    researched loadBalancing messaging stack
+    place mount 0 0 east count 9
+    place mount 0 1 east count 9
+    place mount 0 2 east count 9
+    place mount 0 3 east count 9
+    place mount 0 5 east count 9
+    place mount 0 6 east count 9
+    place mount 0 7 east count 9
+    place mount 0 8 east count 9
+    place mount 0 4 east count 4
+    place mount 6 4 east count 3
+    place rack 10 4 east
+    only up belt gateway monolith internet switch
+    goal metric served 30
+end
+puzzle rooftop
+    chapter "Up the stack"
+    name "Rooftop uplink"
+    about "The only link to the internet is on the roof, three layers up. Lift everything there and serve 240 responses."
+    fresh
+    patch users at 0 0 size 2 8 amount 1
+    stock response 199
+    researched loadBalancing messaging stack
+    place mount 6 6 east
+    place mount 6 6 east level 1
+    place mount 6 6 east level 2
+    place internet 6 6 east level 3
+    place switch 4 2 east
+    place rack 5 1 east
+    only up down belt gateway monolith balancer mount switch rack
+    goal metric served 240
+    limit 12000
+end
+puzzle layerCake
+    chapter "Up the stack"
+    name "Layer cake"
+    about "Gateways and databases only work on the ground, and the ground is taken. Run everything else upstairs, down to the database and back up. Serve 60."
+    fresh
+    patch users   at 1 3 size 1 1 amount 1
+    patch storage at 6 3 size 1 1 amount 1
+    stock response 503
+    researched microservices loadBalancing messaging stack
+    place mount 0 0 east count 11
+    place mount 0 1 east count 11
+    place mount 0 2 east count 11
+    place mount 0 4 east count 11
+    place mount 0 5 east count 11
+    place mount 0 6 east count 11
+    place mount 0 3 east
+    place mount 3 3 east count 2
+    place mount 8 3 east count 3
+    only up down belt gateway parser router database renderer logger internet rack switch
+    goal metric served 60
+end
+puzzle walledGarden
+    chapter "Up the stack"
+    name "Walled garden"
+    about "The users and the internet sit in a walled courtyard; the storage is outside. Go over the wall, there and back. Serve 80 responses."
+    fresh
+    patch users   at 1 2 size 2 2 amount 1
+    patch storage at 12 3 size 1 1 amount 1
+    stock response 359
+    researched microservices loadBalancing messaging stack
+    place mount 0 0 east count 8
+    place mount 0 7 east count 8
+    place mount 0 1 south count 6
+    place mount 7 1 south count 6
+    place internet 4 5 east
+    place switch 11 6 east
+    place rack 11 7 east
+    only up down belt gateway parser router database renderer logger rack switch
+    goal metric served 80
+end
+puzzle infrastructure
+    chapter "Up the stack"
+    name "Infrastructure"
+    about "Research building up the stack and fiber links, as fast as you can. Both are a long way down the tree, and both want rows."
+    fresh
+    patch users   at 0 2 size 2 6 amount 1
+    patch storage at 6 2 size 1 6 amount 1
+    stock response 900
+    researched microservices
+    place gateway 1 3 east
+    place parser 2 3 east
+    place logger 2 2 east
+    place router 3 3 east
+    place belt 4 3 east count 2
+    place database 6 3 east
+    place renderer 7 3 east
+    place internet 8 3 east
+    place switch 4 1 east
+    place rack 4 0 east
+    goal research stack
+    goal research fiberLinks
+    limit 23400
+end
+puzzle overpass
+    chapter "Up the stack"
+    name "Overpass"
+    about "Two live echo lines cross the room, one on the ground and one a layer up, and both must keep running. Echo 200 requests and serve 100 responses beyond them."
+    fresh
+    patch users   at 0 2 size 2 3 amount 1
+    patch users   at 10 30 size 1 1 amount 1
+    patch users   at 20 10 size 1 1 amount 1
+    patch storage at 16 15 size 1 1 amount 1
+    stock response 420
+    researched microservices loadBalancing messaging stack
+    place gateway 10 30 north
+    place belt 10 29 north count 29
+    place internet 10 0 east
+    place mount 1 11 east
+    place mount 5 11 east
+    place mount 14 11 east
+    place mount 18 11 east
+    place gateway 20 10 west
+    place up 19 10 west
+    place up 19 10 west level 1
+    place belt 18 10 west level 1 count 18
+    place internet 0 10 west level 1
+    place switch 4 1 east
+    place rack 5 0 east
+    only belt up down gateway parser router database renderer logger internet rack switch
+    goal deliver request 200
+    goal metric served 100
+    limit 13200
+end
+puzzle expressLift
+    chapter "Up the stack"
+    name "Express lift"
+    about "Another tenant has taken the layer above the ground too. Lifts reach up to three layers, so skip it, build on the next one up and serve 80 responses."
+    fresh
+    patch users   at 1 3 size 1 1 amount 1
+    patch storage at 6 3 size 1 1 amount 1
+    stock response 800
+    researched microservices loadBalancing messaging stack
+    place mount 0 0 east count 11
+    place mount 0 1 east count 11
+    place mount 0 2 east count 11
+    place mount 0 3 east
+    place mount 3 3 east count 2
+    place mount 8 3 east count 3
+    place mount 0 4 east count 11
+    place mount 0 5 east count 11
+    place mount 0 6 east count 11
+    place mount 0 0 east level 1 count 11
+    place mount 0 1 east level 1 count 11
+    place mount 0 2 east level 1 count 11
+    place mount 0 3 east level 1 count 2
+    place mount 3 3 east level 1 count 2
+    place mount 6 3 east level 1
+    place mount 8 3 east level 1 count 3
+    place mount 0 4 east level 1 count 11
+    place mount 0 5 east level 1 count 11
+    place mount 0 6 east level 1 count 11
+    only up down belt gateway parser router database renderer logger internet rack switch
+    goal metric served 80
+end
+puzzle penthouse
+    chapter "Up the stack"
+    name "Penthouse"
+    about "Three pipelines with no compute, and two layers of other people's kit stacked over them. Only the roof is free, and each layer down counts as a step of a switch's reach. Serve 300 responses."
+    fresh
+    patch users   at 5 5 size 1 5 amount 1
+    patch storage at 8 5 size 1 5 amount 1
+    stock response 3025
+    researched microservices loadBalancing messaging stack
+    place logger 6 4 east
+    place gateway 5 5 east
+    place parser 6 5 east
+    place router 7 5 east
+    place database 8 5 east
+    place renderer 9 5 east
+    place internet 10 5 east
+    place logger 6 6 east
+    place gateway 5 7 east
+    place parser 6 7 east
+    place router 7 7 east
+    place database 8 7 east
+    place renderer 9 7 east
+    place internet 10 7 east
+    place logger 6 8 east
+    place gateway 5 9 east
+    place parser 6 9 east
+    place router 7 9 east
+    place database 8 9 east
+    place renderer 9 9 east
+    place internet 10 9 east
+    place mount 0 0 east count 15
+    place mount 0 1 east count 15
+    place mount 0 2 east count 15
+    place mount 0 3 east count 15
+    place mount 0 4 east count 6
+    place mount 7 4 east count 8
+    place mount 0 5 east count 5
+    place mount 11 5 east count 4
+    place mount 0 6 east count 6
+    place mount 7 6 east count 8
+    place mount 0 7 east count 5
+    place mount 11 7 east count 4
+    place mount 0 8 east count 6
+    place mount 7 8 east count 8
+    place mount 0 9 east count 5
+    place mount 11 9 east count 4
+    place mount 0 10 east count 15
+    place mount 0 11 east count 15
+    place mount 0 12 east count 15
+    place mount 0 13 east count 15
+    place mount 0 14 east count 15
+    place mount 0 0 east level 1 count 15
+    place mount 0 1 east level 1 count 15
+    place mount 0 2 east level 1 count 15
+    place mount 0 3 east level 1 count 15
+    place mount 0 4 east level 1 count 15
+    place mount 0 5 east level 1 count 15
+    place mount 0 6 east level 1 count 15
+    place mount 0 7 east level 1 count 15
+    place mount 0 8 east level 1 count 15
+    place mount 0 9 east level 1 count 15
+    place mount 0 10 east level 1 count 15
+    place mount 0 11 east level 1 count 15
+    place mount 0 12 east level 1 count 15
+    place mount 0 13 east level 1 count 15
+    place mount 0 14 east level 1 count 15
+    place mount 0 0 east level 2 count 15
+    place mount 0 1 east level 2 count 15
+    place mount 0 2 east level 2 count 15
+    place mount 0 3 east level 2 count 15
+    place mount 0 4 east level 2 count 15
+    place mount 0 5 east level 2 count 15
+    place mount 0 6 east level 2 count 15
+    place mount 0 7 east level 2 count 15
+    place mount 0 8 east level 2 count 15
+    place mount 0 9 east level 2 count 15
+    place mount 0 10 east level 2 count 15
+    place mount 0 11 east level 2 count 15
+    place mount 0 12 east level 2 count 15
+    place mount 0 13 east level 2 count 15
+    place mount 0 14 east level 2 count 15
+    only rack switch
+    goal metric served 300
+end
+puzzle quarterlyReport
+    chapter "Up the stack"
+    name "Quarterly report"
+    about "Everyone wants a number this quarter: 100 JSON for partners, 100 rows for analytics, 60 errors logged for security, 200 responses for customers."
+    fresh
+    patch users   at 0 0 size 2 8 amount 1
+    patch storage at 8 0 size 1 8 amount 1
+    stock response 380
+    researched microservices loadBalancing
+    place none
+    goal deliver json 100
+    goal deliver rows 100
+    goal metric logged 60
+    goal metric served 200
+    limit 17400
+end
+puzzle hyperscale
+    chapter "Up the stack"
+    name "Hyperscale"
+    about "Three crowds, a bare hall and everything researched. Scale out until it hums: serve 2500 responses."
+    fresh
+    patch users at 0 3 size 1 2 amount 1
+    patch users at 0 13 size 1 2 amount 1
+    patch users at 0 23 size 1 2 amount 1
+    stock response 450 rows 210
+    researched microservices loadBalancing messaging caching authentication stack fiberLinks
+    place none
+    goal metric served 2500
+    limit 27000
+end

@@ -20,7 +20,7 @@ use std::fmt;
 
 const MAGIC: &[u8; 4] = b"OFSV";
 /// Version 2 added deliveries, sandboxes and puzzles. Version 1 still loads.
-const VERSION: u64 = 2;
+const VERSION: u64 = 3;
 
 /// Why a save couldn't be loaded.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -249,10 +249,12 @@ impl World {
                     if let Some(job) = machine.job {
                         w.u(u64::from(job.remaining));
                     }
-                    w.u(machine.bins.len() as u64);
-                    for (item, &count) in &machine.bins {
-                        w.u(u64::from(item.0));
-                        w.u(count);
+                    for bins in [&machine.bins, &machine.made] {
+                        w.u(bins.len() as u64);
+                        for (item, &count) in bins {
+                            w.u(u64::from(item.0));
+                            w.u(count);
+                        }
                     }
                 }
             }
@@ -403,15 +405,32 @@ impl World {
                         Some(_) => return Err(LoadError::Damaged("a building runs a recipe it doesn't have")),
                         None => None,
                     };
-                    let mut bins = BTreeMap::new();
-                    for _ in 0..r.len()? {
-                        let item = ItemId(r.index(items, "unknown resource in a building")?);
-                        match r.u()? {
-                            0 => return Err(LoadError::Damaged("a building holds an empty stack")),
-                            count => bins.insert(item, count),
-                        };
-                    }
-                    Kind::Machine(Machine { unit, bins, job, setting, next_port })
+                    let mut stacks = || -> Result<BTreeMap<ItemId, u64>, LoadError> {
+                        let mut bins = BTreeMap::new();
+                        for _ in 0..r.len()? {
+                            let item = ItemId(r.index(items, "unknown resource in a building")?);
+                            match r.u()? {
+                                0 => return Err(LoadError::Damaged("a building holds an empty stack")),
+                                count => bins.insert(item, count),
+                            };
+                        }
+                        Ok(bins)
+                    };
+                    let mut bins = stacks()?;
+                    let made = if version >= 3 {
+                        stacks()?
+                    } else {
+                        // Before format 3 made goods shared the bins: move out
+                        // whatever the unit makes but never uses.
+                        let used = |item: &ItemId| def.rules.iter().any(|rule| rule.takes.iter().any(|t| t.scope == crate::Scope::Local(*item)));
+                        let made: Vec<ItemId> = bins
+                            .keys()
+                            .copied()
+                            .filter(|item| def.outputs.iter().any(|(out, _)| out == item) && !used(item))
+                            .collect();
+                        made.into_iter().filter_map(|item| bins.remove(&item).map(|count| (item, count))).collect()
+                    };
+                    Kind::Machine(Machine { unit, bins, made, job, setting, next_port })
                 }
                 _ => return Err(LoadError::Damaged("a building is neither a belt nor a unit")),
             };

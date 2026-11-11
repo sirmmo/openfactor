@@ -213,3 +213,804 @@ puzzle openFab
     about "No clock. Ship 100 boards from one fab, as neat or as tangled as you like."
     goal metric boards 100
 end
+
+# Chapter puzzles: each on a fresh map. Their solutions are in
+# crates/sim/tests/solutions/chips.sol.
+
+puzzle firstMelt
+    chapter "Sand and sun"
+    name "First melt"
+    about "A strip of dunes and a little copper. Smelt sand and ship 20 silicon."
+    fresh
+    patch dunes at 2 2 size 2 1 amount 100000
+    stock copper 30
+    place none
+    only belt dredge smelter dock
+    goal deliver silicon 20
+end
+puzzle farDock
+    chapter "Sand and sun"
+    name "The far dock"
+    about "The dock stands across the room, and the copper only just covers the belt to it. Ship 30 silicon."
+    fresh
+    patch dunes at 0 0 size 2 2 amount 100000
+    stock copper 40
+    place dock 16 6 east
+    only belt dredge smelter
+    goal deliver silicon 30
+    limit 6600
+end
+puzzle sunlight
+    chapter "Sand and sun"
+    name "Sunlight"
+    about "Slicers need power: a solar panel and a pole to carry it. Ship 30 wafers."
+    fresh
+    patch dunes at 1 2 size 1 1 amount 100000
+    stock copper 40 silicon 10
+    place none
+    only belt dredge smelter slicer dock panel pole
+    goal deliver wafer 30
+    limit 5400
+end
+puzzle nightShift
+    chapter "Sand and sun"
+    name "Night shift"
+    about "The day crew left the line broken: a slicer the wrong way round, a gap in the belt, and no power. Fix it and ship 40 wafers."
+    fresh
+    patch dunes at 1 2 size 1 1 amount 100000
+    stock copper 46 silicon 10
+    place dredge 1 2 east
+    place smelter 2 2 east
+    place slicer 3 2 west
+    place belt 4 2 east count 3
+    place belt 8 2 east
+    place dock 9 2 east
+    place panel 4 8 east
+    place pole 3 8 east
+    only belt pole slicer
+    goal deliver wafer 40
+    limit 5400
+end
+puzzle longCable
+    chapter "Sand and sun"
+    name "Long cable"
+    about "The only panels stand on a far hill, and there's no silicon for more. String poles out to them and ship 40 wafers."
+    fresh
+    patch dunes at 1 2 size 1 1 amount 100000
+    stock copper 52 silicon 16
+    place panel 20 0 south
+    place panel 20 1 south
+    only belt dredge smelter slicer dock pole
+    goal deliver wafer 40
+end
+puzzle thinDunes
+    chapter "Sand and sun"
+    name "Thin dunes"
+    about "Three small heaps of sand, far apart, and none will last. Gather them all to ship 40 silicon."
+    fresh
+    patch dunes at 0 0 size 1 1 amount 30
+    patch dunes at 8 0 size 1 1 amount 30
+    patch dunes at 4 6 size 1 1 amount 30
+    stock copper 50
+    place none
+    only belt dredge smelter dock
+    goal deliver silicon 40
+end
+puzzle noBelts
+    chapter "Sand and sun"
+    name "No belts"
+    about "Belts aren't allowed in the clean room. Machines hand on to the next, and tunnels carry the rest: ship 40 wafers to the dock."
+    fresh
+    patch dunes at 0 0 size 1 1 amount 100000
+    stock copper 56 silicon 10
+    place dock 12 0 east
+    only dredge smelter slicer tunnel panel pole
+    goal deliver wafer 40
+    limit 6600
+end
+puzzle keepSome
+    chapter "Sand and sun"
+    name "Keep some back"
+    about "Ship 20 wafers, and also have 60 silicon in the stock at once. Every slicer and panel you build eats into it."
+    fresh
+    patch dunes at 1 2 size 1 2 amount 100000
+    stock copper 60 silicon 10
+    place none
+    only belt splitter dredge smelter slicer dock panel pole
+    goal deliver wafer 20
+    goal stock silicon 60
+    limit 11400
+end
+puzzle oneSun
+    chapter "Sand and sun"
+    name "One sun"
+    about "Silicon for three slicers and a single panel. One panel can feed all three, if they share its pole. Ship 120 wafers."
+    fresh
+    patch dunes at 1 0 size 1 3 amount 100000
+    stock copper 90 silicon 18
+    place none
+    only belt dredge smelter slicer dock panel pole
+    goal deliver wafer 120
+    limit 7800
+end
+puzzle fromSand
+    chapter "Sand and sun"
+    name "From sand"
+    about "No silicon at all. Ship some to pay for a slicer and a panel, then ship 60 wafers."
+    fresh
+    patch dunes at 1 2 size 1 1 amount 100000
+    stock copper 40
+    place none
+    only belt dredge smelter slicer dock panel pole
+    goal deliver wafer 60
+    limit 8400
+end
+puzzle redGround
+    chapter "Copper country"
+    name "Red ground"
+    about "Copper ore under the floor. Drill it, smelt it and ship 30 copper."
+    fresh
+    patch copperField at 2 2 size 2 1 amount 100000
+    stock copper 30
+    place none
+    only belt drill smelter dock
+    goal deliver copper 30
+end
+puzzle spools
+    chapter "Copper country"
+    name "Spools"
+    about "Draw copper into wire: ship 60 wire."
+    fresh
+    patch copperField at 1 1 size 1 1 amount 100000
+    stock copper 40
+    place none
+    only belt drill smelter drawer dock
+    goal deliver wire 60
+    limit 5400
+end
+puzzle halfAndHalf
+    chapter "Copper country"
+    name "Half and half"
+    about "One patch of ore, two orders: ship 40 copper and 40 wire. A splitter shares a belt between two ways."
+    fresh
+    patch copperField at 1 2 size 1 1 amount 100000
+    stock copper 40
+    place none
+    only belt splitter drill smelter drawer dock
+    goal deliver copper 40
+    goal deliver wire 40
+    limit 9600
+end
+puzzle fence
+    chapter "Copper country"
+    name "The fence"
+    about "A long fence of poles stands between the ore and the dock, and there's no copper to go round it. Tunnel under and ship 50 wire."
+    fresh
+    patch copperField at 0 3 size 2 3 amount 100000
+    stock copper 88
+    place pole 6 -5 south count 19
+    place dock 12 4 east
+    only belt tunnel drill smelter drawer
+    goal deliver wire 50
+end
+puzzle oneRoad
+    chapter "Copper country"
+    name "One road"
+    about "A long seam of ore and a dock far away. There's copper for one road, not four: merge the lines and ship 150 copper."
+    fresh
+    patch copperField at 0 0 size 1 4 amount 100000
+    stock copper 90
+    place dock 16 8 east
+    only belt splitter drill smelter
+    goal deliver copper 150
+    limit 7200
+end
+puzzle runningDry
+    chapter "Copper country"
+    name "Running dry"
+    about "Three small heaps of ore, copper for one drill and not one belt. Move the drill when a heap runs out, and ship 110 wire."
+    fresh
+    patch copperField at 1 0 size 1 1 amount 20
+    patch copperField at 0 1 size 1 1 amount 20
+    patch copperField at 1 2 size 1 1 amount 20
+    stock copper 30
+    place none
+    only belt drill smelter drawer dock
+    goal deliver wire 110
+end
+puzzle sortItOut
+    chapter "Copper country"
+    name "Sort it out"
+    about "Sand and ore arrive mixed on one belt. A sorter parts them: ship 20 silicon and 40 wire."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 0 4 size 1 1 amount 100000
+    stock copper 70 transistor 2
+    place dredge 0 0 east
+    place belt 1 0 east count 3
+    place belt 4 0 south count 2
+    place drill 0 4 east
+    place belt 1 4 east count 3
+    place belt 4 4 north count 2
+    place belt 4 2 east count 2
+    only belt sorter smelter drawer dock
+    goal deliver silicon 20
+    goal deliver wire 40
+    limit 6000
+end
+puzzle hoard
+    chapter "Copper country"
+    name "Hoard"
+    about "Build a copper line, then stop spending: have 200 copper in the stock at once."
+    fresh
+    patch copperField at 0 0 size 1 3 amount 100000
+    stock copper 30
+    place none
+    only belt drill smelter dock
+    goal stock copper 200
+    limit 9000
+end
+puzzle oneDock
+    chapter "Copper country"
+    name "One dock"
+    about "Silicon, copper and wire, and a single dock to take them all: ship 40 of each."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 0 3 size 1 1 amount 100000
+    patch copperField at 0 6 size 1 1 amount 100000
+    stock copper 88
+    place dock 8 3 east
+    only belt splitter tunnel dredge drill smelter drawer
+    goal deliver silicon 40
+    goal deliver copper 40
+    goal deliver wire 40
+    limit 7800
+end
+puzzle copperBoom
+    chapter "Copper country"
+    name "Copper boom"
+    about "Copper for a single line. Ship copper to grow, then ship 300 wire."
+    fresh
+    patch copperField at 0 0 size 1 3 amount 100000
+    stock copper 22
+    place none
+    only belt drill smelter drawer dock
+    goal deliver wire 300
+    limit 11400
+end
+puzzle firstEtch
+    chapter "Etch room"
+    name "First etch"
+    about "Wafers on one side, wire on the other: the etcher goes between. Place it, power it, and ship 20 transistors."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 3 size 1 1 amount 100000
+    stock copper 82 silicon 16 wire 10
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place drill 3 3 north
+    place smelter 3 2 north
+    place drawer 3 1 north
+    place dock 4 0 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only etcher pole
+    goal deliver transistor 20
+end
+puzzle longWire
+    chapter "Etch room"
+    name "Long wire"
+    about "The only ore lies far across the floor, and the copper barely stretches that far. Ship 40 transistors."
+    fresh
+    patch dunes       at 0 0   size 1 1 amount 100000
+    patch copperField at 20 10 size 1 1 amount 100000
+    stock copper 108 silicon 16 wire 10
+    place none
+    only belt dredge drill smelter slicer drawer etcher dock panel pole
+    goal deliver transistor 40
+end
+puzzle threeEtchers
+    chapter "Etch room"
+    name "Three etchers"
+    about "One heap of sand and one of ore feed three etchers, if splitters share them out. Ship 150 transistors."
+    fresh
+    patch dunes       at 0 1 size 1 1 amount 100000
+    patch copperField at 0 3 size 1 1 amount 100000
+    stock copper 155 silicon 22 wire 30
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher dock panel pole
+    goal deliver transistor 150
+    limit 13200
+end
+puzzle everyGrain
+    chapter "Etch room"
+    name "Every grain"
+    about "Twenty scoops of sand, and not one to spare: turn every grain into transistors and ship 40."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 20
+    patch copperField at 3 3 size 1 1 amount 100000
+    stock copper 90 silicon 16 wire 10
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher dock panel pole
+    goal deliver transistor 40
+end
+puzzle blackout
+    chapter "Etch room"
+    name "Blackout"
+    about "A fine fab with two etchers and not a single panel, nor silicon to build one. Find some, then ship 100 transistors."
+    fresh
+    patch dunes       at 0 1 size 1 1 amount 100000
+    patch dunes       at 0 5 size 1 1 amount 100000
+    patch copperField at 0 3 size 1 1 amount 100000
+    stock copper 136 silicon 4 wire 20
+    place dredge 0 1 east
+    place smelter 1 1 east
+    place slicer 2 1 east
+    place belt 3 1 east count 2
+    place splitter 5 1 east
+    place belt 6 1 east
+    place belt 7 1 south
+    place drill 0 3 east
+    place smelter 1 3 east
+    place drawer 2 3 east
+    place belt 3 3 east count 2
+    place splitter 5 3 east
+    place belt 6 3 east
+    place belt 7 3 north
+    place etcher 5 2 east
+    place etcher 7 2 west
+    place dock 6 2 east
+    place pole 4 2 east
+    only belt dredge smelter dock panel pole
+    goal deliver transistor 100
+    limit 8400
+end
+puzzle stockroom
+    chapter "Etch room"
+    name "Stockroom"
+    about "Fill the shelves: have 50 wafers, 50 wire and 30 transistors in the stock at once."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 4 4 size 1 1 amount 100000
+    stock copper 100 silicon 16 wire 10
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher dock panel pole
+    goal stock wafer 50
+    goal stock wire 50
+    goal stock transistor 30
+    limit 10200
+end
+puzzle sharedSun
+    chapter "Etch room"
+    name "Shared sun"
+    about "Two fabs, far apart, and two panels halfway between, with no silicon for more. Share them along the poles and ship 80 transistors."
+    fresh
+    patch dunes       at 0 0  size 1 1 amount 100000
+    patch copperField at 3 3  size 1 1 amount 100000
+    patch dunes       at 24 0 size 1 1 amount 100000
+    patch copperField at 27 3 size 1 1 amount 100000
+    stock copper 165 silicon 20 wire 20
+    place panel 13 0 south
+    place panel 13 1 south
+    only belt dredge drill smelter slicer drawer etcher dock pole
+    goal deliver transistor 80
+    limit 9600
+end
+puzzle jammed
+    chapter "Etch room"
+    name "Jammed"
+    about "The wire belt was laid to join the wafer belt, one tile before the etcher. Bring wire without jamming it, and ship 40 transistors."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 4 5 size 1 1 amount 100000
+    stock copper 90 silicon 16 wire 10
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place belt 3 0 east count 2
+    place etcher 5 0 east
+    place dock 6 0 east
+    place belt 4 2 north count 2
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only belt splitter drill smelter drawer
+    goal deliver transistor 40
+    limit 7200
+end
+puzzle mixedDelivery
+    chapter "Etch room"
+    name "Mixed delivery"
+    about "Wafers and wire come mixed on one belt, and far more than one etcher needs. Sort them, send the spare away, and ship 60 transistors."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 0 4 size 1 1 amount 100000
+    stock copper 125 silicon 16 wire 10 transistor 2
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place belt 3 0 east
+    place belt 4 0 south count 2
+    place pole 2 1 east
+    place panel 1 1 east
+    place drill 0 4 east
+    place smelter 1 4 east
+    place drawer 2 4 east
+    place belt 3 4 east
+    place belt 4 4 north count 2
+    place belt 4 2 east count 3
+    only belt splitter sorter etcher dock panel pole
+    goal deliver transistor 60
+    limit 10800
+end
+puzzle bootstrap
+    chapter "Etch room"
+    name "Bootstrap"
+    about "Copper for a line or two and no wire at all. Ship what the etcher costs, then ship 100 transistors."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 3 size 2 1 amount 100000
+    stock copper 40 silicon 16
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher dock panel pole
+    goal deliver transistor 100
+    limit 16800
+end
+puzzle firstChip
+    chapter "Packaging"
+    name "First chip"
+    about "Transistors and wire are ready and waiting. Add a chip packager and a dock, and ship 5 chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    stock copper 106 silicon 16 wire 10 transistor 8
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place etcher 3 0 east
+    place drill 3 4 north
+    place smelter 3 3 north
+    place drawer 3 2 north
+    place splitter 3 1 north
+    place belt 4 1 north
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only packager dock
+    goal deliver chip 5
+end
+puzzle packagerFee
+    chapter "Packaging"
+    name "Packager fee"
+    about "A packager costs 8 transistors and you have none. Let the dock take some first, then ship 8 chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    stock copper 114 silicon 16 wire 10
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place etcher 3 0 east
+    place dock 4 0 east
+    place drill 3 4 north
+    place smelter 3 3 north
+    place drawer 3 2 north
+    place splitter 3 1 north
+    place belt 4 1 north
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only belt splitter packager dock
+    goal deliver chip 8
+    limit 7200
+end
+puzzle fullLine
+    chapter "Packaging"
+    name "The whole line"
+    about "Sand to chip in one line, from a bare floor. The drawer has to feed both the etcher and the packager. Ship 10 chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    stock copper 110 silicon 16 wire 10 transistor 8
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager dock panel pole
+    goal deliver chip 10
+    limit 9000
+end
+puzzle fullSpeed
+    chapter "Packaging"
+    name "Full speed"
+    about "One etcher can't keep a packager busy; two can. Feed one packager from two etchers and ship 30 chips."
+    fresh
+    patch dunes       at 4 7 size 1 1 amount 100000
+    patch copperField at 0 1 size 1 1 amount 100000
+    stock copper 145 silicon 22 wire 20 transistor 8
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager dock panel pole
+    goal deliver chip 30
+    limit 15000
+end
+puzzle spareParts
+    chapter "Packaging"
+    name "Spare parts"
+    about "The customer wants the parts too: ship 8 chips, 30 wafers and 30 wire."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 4 4 size 1 1 amount 100000
+    stock copper 125 silicon 16 wire 10 transistor 8
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager dock panel pole
+    goal deliver chip 8
+    goal deliver wafer 30
+    goal deliver wire 30
+    limit 9000
+end
+puzzle lastHeap
+    chapter "Packaging"
+    name "The last heap"
+    about "Twenty-six scoops of sand left, and the packager's fee of 8 transistors must come out of them too. Ship 8 chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 26
+    patch copperField at 3 4 size 1 1 amount 100000
+    stock copper 120 silicon 16 wire 10
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager dock panel pole
+    goal deliver chip 8
+end
+puzzle downTheLine
+    chapter "Packaging"
+    name "Down the line"
+    about "Transistors roll down a long belt to a dock. Put a packager at the far end, with wire from the only drawer, and ship 12 chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    stock copper 148 silicon 22 wire 10 transistor 8
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place etcher 3 0 east
+    place belt 4 0 east count 15
+    place dock 19 0 east
+    place drill 3 4 north
+    place smelter 3 3 north
+    place drawer 3 2 north
+    place belt 3 1 north
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only belt splitter packager dock panel pole
+    goal deliver chip 12
+    limit 7800
+end
+puzzle fastLane
+    chapter "Packaging"
+    name "Fast lane"
+    about "Only fast belts today, and each one costs a wire you don't have yet. Ship wire to pay for them, then ship 8 chips."
+    fresh
+    patch dunes       at 0 0  size 1 1 amount 100000
+    patch copperField at 12 3 size 1 1 amount 100000
+    stock copper 140 silicon 16 transistor 8
+    place none
+    only fast splitter dredge drill smelter slicer drawer etcher packager dock panel pole
+    goal deliver chip 8
+    limit 9000
+end
+puzzle clearance
+    chapter "Packaging"
+    name "Clearance"
+    about "The old fab is junk and the stock is empty. Tear it down for parts, and build a line that ships 6 chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    stock copper 110 silicon 26 wire 10 transistor 16
+    place packager 8 6 north count 2
+    place etcher 10 6 north
+    place panel 12 0 south count 3
+    place slicer 10 3 east count 2
+    place smelter 8 3 east count 2
+    goal deliver chip 6
+end
+puzzle chipShop
+    chapter "Packaging"
+    name "Chip shop"
+    about "Sixty copper, no transistors, and an order for 10 chips. Ship copper, then transistors, then chips."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 3 1 amount 100000
+    stock copper 60 silicon 16 wire 10
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager dock panel pole
+    goal deliver chip 10
+    limit 11400
+end
+puzzle firstBoard
+    chapter "Board room"
+    name "First board"
+    about "Chips are coming off the packager. Solder them onto copper with a board line: make 3 boards."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    patch copperField at 5 2 size 1 1 amount 100000
+    stock copper 144 silicon 16 wire 10 transistor 8 chip 4
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place etcher 3 0 east
+    place packager 4 0 east
+    place drill 3 4 north
+    place smelter 3 3 north
+    place drawer 3 2 north
+    place splitter 3 1 north
+    place belt 4 1 north
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only belt boarder dock drill smelter
+    goal metric boards 3
+end
+puzzle chipsOrBoards
+    chapter "Board room"
+    name "Chips or boards"
+    about "Ship 10 chips and make 4 boards. The board line costs 4 chips of its own, and you have none."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    patch copperField at 6 2 size 1 1 amount 100000
+    stock copper 158 silicon 16 wire 10 transistor 8
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager boarder dock panel pole
+    goal deliver chip 10
+    goal metric boards 4
+    limit 13200
+end
+puzzle oneSeam
+    chapter "Board room"
+    name "One seam"
+    about "A single tile of ore must give wire to the etcher and the packager, and bare copper to the board line. Make 5 boards."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 4 4 size 1 1 amount 100000
+    stock copper 145 silicon 16 wire 10 transistor 8 chip 4
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager boarder dock panel pole
+    goal metric boards 5
+    limit 10200
+end
+puzzle mixUp
+    chapter "Board room"
+    name "Mix-up"
+    about "The packager faces the wrong way, and the board line's smelter was fed sand, so silicon blocks it. Put it right and make 4 boards."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch dunes       at 6 1 size 1 1 amount 100000
+    patch copperField at 3 4 size 1 1 amount 100000
+    patch copperField at 5 2 size 1 1 amount 100000
+    stock copper 146 silicon 16 wire 10 transistor 8 chip 4
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place etcher 3 0 east
+    place packager 4 0 west
+    place boarder 5 0 east
+    place dock 6 0 east
+    place drill 3 4 north
+    place smelter 3 3 north
+    place drawer 3 2 north
+    place splitter 3 1 north
+    place belt 4 1 north
+    place dredge 6 1 west
+    place smelter 5 1 north
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    only belt drill smelter packager
+    goal metric boards 4
+    limit 6000
+end
+puzzle handsOff
+    chapter "Board room"
+    name "Hands off"
+    about "No splitters or sorters in this hall. Every machine that needs wire or copper gets a line of its own. Make 4 boards."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 3 3 size 3 1 amount 100000
+    stock copper 165 silicon 16 wire 10 transistor 8 chip 4
+    place none
+    only belt tunnel dredge drill smelter slicer drawer etcher packager boarder dock panel pole
+    goal metric boards 4
+end
+puzzle underOnePole
+    chapter "Board room"
+    name "Under one pole"
+    about "One pole stands in the hall and no more can be built. Everything that needs power must gather around it. Make 4 boards."
+    fresh
+    patch dunes       at 0 4  size 1 1 amount 100000
+    patch copperField at 0 1  size 1 1 amount 100000
+    patch copperField at 11 8 size 1 1 amount 100000
+    stock copper 162 silicon 16 wire 10 transistor 8 chip 4
+    place pole 10 5 east
+    only belt splitter tunnel dredge drill smelter slicer drawer etcher packager boarder dock panel
+    goal metric boards 4
+end
+puzzle throughTraffic
+    chapter "Board room"
+    name "Through traffic"
+    about "A silicon line runs right through the hall, and its 40 silicon must still be shipped. Get copper across it and make 4 boards."
+    fresh
+    patch dunes       at 0 0  size 1 1 amount 100000
+    patch dunes       at 7 -9 size 1 1 amount 100000
+    patch copperField at 3 4  size 1 1 amount 100000
+    patch copperField at 11 0 size 1 1 amount 100000
+    stock copper 198 silicon 16 wire 10 transistor 8 chip 4
+    place dredge 0 0 east
+    place smelter 1 0 east
+    place slicer 2 0 east
+    place etcher 3 0 east
+    place packager 4 0 east
+    place drill 3 4 north
+    place smelter 3 3 north
+    place drawer 3 2 north
+    place splitter 3 1 north
+    place belt 4 1 north
+    place pole 2 1 east
+    place panel 1 1 east
+    place panel 2 2 east
+    place dredge 7 -9 south
+    place smelter 7 -8 south
+    place belt 7 -7 south count 16
+    place dock 7 9 east
+    only belt splitter tunnel drill smelter boarder dock
+    goal metric boards 4
+    goal deliver silicon 40
+    limit 7800
+end
+puzzle twinLines
+    chapter "Board room"
+    name "Twin lines"
+    about "A board takes two chips, and one packager is too slow for the board line. Build a second chip line into it and make 10 boards."
+    fresh
+    patch dunes       at 0 0  size 1 1 amount 100000
+    patch dunes       at 5 -5 size 1 1 amount 100000
+    patch copperField at 3 4  size 1 1 amount 100000
+    patch copperField at 5 2  size 1 1 amount 100000
+    patch copperField at 9 -1 size 1 1 amount 100000
+    stock copper 245 silicon 32 wire 20 transistor 16 chip 4
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager boarder dock panel pole
+    goal metric boards 10
+    limit 11400
+end
+puzzle sampleCase
+    chapter "Board room"
+    name "Sample case"
+    about "A buyer wants one of everything: ship 20 wafers, 20 wire, 20 transistors and 6 chips, and make 3 boards."
+    fresh
+    patch dunes       at 0 0 size 1 1 amount 100000
+    patch copperField at 4 4 size 1 1 amount 100000
+    patch copperField at 8 3 size 1 1 amount 100000
+    stock copper 190 silicon 16 wire 10 transistor 8 chip 4
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager boarder dock panel pole
+    goal deliver wafer 20
+    goal deliver wire 20
+    goal deliver transistor 20
+    goal deliver chip 6
+    goal metric boards 3
+    limit 16800
+end
+puzzle grandFab
+    chapter "Board room"
+    name "Grand fab"
+    about "The whole fab at full speed: two etchers, one packager, one board line, and 15 boards to make."
+    fresh
+    patch dunes       at 4 7  size 1 1 amount 100000
+    patch copperField at 0 1  size 1 1 amount 100000
+    patch copperField at 5 7  size 1 1 amount 100000
+    patch copperField at 6 -1 size 1 1 amount 100000
+    stock copper 200 silicon 22 wire 20 transistor 8 chip 4
+    place none
+    only belt splitter dredge drill smelter slicer drawer etcher packager boarder dock panel pole
+    goal metric boards 15
+    limit 16200
+end
