@@ -64,8 +64,13 @@ The code is licensed under the GNU General Public License, version 2 or later.
 See [COPYING](COPYING).
 
 Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory),
-[Factory Kit](https://kenney.nl/assets/factory-kit), and, for the Network rule set,
-[1-Bit Pack](https://kenney.nl/assets/1-bit-pack) and
-[Space Station Kit](https://kenney.nl/assets/space-station-kit), all by Kenney (CC0). The 3D view uses
+[Factory Kit](https://kenney.nl/assets/factory-kit), and for the other rule sets
+[1-Bit Pack](https://kenney.nl/assets/1-bit-pack),
+[Space Station Kit](https://kenney.nl/assets/space-station-kit),
+[Tiny Farm](https://kenney.nl/assets/tiny-farm), [Nature Kit](https://kenney.nl/assets/nature-kit),
+[Survival Kit](https://kenney.nl/assets/survival-kit), [Food Kit](https://kenney.nl/assets/food-kit),
+[Cube Pets](https://kenney.nl/assets/cube-pets) and
+[City Kit (Industrial)](https://kenney.nl/assets/city-kit-industrial), all by Kenney (CC0); each
+model folder in `site/play/assets/models` has its licence. The 3D view uses
 [three.js](https://threejs.org) (MIT) and playing together uses [PeerJS](https://peerjs.com) (MIT),
 both vendored in `site/play/vendor`.

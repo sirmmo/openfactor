@@ -272,18 +272,29 @@
   // Units, resources and map layers name their own sprites in the rule pack,
   // as indices into the sheet the pack picks with `sheet` (Tiny Factory when
   // it picks none). All sheets are 16x16 tiles, packed with no gaps.
-  //   floor:  colour of empty ground, instead of the Tiny Factory floor tile
+  //   floor:  colour of empty ground, instead of the Tiny Factory floor tile;
+  //           floorDecor scatters a few faint sprites over it, one tile in `every`
   //   groundAlpha: how strongly map layers show over that floor
-  //   links:  colours to draw belts in as cables, one per belt style, instead
-  //           of the Tiny Factory belt art; linkIcons are their toolbar icons
+  //   cable:  draw belts as lines instead of the Tiny Factory belt art: an
+  //           outline, one colour per belt style, and dashes on top (moving
+  //           at the belt's speed unless still); sizes are fractions of a tile
+  //   linkIcons: toolbar icons for belts drawn as lines, one per style
   //   view3d: ground and grid colours for the 3D view
   const SHEETS = {
     tiny: { src: 'assets/tiny-factory.png', columns: 12, tint: 0.6, groundTint: 0.55 },
     onebit: {
       src: 'assets/one-bit.png', columns: 49, tint: 0.85, groundTint: 0.5, groundAlpha: 0.3,
       floor: '#1f1c2b', grid: 'rgba(120, 110, 160, .14)',
-      links: ['#7d8db8', '#4ad9d9'], linkIcons: [1009, 1058],
+      cable: { outline: '#0e0c16', width: 0.3, colors: ['#7d8db8', '#4ad9d9'], line: 0.16, dash: '#f4f1ff', dashWidth: 0.07, pattern: [0.1, 0.4] },
+      linkIcons: [1009, 1058],
       view3d: { ground: 0x2b2740, grid: 0x4c4668 },
+    },
+    farm: {
+      src: 'assets/tiny-farm.png', columns: 12, tint: 0.45, groundTint: 0.3,
+      floor: '#84c669', floorDecor: { sprites: [52, 16, 40, 28], every: 11, alpha: 0.35 },
+      cable: { outline: '#4a3019', width: 0.46, colors: ['#b8875a', '#d6a86f'], line: 0.32, dash: '#7a522e', dashWidth: 0.32, pattern: [0.07, 0.18], still: true },
+      linkIcons: [61, 61],
+      view3d: { ground: 0x86b85a, grid: 0x6f9e48 },
     },
   };
   let SHEET_COLUMNS = 12;
@@ -417,7 +428,7 @@
     paintIcon(canvas, sprite, tint);
     return canvas;
   }
-  const beltIcon = (belt) => (ART.links ? ART.linkIcons[belt.style % ART.linkIcons.length] : BELT_ART[belt.style % BELT_ART.length].horizontal[1][1]);
+  const beltIcon = (belt) => (ART.cable ? ART.linkIcons[belt.style % ART.linkIcons.length] : BELT_ART[belt.style % BELT_ART.length].horizontal[1][1]);
 
   const TOOLS = [
     ...pack.belts.map((belt, index) => (
@@ -1680,27 +1691,28 @@
       path.lineTo(cx, cy);
       path.lineTo(cx + fx * half, cy + fy * half);
     }
+    const look = ART.cable;
     ctx.save();
     ctx.lineCap = 'butt';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0e0c16';
-    ctx.lineWidth = cell * 0.3;
+    ctx.strokeStyle = look.outline;
+    ctx.lineWidth = cell * look.width;
     ctx.stroke(path);
-    ctx.strokeStyle = ART.links[belt.style % ART.links.length];
-    ctx.lineWidth = cell * 0.16;
+    ctx.strokeStyle = look.colors[belt.style % look.colors.length];
+    ctx.lineWidth = cell * look.line;
     ctx.stroke(path);
-    // Dashes a whole number of times per tile, so they meet at the joins.
-    ctx.strokeStyle = '#f4f1ff';
+    // The dash pattern repeats a whole number of times per tile, so dashes meet at the joins.
+    ctx.strokeStyle = look.dash;
     ctx.globalAlpha *= 0.75;
-    ctx.lineWidth = cell * 0.07;
-    ctx.setLineDash([cell * 0.1, cell * 0.4]);
-    ctx.lineDashOffset = -((tick * belt.speed / TILE_UNITS) % 1) * cell;
+    ctx.lineWidth = cell * look.dashWidth;
+    ctx.setLineDash(look.pattern.map((length) => length * cell));
+    ctx.lineDashOffset = look.still ? 0 : -((tick * belt.speed / TILE_UNITS) % 1) * cell;
     ctx.stroke(path);
     ctx.restore();
   }
 
   function drawBelt(b, tick) {
-    if (ART.links) return drawCable(b, tick);
+    if (ART.cable) return drawCable(b, tick);
     const x = sx(b.x), y = sy(b.y), frame = (tick >> 3) & 1;
     const input = beltHasInput(b) ? 1 : 0, output = beltHasOutput(b) ? 1 : 0;
     const art = BELT_ART[pack.belts[b.kind].style % BELT_ART.length];
@@ -1838,7 +1850,15 @@
         if (ART.floor) {
           ctx.fillStyle = ART.floor;
           ctx.fillRect(sx(x), sy(y), cam.cell, cam.cell);
-          if (!definition) continue;
+          if (!definition) {
+            const decor = ART.floorDecor, spot = Math.abs(x * 31 + y * 17 + ((x * y) >> 2));
+            if (decor && spot % decor.every === 0) {
+              ctx.globalAlpha = decor.alpha;
+              drawSprite(decor.sprites[(spot >> 3) % decor.sprites.length], sx(x), sy(y), cam.cell);
+              ctx.globalAlpha = 1;
+            }
+            continue;
+          }
         }
         const sprites = definition ? definition.sprites : [FLOOR_SPRITE];
         const sprite = sprites[Math.abs(x * 7 + y * 13) % sprites.length];

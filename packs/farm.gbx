@@ -7,43 +7,47 @@
 title "Harvest"
 summary "Fields, orchards and pastures: grow, mill, bake and churn your way to a picnic basket."
 
+# Art: Kenney's Tiny Farm on the map; Nature, Survival, Food, Cube Pets and
+# City Kit (Industrial) models in 3D.
+sheet farm
+
 belt belt name "Cart track" speed 12 model conveyor corner conveyor-corner
 
-resource wood   name "Wood"           sprite 105 tint 8a5a2b
-resource plank  name "Plank"          sprite 106 tint c69c62
-resource grain  name "Grain"          sprite 97  tint e8c34a
-resource flour  name "Flour"          sprite 97  tint f4efe0
-resource bread  name "Bread"          sprite 85  tint c58a4a
-resource apple  name "Apple"          sprite 129 tint d94040
-resource juice  name "Apple juice"    sprite 126 tint e0a030
-resource milk   name "Milk"           sprite 126 tint f5f5f5
-resource cheese name "Cheese"         sprite 107 tint f2c94c
-resource basket name "Picnic basket"  sprite 123
-resource water  name "Water"          sprite 86
+resource wood   name "Wood"           sprite 14
+resource plank  name "Plank"          sprite 76
+resource grain  name "Grain"          sprite 66
+resource flour  name "Flour"          sprite 74
+resource bread  name "Bread"          sprite 125
+resource apple  name "Apple"          sprite 44
+resource juice  name "Apple juice"    sprite 85
+resource milk   name "Milk"           sprite 123
+resource cheese name "Cheese"         sprite 96
+resource basket name "Picnic basket"  sprite 47
+resource water  name "Water"          sprite 73
 
-layer field    name "farmland" sprites 3 32 tint 8a6a3a
-layer orchard  name "orchard"  sprites 3 32 tint 4f9f45
-layer pasture  name "pasture"  sprites 3 32 tint 9ccc5c
-layer forest   name "forest"   sprites 3 32 tint 2f5f2f
-layer pond     name "pond"     sprites 3    tint 2f7fd6
+layer field    name "farmland" sprites 49 61 tint 8a6a3a
+layer orchard  name "orchard"  sprites 78 39 tint 4f9f45
+layer pasture  name "pasture"  sprites 52 64 40 tint 9ccc5c
+layer forest   name "forest"   sprites 15 27 3 tint 2f5f2f
+layer pond     name "pond"     sprites 73    tint 2f7fd6
 
 metric baskets name "Baskets packed"
 
-unit splitter   name "Fork"         sprite 72  group "Logistics" routes split model conveyor-cross
-unit sorter     name "Sorting gate" sprite 79  group "Logistics" routes filter model scanner-low
-unit market     name "Market"       sprite 58  group "Logistics" stores shared model box-wide
-unit woodcutter name "Woodcutter"   sprite 121 group "Gathering" placeOn forest model robot-arm-b
-unit farm       name "Farm"         sprite 99  tint 9ccc5c group "Gathering" placeOn field model piston-round
-unit picker     name "Apple picker" sprite 100 group "Gathering" placeOn orchard model piston-square
-unit ranch      name "Ranch"        sprite 101 tint f5f5f5 group "Gathering" placeOn pasture model machine-window-bar
-unit pump       name "Pump"         sprite 90  group "Water" placeOn pond model pipe-large-valve
-unit pipe       name "Pipe"         sprite 91  group "Water" links water reach 1 model button-floor-round
-unit sawmill    name "Sawmill"      sprite 110 group "Workshops" model machine
-unit mill       name "Mill"         sprite 114 group "Workshops" model hopper-round
-unit bakery     name "Bakery"       sprite 92  group "Workshops" model hopper-high-round
-unit press      name "Cider press"  sprite 102 group "Workshops" model hopper-square
-unit dairy      name "Dairy"        sprite 75  group "Workshops" model machine-fortified
-unit kitchen    name "Kitchen"      sprite 87  group "Workshops" model machine-connection-pipe
+unit splitter   name "Fork"         sprite 80  group "Logistics" routes split model survival/signpost
+unit sorter     name "Sorting gate" sprite 126  group "Logistics" routes filter model nature/fence_gate
+unit market     name "Market"       sprite 11  group "Logistics" stores shared model survival/tent-canvas
+unit woodcutter name "Woodcutter"   sprite 87 group "Gathering" placeOn forest model nature/log_stack
+unit farm       name "Farm"         sprite 30 group "Gathering" placeOn field model nature/crops_cornStageD
+unit picker     name "Apple picker" sprite 78 group "Gathering" placeOn orchard model nature/tree_fat
+unit ranch      name "Ranch"        sprite 121 group "Gathering" placeOn pasture model pets/animal-cow
+unit pump       name "Pump"         sprite 72  group "Water" placeOn pond model industrial/water-tower
+unit pipe       name "Pipe"         sprite 84  group "Water" links water reach 1 model survival/bucket
+unit sawmill    name "Sawmill"      sprite 98 group "Workshops" model survival/workbench
+unit mill       name "Mill"         sprite 89 group "Workshops" model industrial/windmill-low
+unit bakery     name "Bakery"       sprite 112  group "Workshops" model survival/campfire-pit
+unit press      name "Cider press"  sprite 75 group "Workshops" model survival/barrel
+unit dairy      name "Dairy"        sprite 124  group "Workshops" model food/cheese
+unit kitchen    name "Kitchen"      sprite 108  group "Workshops" model food/pot-stew
 
 describe belt       "Carts carry goods one tile at a time in the direction the track faces."
 describe splitter   "Takes turns sending carts out of its front, left and right."

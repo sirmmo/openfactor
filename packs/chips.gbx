@@ -8,6 +8,8 @@
 title "Chip fab"
 summary "Timed puzzle rounds: lay out a small, powered electronics line before the clock runs out."
 
+# Art: Tiny Factory on the map; City Kit (Industrial) models in 3D.
+
 belt belt name "Belt" speed 16 model conveyor corner conveyor-corner
 belt fast name "Fast belt" speed 32 style 1 model conveyor-stripe corner conveyor-stripe-corner
 
@@ -30,17 +32,17 @@ metric boards name "Boards shipped"
 unit splitter name "Splitter"       sprite 72  group "Logistics" routes split model conveyor-cross
 unit sorter   name "Sorter"         sprite 79  group "Logistics" routes filter model scanner-low
 unit tunnel   name "Tunnel"         sprite 68  group "Logistics" routes tunnel range 4 model machine-connection-hole
-unit dock     name "Loading dock"   sprite 58  group "Logistics" stores shared model box-wide
-unit dredge   name "Sand dredge"    sprite 110 group "Raw" placeOn dunes model piston-round
-unit drill    name "Copper drill"   sprite 98  group "Raw" placeOn copperField model piston-square
-unit smelter  name "Smelter"        sprite 92  group "Fab" model hopper-round
-unit slicer   name "Wafer slicer"   sprite 74  group "Fab" model scanner-low
-unit drawer   name "Wire drawer"    sprite 102 group "Fab" model machine
-unit etcher   name "Etcher"         sprite 111 group "Fab" model machine-window-bar
-unit packager name "Chip packager"  sprite 87  group "Fab" model machine-fortified
-unit boarder  name "Board line"     sprite 99  group "Fab" model machine-connection-pipe
-unit panel    name "Solar panel"    sprite 22  group "Power" model screen-flat
-unit pole     name "Power pole"     sprite 116 group "Power" links power reach 5 model structure-tall
+unit dock     name "Loading dock"   sprite 58  group "Logistics" stores shared model industrial/shipping-container-b
+unit dredge   name "Sand dredge"    sprite 110 group "Raw" placeOn dunes model industrial/building-r
+unit drill    name "Copper drill"   sprite 98  group "Raw" placeOn copperField model industrial/building-n
+unit smelter  name "Smelter"        sprite 92  group "Fab" model industrial/building-m
+unit slicer   name "Wafer slicer"   sprite 74  group "Fab" model industrial/building-p
+unit drawer   name "Wire drawer"    sprite 102 group "Fab" model industrial/building-c
+unit etcher   name "Etcher"         sprite 111 group "Fab" model industrial/building-g
+unit packager name "Chip packager"  sprite 87  group "Fab" model industrial/building-j
+unit boarder  name "Board line"     sprite 99  group "Fab" model industrial/building-l
+unit panel    name "Solar panel"    sprite 22  group "Power" model industrial/solar-panel-flat
+unit pole     name "Power pole"     sprite 116 group "Power" links power reach 5 model industrial/chimney-basic
 
 describe belt       "Carries items one tile at a time in the direction it faces."
 describe fast       "Twice as fast as a belt."
