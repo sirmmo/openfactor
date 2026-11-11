@@ -70,7 +70,9 @@ Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory),
 [Tiny Farm](https://kenney.nl/assets/tiny-farm), [Nature Kit](https://kenney.nl/assets/nature-kit),
 [Survival Kit](https://kenney.nl/assets/survival-kit), [Food Kit](https://kenney.nl/assets/food-kit),
 [Cube Pets](https://kenney.nl/assets/cube-pets) and
-[City Kit (Industrial)](https://kenney.nl/assets/city-kit-industrial), all by Kenney (CC0); each
+[City Kit (Industrial)](https://kenney.nl/assets/city-kit-industrial),
+[Mini Characters](https://kenney.nl/assets/mini-characters), Kenney's fonts and
+[Interface Sounds](https://kenney.nl/assets/interface-sounds), all by Kenney (CC0); each
 model folder in `site/play/assets/models` has its licence. The 3D view uses
 [three.js](https://threejs.org) (MIT) and playing together uses [PeerJS](https://peerjs.com) (MIT),
 both vendored in `site/play/vendor`.
