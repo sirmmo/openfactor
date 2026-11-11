@@ -30,6 +30,9 @@ pub struct Content {
     /// The pack's name and what it is about, for choosing it. Cosmetic.
     pub(crate) title: String,
     pub(crate) summary: String,
+    /// Which art set the pack's sprites and models come from, if not the
+    /// default. Cosmetic, like the title: the simulation never reads it.
+    pub(crate) sheet: Option<String>,
     pub(crate) puzzles: Vec<PuzzleDef>,
 }
 
@@ -351,6 +354,11 @@ impl Content {
 
     pub fn summary(&self) -> &str {
         &self.summary
+    }
+
+    /// The art set named by `sheet`, if any.
+    pub fn sheet(&self) -> Option<&str> {
+        self.sheet.as_deref()
     }
 
     pub fn puzzles(&self) -> &[PuzzleDef] {

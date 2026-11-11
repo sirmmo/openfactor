@@ -1807,6 +1807,9 @@ fn every_pack_parses_with_titles_and_puzzles() {
         let pack = Pack::parse(text).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(!pack.content.title().is_empty() && !pack.content.summary().is_empty(), "{name}");
         assert!(!pack.content.puzzles().is_empty(), "{name} has puzzles");
+        // Only the network pack has art of its own; the rest use the default.
+        let sheet = if text.contains("\nsheet onebit") { Some("onebit") } else { None };
+        assert_eq!(pack.content.sheet(), sheet, "{name}");
         for (index, puzzle) in pack.content.puzzles().iter().enumerate() {
             assert!(!puzzle.description.is_empty(), "{name}: {} is described", puzzle.id);
             // Every start builds its opening without a refusal.

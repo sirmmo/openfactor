@@ -460,9 +460,10 @@ fn pack_json(pack: &Pack) -> String {
         })
         .collect();
     format!(
-        r#"{{"title":{},"summary":{},"puzzles":[{}],"levels":{},"span":{},"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
+        r#"{{"title":{},"summary":{},"sheet":{},"puzzles":[{}],"levels":{},"span":{},"belts":[{}],"units":[{}],"resources":[{}],"layers":[{}],"metrics":[{}],"techs":[{}]}}"#,
         json_string(content.title()),
         json_string(content.summary()),
+        content.sheet().map_or("null".to_string(), json_string),
         puzzles.join(","),
         content.levels(),
         content.span(),

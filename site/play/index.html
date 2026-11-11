@@ -269,9 +269,25 @@
   const TILE_UNITS = 256;
   const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
   const DIR_NAMES = ['↑', '→', '↓', '←'];
-  // Indices into the Tiny Factory sheet: 12 columns of 16x16 tiles. Units,
-  // resources and map layers name their own sprites in the rule pack.
-  const SHEET_COLUMNS = 12, SHEET_TILE = 16;
+  // Units, resources and map layers name their own sprites in the rule pack,
+  // as indices into the sheet the pack picks with `sheet` (Tiny Factory when
+  // it picks none). All sheets are 16x16 tiles, packed with no gaps.
+  //   floor:  colour of empty ground, instead of the Tiny Factory floor tile
+  //   groundAlpha: how strongly map layers show over that floor
+  //   links:  colours to draw belts in as cables, one per belt style, instead
+  //           of the Tiny Factory belt art; linkIcons are their toolbar icons
+  //   view3d: ground and grid colours for the 3D view
+  const SHEETS = {
+    tiny: { src: 'assets/tiny-factory.png', columns: 12, tint: 0.6, groundTint: 0.55 },
+    onebit: {
+      src: 'assets/one-bit.png', columns: 49, tint: 0.85, groundTint: 0.5, groundAlpha: 0.3,
+      floor: '#1f1c2b', grid: 'rgba(120, 110, 160, .14)',
+      links: ['#7d8db8', '#4ad9d9'], linkIcons: [1009, 1058],
+      view3d: { ground: 0x2b2740, grid: 0x4c4668 },
+    },
+  };
+  let SHEET_COLUMNS = 12;
+  const SHEET_TILE = 16;
   const FLOOR_SPRITE = 0;
   // Keyed by [has input behind][has output ahead]; the second animation frame
   // is one row down for horizontal belts and one column right for vertical ones.
@@ -280,7 +296,8 @@
     { horizontal: [[24, 25], [27, 26]], vertical: [[12, 28], [4, 16]] },
     { horizontal: [[48, 49], [51, 50]], vertical: [[14, 64], [40, 52]] },
   ];
-  const TINT_STRENGTH = 0.6, GROUND_TINT_STRENGTH = 0.55, HAZE_STRENGTH = 0.8;
+  let TINT_STRENGTH = 0.6, GROUND_TINT_STRENGTH = 0.55;
+  const HAZE_STRENGTH = 0.8;
   const STATUS_MARKS = { 2: '#e05252', 3: '#b9bdc2', 4: '#f2b63c', 6: '#e05252' };
   const STATUS_TEXT = ['Waiting for inputs', 'Working', 'Not enough %', 'Held back by map conditions', 'Output has nowhere to go', 'Standing by: nothing needs its output yet', 'Not connected'];
   const PORT_TURNS = [0, -1, 1];
@@ -304,7 +321,7 @@
   let of;
   const sheet = new Image();
   try {
-    sheet.src = 'assets/tiny-factory.png';
+    sheet.src = SHEETS.tiny.src;
     const [source] = await Promise.all([fetch('openfactor.wasm'), sheet.decode()]);
     if (!source.ok) throw new Error('HTTP ' + source.status);
     const { instance } = await WebAssembly.instantiate(await source.arrayBuffer(), {});
@@ -349,6 +366,15 @@
   // Calls can grow wasm memory, so take the buffer only after the last call.
   const packPointer = of.of_pack_json(), packLength = of.of_pack_json_len();
   const pack = JSON.parse(new TextDecoder().decode(new Uint8Array(of.memory.buffer, packPointer, packLength)));
+  // The pack's art: anything it does not name, or a sheet this page does not know, is Tiny Factory.
+  const ART = SHEETS[pack.sheet] || SHEETS.tiny;
+  if (ART !== SHEETS.tiny) {
+    sheet.src = ART.src;
+    try { await sheet.decode(); } catch { say('The art for these rules could not load. Try reloading the page.', 0); }
+  }
+  SHEET_COLUMNS = ART.columns;
+  TINT_STRENGTH = ART.tint;
+  GROUND_TINT_STRENGTH = ART.groundTint;
   const D = await import('./describe.js?v=1');
   const techUnlockList = D.unlocksByTech(pack);
   const beltCount = pack.belts.length;
@@ -391,7 +417,7 @@
     paintIcon(canvas, sprite, tint);
     return canvas;
   }
-  const beltIcon = (belt) => BELT_ART[belt.style % BELT_ART.length].horizontal[1][1];
+  const beltIcon = (belt) => (ART.links ? ART.linkIcons[belt.style % ART.linkIcons.length] : BELT_ART[belt.style % BELT_ART.length].horizontal[1][1]);
 
   const TOOLS = [
     ...pack.belts.map((belt, index) => (
@@ -1434,8 +1460,8 @@
       loading3d = true;
       say('Loading the 3D view…', 0);
       try {
-        const { createView3d } = await import('./view3d.js?v=2');
-        view3d = await createView3d({ pack, canvas: $('view3d'), spriteSource, isBelt, DIRS, PORT_TURNS, beltCount });
+        const { createView3d } = await import('./view3d.js?v=3');
+        view3d = await createView3d({ pack, canvas: $('view3d'), spriteSource, isBelt, DIRS, PORT_TURNS, beltCount, look: ART.view3d });
         statusEl.hidden = true;
       } catch (error) {
         say('The 3D view could not start (' + error.message + ').', 6000);
@@ -1622,7 +1648,13 @@
   }
 
   function beltHasInput(b) {
-    return DIRS.some(([dx, dy], side) => {
+    return beltInputs(b).length > 0;
+  }
+
+  // The sides of a belt that something feeds into it from.
+  function beltInputs(b) {
+    return [0, 1, 2, 3].filter((side) => {
+      const [dx, dy] = DIRS[side];
       if (side === b.dir) return false;
       const neighbour = buildingAt(b.x + dx, b.y + dy, b.z);
       if (!neighbour) return false;
@@ -1632,7 +1664,43 @@
     });
   }
 
+  // A belt as a cable: from each side that feeds it to the middle, then out
+  // of its front, with pulses running along it at the belt's speed.
+  function drawCable(b, tick) {
+    const belt = pack.belts[b.kind];
+    const cell = cam.cell, half = cell / 2;
+    const cx = sx(b.x + 0.5), cy = sy(b.y + 0.5);
+    const sides = beltInputs(b);
+    if (!sides.length) sides.push((b.dir + 2) % 4);
+    const [fx, fy] = DIRS[b.dir];
+    const path = new Path2D();
+    for (const side of sides) {
+      const [dx, dy] = DIRS[side];
+      path.moveTo(cx + dx * half, cy + dy * half);
+      path.lineTo(cx, cy);
+      path.lineTo(cx + fx * half, cy + fy * half);
+    }
+    ctx.save();
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0e0c16';
+    ctx.lineWidth = cell * 0.3;
+    ctx.stroke(path);
+    ctx.strokeStyle = ART.links[belt.style % ART.links.length];
+    ctx.lineWidth = cell * 0.16;
+    ctx.stroke(path);
+    // Dashes a whole number of times per tile, so they meet at the joins.
+    ctx.strokeStyle = '#f4f1ff';
+    ctx.globalAlpha *= 0.75;
+    ctx.lineWidth = cell * 0.07;
+    ctx.setLineDash([cell * 0.1, cell * 0.4]);
+    ctx.lineDashOffset = -((tick * belt.speed / TILE_UNITS) % 1) * cell;
+    ctx.stroke(path);
+    ctx.restore();
+  }
+
   function drawBelt(b, tick) {
+    if (ART.links) return drawCable(b, tick);
     const x = sx(b.x), y = sy(b.y), frame = (tick >> 3) & 1;
     const input = beltHasInput(b) ? 1 : 0, output = beltHasOutput(b) ? 1 : 0;
     const art = BELT_ART[pack.belts[b.kind].style % BELT_ART.length];
@@ -1767,10 +1835,25 @@
       for (let y = top; y <= bottom; y++) {
         const layer = ground.get(x + ',' + y);
         const definition = layer === undefined ? null : pack.layers[layer];
+        if (ART.floor) {
+          ctx.fillStyle = ART.floor;
+          ctx.fillRect(sx(x), sy(y), cam.cell, cam.cell);
+          if (!definition) continue;
+        }
         const sprites = definition ? definition.sprites : [FLOOR_SPRITE];
         const sprite = sprites[Math.abs(x * 7 + y * 13) % sprites.length];
+        if (definition && ART.groundAlpha) ctx.globalAlpha = ART.groundAlpha;
         drawSprite(sprite, sx(x), sy(y), cam.cell, false, false, definition ? definition.tint : null, GROUND_TINT_STRENGTH);
+        ctx.globalAlpha = 1;
       }
+    }
+    if (ART.grid) {
+      ctx.strokeStyle = ART.grid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = left; x <= right; x++) { ctx.moveTo(Math.round(sx(x)) + 0.5, sy(top)); ctx.lineTo(Math.round(sx(x)) + 0.5, sy(bottom + 1)); }
+      for (let y = top; y <= bottom; y++) { ctx.moveTo(sx(left), Math.round(sy(y)) + 0.5); ctx.lineTo(sx(right + 1), Math.round(sy(y)) + 0.5); }
+      ctx.stroke();
     }
     if (level > 0) drawLevelFloor(left, right, top, bottom);
     // Lower levels show through, fainter the further down they are.

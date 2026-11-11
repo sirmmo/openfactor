@@ -9,6 +9,9 @@
 title "Network"
 summary "No ore, just traffic: requests flow through parsers, routers, databases and renderers to become responses."
 
+# Art: Kenney's 1-Bit Pack for the map, Space Station Kit models in 3D.
+sheet onebit
+
 # The four levels are the layers of the stack, from wire to application.
 levels 4
 span 3
@@ -16,40 +19,40 @@ span 3
 belt belt name "Link" speed 24 model conveyor corner conveyor-corner
 belt fiber name "Fiber link" speed 48 style 1 model conveyor-stripe corner conveyor-stripe-corner
 
-resource request  name "Request"   sprite 106 tint 4a90d9
-resource json     name "JSON"      sprite 130 tint f2c94c
-resource query    name "Query"     sprite 57  tint 9b59b6
-resource rows     name "Rows"      sprite 85  tint 7f8c8d
-resource response name "Response"  sprite 106 tint 3fae5a
-resource error    name "Error"     sprite 129 tint e74c3c
-resource token    name "Token"     sprite 114 tint e8c34a
-resource compute  name "Compute"   sprite 129 tint 4ad9d9
+resource request  name "Request"   sprite 721 tint 4a90d9
+resource json     name "JSON"      sprite 768 tint f2c94c
+resource query    name "Query"     sprite 675 tint b07ce0
+resource rows     name "Rows"      sprite 699 tint 9fb0c0
+resource response name "Response"  sprite 723 tint 3fae5a
+resource error    name "Error"     sprite 1064 tint e74c3c
+resource token    name "Token"     sprite 571 tint e8c34a
+resource compute  name "Compute"   sprite 829 tint 4ad9d9
 
-layer users   name "users"       sprites 3 32 tint 4a90d9
-layer storage name "storage"     sprites 3 32 tint 7f8c8d
+layer users   name "users"       sprites 827 828 tint 4a90d9
+layer storage name "storage"     sprites 892 893 tint 7f8c8d
 layer heat    name "heat"        haze d9534a full 400
 
 metric served name "Responses served"
 metric logged name "Errors logged"
 
-unit balancer name "Load balancer"   sprite 72  group "Routing" routes split model conveyor-cross
-unit firewall name "Firewall"        sprite 79  group "Routing" routes filter model scanner-low
-unit queue    name "Message queue"   sprite 68  group "Routing" routes tunnel range 8 model machine-connection-hole
-unit up       name "Layer up"        sprite 127 group "Routing" routes up range 3 model crane-lift
-unit down     name "Layer down"      sprite 109 group "Routing" routes down range 3 model hopper-square
-unit mount    name "Mount"           sprite 128 group "Routing" model structure-yellow-tall
-unit internet name "The internet"    sprite 58  group "Routing" stores shared model box-wide
-unit gateway  name "Gateway"         sprite 81  group "Edge" placeOn users model pipe-large-valve
-unit monolith name "Monolith"        sprite 84  group "Services" model machine-fortified
-unit parser   name "Parser"          sprite 87  group "Services" model machine
-unit auth     name "Auth service"    sprite 75  group "Services" model scanner-low
-unit router   name "API router"      sprite 111 group "Services" model machine-connection-pipe
-unit database name "Database"        sprite 108 tint 9fb0c0 group "Services" placeOn storage model hopper-high-square
-unit cache    name "Cache"           sprite 113 group "Services" model screen-flat
-unit renderer name "Renderer"        sprite 99  group "Services" model machine-window-bar
-unit logger   name "Log collector"   sprite 92  group "Services" model hopper-round
-unit rack     name "Server rack"     sprite 84  tint 4ad9d9 group "Compute" model hopper-high-round
-unit switch   name "Switch"          sprite 116 group "Compute" links compute reach 5 model structure-tall
+unit balancer name "Load balancer"   sprite 1019  group "Routing" routes split model space/table-inset-small
+unit firewall name "Firewall"        sprite 545  group "Routing" routes filter model space/structure-barrier
+unit queue    name "Message queue"   sprite 689  group "Routing" routes tunnel range 8 model space/container-flat-open
+unit up       name "Layer up"        sprite 1057 group "Routing" routes up range 3 model space/pipe-ring-colored
+unit down     name "Layer down"      sprite 1059 group "Routing" routes down range 3 model space/pipe-end-colored
+unit mount    name "Mount"           sprite 743 group "Routing" model space/structure
+unit internet name "The internet"    sprite 680 tint 8fc7ff  group "Routing" stores shared model space/table-display-planet
+unit gateway  name "Gateway"         sprite 1034  group "Edge" placeOn users model space/computer-wide
+unit monolith name "Monolith"        sprite 889  group "Services" model space/wall-pillar-banner
+unit parser   name "Parser"          sprite 304  group "Services" model space/computer-system
+unit auth     name "Auth service"    sprite 539  group "Services" model space/computer
+unit router   name "API router"      sprite 1032 group "Services" model space/table-display-small
+unit database name "Database"        sprite 650 group "Services" placeOn storage model space/container-wide
+unit cache    name "Cache"           sprite 523 group "Services" model space/container
+unit renderer name "Renderer"        sprite 400  group "Services" model space/computer-screen
+unit logger   name "Log collector"   sprite 497  group "Services" model space/skip
+unit rack     name "Server rack"     sprite 404 tint 4ad9d9 group "Compute" model space/wall-pillar
+unit switch   name "Switch"          sprite 946 group "Compute" links compute reach 5 model space/wall-detail
 
 describe belt     "Carries messages one tile at a time in the direction it faces."
 describe fiber    "A link twice as fast."

@@ -204,6 +204,7 @@ struct Builder {
     sandbox: bool,
     title: Option<String>,
     summary: String,
+    sheet: Option<String>,
     puzzles: Vec<PuzzleDef>,
     levels: Option<u32>,
     span: Option<u32>,
@@ -459,6 +460,7 @@ impl Builder {
             ["sandbox"] => self.sandbox = true,
             ["title", value] => self.title = Some(value.to_string()),
             ["summary", value] => self.summary = value.to_string(),
+            ["sheet", value] => self.sheet = Some(value.to_string()),
             ["levels", value] => {
                 let levels = line.positive(value)?;
                 if levels > MAX_LEVELS {
@@ -1016,6 +1018,7 @@ impl Builder {
                 span: self.span.unwrap_or(DEFAULT_SPAN),
                 title: self.title.unwrap_or_else(|| "Untitled rules".to_string()),
                 summary: self.summary,
+                sheet: self.sheet,
                 puzzles: self.puzzles,
             },
             worldgen: WorldGen { patches: self.patches, starter: self.starter, stock: self.stock },

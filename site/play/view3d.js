@@ -70,14 +70,15 @@ function averageColor(source) {
   return new THREE.Color(`rgb(${Math.round(red / count)},${Math.round(green / count)},${Math.round(blue / count)})`);
 }
 
-export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, PORT_TURNS, beltCount }) {
+export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, PORT_TURNS, beltCount, look = {} }) {
+  const ground = look.ground ?? SAND, gridColor = look.grid ?? GRID;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(SAND);
+  scene.background = new THREE.Color(ground);
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0xb08a68, 1.5));
@@ -87,11 +88,11 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   sun.shadow.bias = -0.0006;
   scene.add(sun, sun.target);
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ color: SAND }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshLambertMaterial({ color: ground }));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(240, 240, GRID, GRID);
+  const grid = new THREE.GridHelper(240, 240, gridColor, gridColor);
   grid.material.transparent = true;
   grid.material.opacity = 0.35;
   grid.position.y = 0.02;
@@ -118,6 +119,9 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     models.set(name, { name, parts, bounds: new THREE.Box3().setFromObject(gltf.scene) });
   }));
 
+  // A model can sit in a folder of its own art set, like 'space/computer'.
+  const baseName = (name) => name.slice(name.lastIndexOf('/') + 1);
+
   // Building models are centred, stood on the ground and fitted inside one tile.
   function fitOf(model, isTile) {
     if (isTile) return { matrix: new THREE.Matrix4(), height: model.bounds.max.y };
@@ -125,13 +129,13 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     const center = model.bounds.getCenter(new THREE.Vector3());
     const scale = Math.min(1, TILE_FIT / Math.max(size.x, size.z));
     // Structural pieces reach exactly from one level to the next.
-    const upright = model.name.startsWith('structure') ? LEVEL_HEIGHT / size.y : scale;
+    const upright = baseName(model.name).startsWith('structure') ? LEVEL_HEIGHT / size.y : scale;
     const matrix = new THREE.Matrix4().makeScale(scale, upright, scale)
       .multiply(new THREE.Matrix4().makeTranslation(-center.x, -model.bounds.min.y, -center.z));
     return { matrix, height: size.y * upright };
   }
   const fits = new Map();
-  for (const model of models.values()) fits.set(model.name, fitOf(model, model.name.startsWith('conveyor')));
+  for (const model of models.values()) fits.set(model.name, fitOf(model, baseName(model.name).startsWith('conveyor')));
 
   const world = new THREE.Group();
   scene.add(world);

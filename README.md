@@ -63,7 +63,9 @@ builds the WebAssembly client and publishes both to GitHub Pages.
 The code is licensed under the GNU General Public License, version 2 or later.
 See [COPYING](COPYING).
 
-Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory) and
-[Factory Kit](https://kenney.nl/assets/factory-kit) by Kenney (CC0). The 3D view uses
+Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory),
+[Factory Kit](https://kenney.nl/assets/factory-kit), and, for the Network rule set,
+[1-Bit Pack](https://kenney.nl/assets/1-bit-pack) and
+[Space Station Kit](https://kenney.nl/assets/space-station-kit), all by Kenney (CC0). The 3D view uses
 [three.js](https://threejs.org) (MIT) and playing together uses [PeerJS](https://peerjs.com) (MIT),
 both vendored in `site/play/vendor`.
