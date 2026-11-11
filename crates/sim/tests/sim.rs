@@ -1832,6 +1832,8 @@ fn a_puzzle_is_solved_by_reaching_its_goals() {
     let pack = Pack::parse(PUZZLES).unwrap();
     let (mut world, starter) = World::start(&pack, Start::Puzzle(0));
     assert!(starter.is_empty());
+    // The first tick builds the opening, which may hold anything; after it, only what the puzzle allows.
+    world.step(&starter);
     let other = Command::Place { pos: p(9, 9), dir: Dir::East, building: Building::Unit(UnitId(2)) };
     assert_eq!(world.step(&[other]), vec![Rejected { index: 0, reason: Reject::NotInPuzzle }]);
     run(&mut world, &ore_line(), 1);
