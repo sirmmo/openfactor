@@ -1,0 +1,203 @@
+# OpenFactor toy workshop pack: plastic into bricks, wheels and racing cars.
+#
+# Hoppers on the resin floor pour plastic pellets; taps on the paint pool
+# pour paint. Moulds turn pellets into bricks, presses into wheels, and the
+# shaper into painted car bodies; the assembler puts four wheels on a body.
+# Bricks pay for building. Most of the fun is in the timed rounds.
+
+title "Toy workshop"
+summary "Mould bricks, press wheels and assemble racing cars: short, timed rounds on a toy-box floor."
+
+# Art: the 1-Bit Pack for icons; Kenney's Toy Car Kit, Brick Kit and Factory Kit in 3D.
+sheet toys
+
+belt belt name "Belt" speed 20
+belt fast name "Fast belt" speed 40 style 1
+
+resource pellets name "Pellets"    sprite 259  tint f4f4f4 model bricks/bevel-hq-brick-1x1-round
+resource paint   name "Paint"      sprite 896  tint e04848 model survival/bucket
+resource brick   name "Brick"      sprite 545  tint e04848 model bricks/bevel-hq-brick-2x4
+resource wheel   name "Wheel"      sprite 676  tint 30303a model toy/wheel-small
+resource body    name "Car body"   sprite 1039 tint 3a7bd5 model bricks/bevel-hq-brick-slope-2x4
+resource car     name "Racing car" sprite 992  tint 3a7bd5 model toy/vehicle-racer
+resource set     name "Brick set"  sprite 689  tint f2c94c model toy/item-box
+
+layer resin name "resin floor" sprites 892 tint e8e8f0 decor 30% bricks/bevel-hq-brick-1x1-round@0.25 bricks/bevel-hq-brick-1x2@0.3
+layer pool  name "paint pool"  sprites 892 tint e04848
+
+metric cars name "Cars built"
+
+unit splitter  name "Splitter"     sprite 1019 group "Logistics" routes split model conveyor-cross
+unit sorter    name "Sorter"       sprite 163  group "Logistics" routes filter model toy/gate
+unit tunnel    name "Tunnel"       sprite 112  group "Logistics" routes tunnel range 4 model machine-connection-hole
+unit shop      name "Toy shop"     sprite 360  group "Logistics" stores shared model toy/gate-finish
+unit hopper    name "Pellet hopper" sprite 651 group "Supply" placeOn resin model hopper-round
+unit tap       name "Paint tap"    sprite 650  group "Supply" placeOn pool model survival/barrel
+unit mould     name "Brick mould"  sprite 545  group "Workshop" model machine
+unit press     name "Wheel press"  sprite 676  group "Workshop" model piston-round
+unit shaper    name "Body shaper"  sprite 1039 group "Workshop" model machine-window-bar
+unit assembler name "Assembler"    sprite 992  group "Workshop" model robot-arm-a
+unit boxer     name "Boxer"        sprite 689  group "Workshop" model box-wide
+
+describe belt      "Carries toys one tile at a time in the direction it faces."
+describe fast      "A belt twice as fast."
+describe splitter  "Takes turns sending what arrives out of its front, left and right."
+describe sorter    "Pick a part in its inspector: that one goes straight on, everything else leaves by the sides."
+describe tunnel    "Sends parts to the next tunnel facing the same way, up to 4 tiles ahead, under anything in between."
+describe shop      "Sells what it receives into the stock that pays for building and research."
+describe hopper    "Pours plastic pellets. Stand it on the resin floor."
+describe tap       "Pours paint. Stand it on the paint pool."
+describe mould     "Moulds pellets into bricks."
+describe press     "Presses pellets into wheels."
+describe shaper    "Shapes pellets and paint into a car body."
+describe assembler "Puts four wheels on a body: a racing car. Each one is counted."
+describe boxer     "Boxes six bricks into a brick set."
+describe pellets   "Plastic, melted into everything."
+describe paint     "Colour for car bodies."
+describe brick     "Pays for building."
+describe wheel     "Four to a car."
+describe body      "Waiting for wheels."
+describe car       "The star of the show."
+describe set       "Six bricks in a box: a present."
+describe racing    "The paint tap, the body shaper and the assembler."
+describe boxing    "The boxer, for brick sets."
+describe logistics "Fast belts, sorters and tunnels."
+
+unitRule pour
+    appliesTo hopper
+    rate 20
+    map resin atLeast 1
+    local pellets out 1
+end
+unitRule tapPaint
+    appliesTo tap
+    rate 40
+    map pool atLeast 1
+    local paint out 1
+end
+unitRule mouldBrick
+    appliesTo mould
+    rate 30
+    local pellets in 2
+    local brick out 1
+end
+unitRule pressWheels
+    appliesTo press
+    rate 30
+    local pellets in 1
+    local wheel out 2
+end
+unitRule shape
+    appliesTo shaper
+    rate 90
+    local pellets in 3
+    local paint in 1
+    local body out 1
+end
+unitRule assemble
+    appliesTo assembler
+    rate 90
+    local body in 1
+    local wheel in 4
+    local car out 1
+    log cars 1
+end
+unitRule box
+    appliesTo boxer
+    rate 60
+    local brick in 6
+    local set out 1
+end
+
+patch resin at 0 0  size 4 10 amount 1
+patch pool  at 14 0 size 3 3  amount 1
+
+stock brick 80
+
+cost belt      brick 1
+cost fast      brick 3
+cost splitter  brick 4
+cost sorter    brick 8
+cost tunnel    brick 8
+cost shop      brick 10
+cost hopper    brick 6
+cost tap       brick 8
+cost mould     brick 8
+cost press     brick 10
+cost shaper    brick 16
+cost assembler brick 24
+cost boxer     brick 12
+
+research racing
+    name "Racing cars"
+    cost brick 80
+    time 240
+    unlocks tap shaper assembler
+end
+research boxing
+    name "Brick sets"
+    cost brick 60
+    time 180
+    unlocks boxer
+end
+research logistics
+    name "Logistics"
+    cost brick 100 car 5
+    time 300
+    unlocks fast sorter tunnel
+end
+
+# A hopper feeding a brick mould, which sells to the shop.
+place hopper 3 2 east
+place belt 4 2 east count 2
+place mould 6 2 east
+place belt 7 2 east count 2
+place shop 9 2 east
+
+puzzle firstBricks
+    name "First bricks"
+    about "Bricks pay for everything. Sell 50 to the shop."
+    goal deliver brick 50
+end
+puzzle wheels
+    name "Wheels"
+    about "Press 40 wheels."
+    goal make wheel 40
+end
+puzzle racers
+    name "Racers"
+    about "Research racing cars and build 10. Then keep the line running."
+    goal research racing
+    goal metric cars 10
+end
+
+puzzle brickRush
+    name "Brick rush"
+    about "Three minutes, 300 bricks in the shop. One line won't be enough."
+    fresh
+    stock brick 60
+    only belt splitter shop hopper mould
+    goal deliver brick 300
+    limit 10800
+end
+puzzle pitStop
+    name "Pit stop"
+    about "Five minutes to build 8 racing cars."
+    fresh
+    stock brick 200
+    researched racing
+    only belt splitter shop hopper tap mould press shaper assembler
+    goal metric cars 8
+    limit 18000
+end
+puzzle giftWrap
+    name "Gift wrap"
+    about "Four minutes: box 10 brick sets and sell 4 cars."
+    fresh
+    stock brick 250
+    researched racing boxing
+    only belt splitter shop hopper tap mould press shaper assembler boxer
+    goal deliver set 10
+    goal deliver car 4
+    limit 14400
+end

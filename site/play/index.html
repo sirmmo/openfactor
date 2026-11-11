@@ -9,6 +9,9 @@
   @font-face { font-family: 'Kenney Future Narrow'; src: url(assets/fonts/kenney-future-narrow.ttf); font-display: swap; }
   @font-face { font-family: 'Kenney Mini Square Mono'; src: url(assets/fonts/kenney-mini-square-mono.ttf); font-display: swap; }
   @font-face { font-family: 'Kenney Mini'; src: url(assets/fonts/kenney-mini.ttf); font-display: swap; }
+  @font-face { font-family: 'Kenney Future'; src: url(assets/fonts/kenney-future.ttf); font-display: swap; }
+  @font-face { font-family: 'Kenney Rocket'; src: url(assets/fonts/kenney-rocket.ttf); font-display: swap; }
+  @font-face { font-family: 'Kenney Rocket Square'; src: url(assets/fonts/kenney-rocket-square.ttf); font-display: swap; }
   /* Each rule set picks a theme through its sheet: the factory look by default. */
   :root {
     --ink: #e8e6df; --dim: #9a9c9e; --ground: #15181c; --panel: #1f2329;
@@ -21,6 +24,21 @@
     --line: #3a3456; --accent: #4ad9d9; --on-accent: #0b0a12;
     --mono: 'Kenney Mini Square Mono', ui-monospace, monospace;
     --ui-font: 'Kenney Mini Square Mono', ui-monospace, monospace; --ui-size: 13px; --radius: 0px;
+  }
+  :root[data-theme="space"] {
+    --ink: #f0e6dc; --dim: #a7958a; --ground: #1c1418; --panel: #2a1f24;
+    --line: #4a3940; --accent: #ff8a3c; --on-accent: #1c1418;
+    --ui-font: 'Kenney Future', system-ui, sans-serif; --ui-size: 12px; --radius: 3px;
+  }
+  :root[data-theme="diner"] {
+    --ink: #fff4e0; --dim: #e8c2a8; --ground: #2a0f12; --panel: #6e1c23;
+    --line: #a8434b; --accent: #ffd166; --on-accent: #3a1a10;
+    --ui-font: 'Kenney Rocket', system-ui, sans-serif; --ui-size: 13px; --radius: 12px;
+  }
+  :root[data-theme="toys"] {
+    --ink: #ffffff; --dim: #b9c6e6; --ground: #14203d; --panel: #22335e;
+    --line: #3c5491; --accent: #ffcc33; --on-accent: #14203d;
+    --ui-font: 'Kenney Rocket Square', system-ui, sans-serif; --ui-size: 13px; --radius: 14px;
   }
   :root[data-theme="farm"] {
     --ink: #3b2a18; --dim: #86704f; --ground: #f3e7c9; --panel: #fbf3df;
@@ -312,6 +330,30 @@
       view3d: { ground: 0x2b2740, grid: 0x4c4668, track: [0x55608a, 0x3fc9c9] },
       theme: 'terminal',
     },
+    space: {
+      src: 'assets/one-bit.png', columns: 49, tint: 0.85, groundTint: 0.5, groundAlpha: 0.35,
+      floor: '#2a2026', grid: 'rgba(255, 170, 120, .08)',
+      cable: { outline: '#120c10', width: 0.3, colors: ['#8a8fa0', '#ff8a3c'], line: 0.16, dash: '#ffe2c8', dashWidth: 0.07, pattern: [0.1, 0.4] },
+      linkIcons: [1009, 1058],
+      view3d: { ground: 0x9a7b6c, grid: 0x86685a, track: [0x5d6170, 0x8a8fa0] },
+      theme: 'space',
+    },
+    diner: {
+      src: 'assets/one-bit.png', columns: 49, tint: 0.85, groundTint: 0.5, groundAlpha: 0.35,
+      floor: '#2b2222', grid: 'rgba(255, 220, 190, .08)',
+      cable: { outline: '#140c0c', width: 0.34, colors: ['#9a9aa6'], line: 0.22, dash: '#dcdce4', dashWidth: 0.06, pattern: [0.08, 0.17] },
+      linkIcons: [1009],
+      view3d: { ground: 0xe9dfcf, grid: 0xcbbfa9, track: [0x8c8c96] },
+      theme: 'diner',
+    },
+    toys: {
+      src: 'assets/one-bit.png', columns: 49, tint: 0.85, groundTint: 0.5, groundAlpha: 0.35,
+      floor: '#1f2a44', grid: 'rgba(180, 210, 255, .1)',
+      cable: { outline: '#0c1222', width: 0.32, colors: ['#3a3f4f', '#e04848'], line: 0.2, dash: '#ffcc33', dashWidth: 0.06, pattern: [0.1, 0.4] },
+      linkIcons: [1009, 1058],
+      view3d: { ground: 0x8fc3e8, grid: 0x7bb0d6, track: [0x3a3f4f, 0xe04848] },
+      theme: 'toys',
+    },
     farm: {
       src: 'assets/tiny-farm.png', columns: 12, tint: 0.45, groundTint: 0.3,
       floor: '#84c669', floorDecor: { sprites: [52, 16, 40, 28], every: 11, alpha: 0.35 },
@@ -412,7 +454,7 @@
   TINT_STRENGTH = ART.tint;
   GROUND_TINT_STRENGTH = ART.groundTint;
   const D = await import('./describe.js?v=1');
-  const sound = (await import('./sound.js?v=1')).createSound(ART.theme || 'factory');
+  const sound = (await import('./sound.js?v=2')).createSound(ART.theme || 'factory');
   const soundChip = document.getElementById('sound-chip');
   const showSound = () => { soundChip.innerHTML = '&#9835; ' + (sound.on ? 'on' : 'off'); soundChip.setAttribute('aria-pressed', sound.on); };
   showSound();
@@ -1504,15 +1546,17 @@
   window.addEventListener('resize', resize);
   resize();
 
+  const LOADING_3D = 'Loading the 3D view…';
   async function toggle3d() {
     if (loading3d) return;
     if (!view3d) {
       loading3d = true;
-      say('Loading the 3D view…', 0);
+      say(LOADING_3D, 0);
       try {
         const { createView3d } = await import('./view3d.js?v=4');
         view3d = await createView3d({ pack, canvas: $('view3d'), spriteSource, isBelt, DIRS, PORT_TURNS, beltCount, look: ART.view3d });
-        statusEl.hidden = true;
+        // Clear only our own message: a load or a refusal may have spoken since.
+        if (statusEl.textContent === LOADING_3D) statusEl.hidden = true;
       } catch (error) {
         say('The 3D view could not start (' + error.message + ').', 6000);
         return;

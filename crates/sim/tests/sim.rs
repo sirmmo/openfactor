@@ -965,12 +965,15 @@ fn infrastructure_replays_identically_and_conserves_everything() {
 const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
 
 /// Every pack the game ships, by name.
-const ALL_PACKS: [(&str, &str); 5] = [
+const ALL_PACKS: [(&str, &str); 8] = [
     ("base", BASE_PACK),
     ("tutorial", include_str!("../../../packs/tutorial.gbx")),
     ("farm", include_str!("../../../packs/farm.gbx")),
     ("chips", include_str!("../../../packs/chips.gbx")),
     ("network", include_str!("../../../packs/network.gbx")),
+    ("outpost", include_str!("../../../packs/outpost.gbx")),
+    ("diner", include_str!("../../../packs/diner.gbx")),
+    ("toys", include_str!("../../../packs/toys.gbx")),
 ];
 
 /// Test-only units that supply every resource, as items or over a network.

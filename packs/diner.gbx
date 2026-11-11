@@ -1,0 +1,272 @@
+# OpenFactor diner pack: a kitchen that cooks for paying customers.
+#
+# Ingredients come from the pantry: shelves, crates and fridges stand on
+# the pantry floor. Boards, mixers, grills and ovens prepare them; tables
+# serve the dishes to customers, who pay in coins, and the till keeps the
+# coins that pay for everything else. Grills and ovens burn gas, carried
+# from the gas main along gas pipes.
+
+title "Diner"
+summary "A busy kitchen: chop, mix, grill and bake, and serve salads, burgers and pizza to paying tables."
+
+# Art: the 1-Bit Pack for icons; Kenney's Furniture and Food kits in 3D.
+sheet diner
+
+belt belt name "Counter belt" speed 16
+
+resource veg     name "Vegetables"   sprite 1014 model food/cabbage
+resource flour   name "Flour"        sprite 671  model food/bag
+resource meat    name "Meat"         sprite 965  model food/meat-raw
+resource cheese  name "Cheese"       sprite 818  model food/cheese-cut
+resource chopped name "Chopped veg"  sprite 1013 model food/paprika-slice
+resource dough   name "Dough"        sprite 867  tint f3e2c0 model food/pudding
+resource bun     name "Bun"          sprite 125  tint d9a05b model food/loaf-round
+resource patty   name "Patty"        sprite 965  tint 7a4a2a model food/meat-patty
+resource salad   name "Salad"        sprite 1012 model food/salad
+resource burger  name "Burger"       sprite 1039 tint d9a05b model food/burger
+resource pizza   name "Pizza"        sprite 631  tint e0703a model food/pizza
+resource coin    name "Coin"         sprite 218  model toy/item-coin-gold
+resource gas     name "Gas"          sprite 896  tint 7fb4ff
+
+layer pantry name "pantry floor" sprites 892 tint b8a07a
+
+metric served name "Dishes served"
+
+unit splitter name "Splitter"      sprite 1019 group "Counter" routes split model furniture/kitchenBar
+unit sorter   name "Sorter"        sprite 163  group "Counter" routes filter model furniture/kitchenBarEnd
+unit till     name "Till"          sprite 218  group "Counter" stores shared model furniture/kitchenCabinetDrawer
+unit table    name "Table"         sprite 456  group "Counter" model furniture/tableCloth
+unit crate    name "Veg crate"     sprite 689  group "Pantry" placeOn pantry model survival/box-large-open
+unit shelf    name "Flour shelf"   sprite 404  group "Pantry" placeOn pantry model furniture/kitchenCabinet
+unit coldRoom name "Cold room"     sprite 405  group "Pantry" placeOn pantry model furniture/kitchenFridgeLarge
+unit fridge   name "Cheese fridge" sprite 356  group "Pantry" placeOn pantry model furniture/kitchenFridge
+unit board    name "Chopping board" sprite 1013 group "Kitchen" model food/cutting-board
+unit bowl     name "Salad bar"     sprite 1012 group "Kitchen" model furniture/kitchenSink
+unit mixer    name "Mixer"         sprite 651  group "Kitchen" model furniture/kitchenBlender
+unit grill    name "Grill"         sprite 504  group "Kitchen" model furniture/kitchenStoveElectric
+unit oven     name "Oven"          sprite 505  group "Kitchen" model furniture/kitchenStove
+unit pass     name "Burger station" sprite 1039 group "Kitchen" model furniture/kitchenMicrowave
+unit gasMain  name "Gas main"      sprite 896  group "Gas" model industrial/detail-tank
+unit gasPipe  name "Gas pipe"      sprite 161  group "Gas" links gas reach 1 model spacekit/pipe_supportLow
+
+describe belt     "Carries food one tile at a time in the direction it faces."
+describe splitter "Takes turns sending what arrives out of its front, left and right."
+describe sorter   "Pick a food in its inspector: that one goes straight on, everything else leaves by the sides."
+describe till     "Keeps the coins, and anything else it receives, in the stock that pays for building and research."
+describe table    "Customers eat here and pay: a salad brings 3 coins, a burger 6 and a pizza 10. Every dish is counted."
+describe crate    "Hands out vegetables. Stand it on the pantry floor."
+describe shelf    "Hands out flour. Stand it on the pantry floor."
+describe coldRoom "Hands out meat. Stand it on the pantry floor."
+describe fridge   "Hands out cheese. Stand it on the pantry floor."
+describe board    "Chops vegetables."
+describe bowl     "Tosses chopped vegetables into a salad."
+describe mixer    "Mixes flour into dough."
+describe grill    "Grills meat into patties, burning gas."
+describe oven     "Bakes dough into buns, or dough, cheese and chopped veg into a pizza, burning gas."
+describe pass     "Builds a burger from a bun, a patty and chopped veg."
+describe gasMain  "Fills the gas pipes around it."
+describe gasPipe  "Carries gas to the pipes, grills and ovens next to it."
+describe veg      "Chopped for salads, burgers and pizza."
+describe flour    "Mixed into dough."
+describe meat     "Grilled into patties."
+describe cheese   "Goes on pizza."
+describe chopped  "Goes into salads, burgers and pizza."
+describe dough    "Baked into buns and pizza bases."
+describe bun      "Holds a burger together."
+describe patty    "The middle of a burger."
+describe salad    "The simplest dish: 3 coins."
+describe burger   "6 coins at a table."
+describe pizza    "10 coins at a table."
+describe coin     "Pays for everything."
+describe gas      "Shared along gas pipes. Never travels on belts."
+describe grilling "The cold room, the grill and the burger station."
+describe baking   "Flour shelves, the mixer, the oven and the cheese fridge."
+describe sorting  "Sorters, to pick dishes off a mixed belt."
+
+unitRule handVeg
+    appliesTo crate
+    rate 30
+    map pantry atLeast 1
+    local veg out 1
+end
+unitRule handFlour
+    appliesTo shelf
+    rate 30
+    map pantry atLeast 1
+    local flour out 1
+end
+unitRule handMeat
+    appliesTo coldRoom
+    rate 40
+    map pantry atLeast 1
+    local meat out 1
+end
+unitRule handCheese
+    appliesTo fridge
+    rate 50
+    map pantry atLeast 1
+    local cheese out 1
+end
+unitRule chop
+    appliesTo board
+    rate 30
+    local veg in 1
+    local chopped out 2
+end
+unitRule toss
+    appliesTo bowl
+    rate 60
+    local chopped in 2
+    local salad out 1
+end
+unitRule mix
+    appliesTo mixer
+    rate 45
+    local flour in 2
+    local dough out 1
+end
+unitRule sear
+    appliesTo grill
+    rate 60
+    local meat in 1
+    network gas in 2
+    local patty out 1
+end
+unitRule bakePizza
+    appliesTo oven
+    rate 150
+    local dough in 1
+    local cheese in 1
+    local chopped in 1
+    network gas in 4
+    local pizza out 1
+end
+unitRule bakeBuns
+    appliesTo oven
+    rate 60
+    local dough in 1
+    network gas in 2
+    local bun out 2
+end
+unitRule stack
+    appliesTo pass
+    rate 60
+    local bun in 1
+    local patty in 1
+    local chopped in 1
+    local burger out 1
+end
+unitRule serveSalad
+    appliesTo table
+    rate 60
+    local salad in 1
+    local coin out 3
+    log served 1
+end
+unitRule serveBurger
+    appliesTo table
+    rate 60
+    local burger in 1
+    local coin out 6
+    log served 1
+end
+unitRule servePizza
+    appliesTo table
+    rate 60
+    local pizza in 1
+    local coin out 10
+    log served 1
+end
+unitRule pipeGas
+    appliesTo gasMain
+    rate 30
+    network gas out 20
+end
+
+patch pantry at 0 0 size 4 12 amount 1
+
+stock coin 100
+
+cost belt     coin 1
+cost splitter coin 4
+cost sorter   coin 8
+cost till     coin 10
+cost table    coin 12
+cost crate    coin 8
+cost shelf    coin 8
+cost coldRoom coin 16
+cost fridge   coin 16
+cost board    coin 6
+cost bowl     coin 8
+cost mixer    coin 12
+cost grill    coin 20
+cost oven     coin 30
+cost pass     coin 16
+cost gasMain  coin 20
+cost gasPipe  coin 1
+
+research grilling
+    name "Grilling"
+    cost coin 120 salad 10
+    time 300
+    unlocks coldRoom grill pass shelf mixer oven gasMain gasPipe
+end
+research baking
+    name "Pizza"
+    requires grilling
+    cost coin 200 burger 10
+    time 450
+    unlocks fridge
+end
+research sorting
+    name "Sorting"
+    cost coin 80
+    time 240
+    unlocks sorter
+end
+
+# A veg crate, a board and a salad bar feed one table, whose coins go to the till.
+place crate 3 2 east
+place belt 4 2 east count 1
+place board 5 2 east
+place belt 6 2 east count 1
+place bowl 7 2 east
+place belt 8 2 east count 1
+place table 9 2 east
+place belt 10 2 east count 1
+place till 11 2 east
+
+puzzle opening
+    name "Opening day"
+    about "Salads sell. Serve 30 dishes: add another line or two."
+    goal metric served 30
+end
+puzzle burgers
+    name "Burger joint"
+    about "Research grilling, pipe gas to a grill and an oven, and make 15 burgers."
+    goal research grilling
+    goal make burger 15
+end
+puzzle pizzaNight
+    name "Pizza night"
+    about "Research pizza and bake 20 of them."
+    goal research baking
+    goal make pizza 20
+end
+puzzle fullHouse
+    name "Full house"
+    about "Serve 300 dishes. After that, the doors stay open."
+    goal metric served 300
+end
+
+puzzle saturday
+    name "Saturday night"
+    about "Six minutes to the dinner rush: make 25 burgers and 15 pizzas."
+    fresh
+    stock coin 400
+    researched grilling baking
+    only belt splitter till table crate shelf coldRoom fridge board bowl mixer grill oven pass gasMain gasPipe
+    goal make burger 25
+    goal make pizza 15
+    limit 21600
+end

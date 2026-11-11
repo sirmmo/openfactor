@@ -11,12 +11,15 @@ use std::cell::RefCell;
 
 const BASE_PACK: &str = include_str!("../../../packs/base.gbx");
 /// The packs built into the game, in the order they are offered.
-const PACKS: [(&str, &str); 5] = [
+const PACKS: [(&str, &str); 8] = [
     ("base", BASE_PACK),
     ("tutorial", include_str!("../../../packs/tutorial.gbx")),
     ("farm", include_str!("../../../packs/farm.gbx")),
     ("chips", include_str!("../../../packs/chips.gbx")),
     ("network", include_str!("../../../packs/network.gbx")),
+    ("outpost", include_str!("../../../packs/outpost.gbx")),
+    ("diner", include_str!("../../../packs/diner.gbx")),
+    ("toys", include_str!("../../../packs/toys.gbx")),
 ];
 const DIRS: [Dir; 4] = [Dir::North, Dir::East, Dir::South, Dir::West];
 
@@ -949,7 +952,7 @@ mod tests {
         assert!(text(of_error(), of_error_len()).contains("line 1: unit does not understand 'flies'"));
         assert_eq!(of_pack_index(), -1, "a failed pack leaves the game alone");
         assert!(text(of_pack_json(), of_pack_json_len()).starts_with(r#"{"title":"Mine""#));
-        assert_eq!(of_new(7, -1), 1);
+        assert_eq!(of_new(PACKS.len() as i32, -1), 1, "no pack past the end of the list");
 
         // Saves remember the start, and load into the same pack.
         assert_eq!(of_new(0, 8), 0);

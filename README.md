@@ -71,7 +71,9 @@ Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory),
 [Survival Kit](https://kenney.nl/assets/survival-kit), [Food Kit](https://kenney.nl/assets/food-kit),
 [Cube Pets](https://kenney.nl/assets/cube-pets) and
 [City Kit (Industrial)](https://kenney.nl/assets/city-kit-industrial),
-[Mini Characters](https://kenney.nl/assets/mini-characters), Kenney's fonts and
+[Mini Characters](https://kenney.nl/assets/mini-characters),
+[Space Kit](https://kenney.nl/assets/space-kit), [Furniture Kit](https://kenney.nl/assets/furniture-kit),
+[Toy Car Kit](https://kenney.nl/assets/toy-car-kit), [Brick Kit](https://kenney.nl/assets/brick-kit), Kenney's fonts and
 [Interface Sounds](https://kenney.nl/assets/interface-sounds), all by Kenney (CC0); each
 model folder in `site/play/assets/models` has its licence. The 3D view uses
 [three.js](https://threejs.org) (MIT) and playing together uses [PeerJS](https://peerjs.com) (MIT),

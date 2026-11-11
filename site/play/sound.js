@@ -19,6 +19,18 @@ const SETS = {
     build: ['tick_002', 'select_003'], erase: ['glitch_002'], refuse: ['glitch_004'], click: ['tick_001'],
     done: ['confirmation_004'], solved: ['maximize_008'], failed: ['error_008'],
   },
+  space: {
+    build: ['select_003', 'drop_003'], erase: ['minimize_003'], refuse: ['error_008'], click: ['tick_001'],
+    done: ['confirmation_004'], solved: ['maximize_008'], failed: ['bong_001'],
+  },
+  diner: {
+    build: ['drop_002', 'pluck_002'], erase: ['scratch_002'], refuse: ['error_002'], click: ['click_004'],
+    done: ['confirmation_001'], solved: ['maximize_004'], failed: ['bong_001'],
+  },
+  toys: {
+    build: ['pluck_001', 'click_002'], erase: ['minimize_003'], refuse: ['error_004'], click: ['click_002'],
+    done: ['confirmation_002'], solved: ['maximize_006'], failed: ['error_002'],
+  },
   farm: {
     build: ['pluck_001', 'pluck_002'], erase: ['scratch_002'], refuse: ['error_002'], click: ['click_004'],
     done: ['confirmation_001'], solved: ['maximize_004'], failed: ['bong_001'],
@@ -31,6 +43,12 @@ const BACKGROUNDS = {
   factory: { noise: { type: 'lowpass', frequency: 260, q: 0.7, gain: 0.9 }, tones: [[55, 0.35], [110, 0.12]], throb: 0.6 },
   // A server room: a steady drone and a thin fan hiss.
   terminal: { noise: { type: 'highpass', frequency: 2400, q: 0.5, gain: 0.25 }, tones: [[98, 0.25], [147, 0.12], [196, 0.06]], throb: 0.15 },
+  // A thin wind outside, and the low rumble of the base's machinery.
+  space: { noise: { type: 'lowpass', frequency: 180, q: 0.8, gain: 1.1 }, tones: [[41, 0.28], [61.7, 0.12]], throb: 0.25, gust: true },
+  // A kitchen: a fan and something sizzling.
+  diner: { noise: { type: 'bandpass', frequency: 2600, q: 0.4, gain: 0.35 }, tones: [[120, 0.08]], throb: 0.2 },
+  // A quiet workshop room.
+  toys: { noise: { type: 'lowpass', frequency: 420, q: 0.5, gain: 0.6 }, tones: [], throb: 0.1 },
   // Wind over the fields, rising and falling.
   farm: { noise: { type: 'bandpass', frequency: 500, q: 0.6, gain: 1.2 }, tones: [], throb: 0.08, gust: true },
 };

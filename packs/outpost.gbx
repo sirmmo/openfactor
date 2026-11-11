@@ -1,0 +1,233 @@
+# OpenFactor outpost pack: a base on a cold, dusty world.
+#
+# Regolith is smelted into metal, which builds everything. Ice melts into
+# water; water and power make oxygen; greenhouses grow food. Habitats take
+# all three and house the crew. Power comes from solar panels along pylons,
+# and later from crystal reactors.
+
+title "Outpost"
+summary "A base on a cold world: mine ice and regolith, make air, water and food, and house a growing crew."
+
+# Art: the 1-Bit Pack for icons; Kenney's Space Kit in 3D.
+sheet space
+
+belt belt name "Conveyor" speed 16
+
+resource regolith name "Regolith"   sprite 165 tint b5754f model spacekit/rocks_smallB
+resource ice      name "Ice"        sprite 219 tint bfe8ff model spacekit/rocks_smallA
+resource crystal  name "Crystal"    sprite 523 tint c58cff model spacekit/rock_crystals
+resource metal    name "Metal"      sprite 889 tint 9aa4b0 model survival/metal-panel
+resource plate    name "Hull plate" sprite 169 tint 9aa4b0 model spacekit/platform_small
+resource water    name "Water"      sprite 259 tint 4aa3df model spacekit/barrel
+resource oxygen   name "Oxygen"     sprite 265 tint e8f4ff model spacekit/barrel
+resource food     name "Food"       sprite 309 model food/cabbage
+resource power    name "Power"      sprite 829 tint ffd25a
+
+layer regolithField name "regolith plain" sprites 165 tint b5754f decor 35% spacekit/rocks_smallA@0.5 spacekit/rock_largeA@0.45 spacekit/crater@0.9 spacekit/rocks_smallB@0.5
+layer iceField      name "ice sheet"      sprites 219 tint bfe8ff decor 40% spacekit/rock_crystalsLargeA@0.55 spacekit/rocks_smallA@0.5
+layer crystalField  name "crystal bed"    sprites 523 tint c58cff decor 60% spacekit/rock_crystals@0.6 spacekit/rock_crystalsLargeB@0.6
+
+metric crew name "Crew housed"
+
+unit splitter   name "Splitter"      sprite 1019 group "Logistics" routes split model spacekit/pipe_cross
+unit sorter     name "Sorter"        sprite 163  group "Logistics" routes filter model spacekit/gate_simple
+unit dock       name "Supply dock"   sprite 1061 group "Logistics" stores shared model spacekit/craft_cargoA
+unit excavator  name "Excavator"     sprite 993  group "Mining" placeOn regolithField model spacekit/rover
+unit drill      name "Ice drill"     sprite 112  group "Mining" placeOn iceField model spacekit/craft_miner
+unit cutter     name "Crystal cutter" sprite 1032 group "Mining" placeOn crystalField model spacekit/machine_barrelLarge
+unit smelter    name "Smelter"       sprite 404  group "Industry" model spacekit/chimney_detailed
+unit workshop   name "Workshop"      sprite 400  group "Industry" model spacekit/hangar_smallA
+unit melter     name "Ice melter"    sprite 650  group "Life support" model spacekit/machine_barrel
+unit electrolyser name "Electrolyser" sprite 651 group "Life support" model spacekit/machine_generator
+unit greenhouse name "Greenhouse"    sprite 307  group "Life support" model spacekit/hangar_roundGlass
+unit habitat    name "Habitat"       sprite 825  group "Life support" model spacekit/hangar_largeA
+unit panel      name "Solar panel"   sprite 170  group "Power" model industrial/solar-panel-flat
+unit pylon      name "Pylon"         sprite 946  group "Power" links power reach 5 model spacekit/machine_wireless
+unit reactor    name "Crystal reactor" sprite 1069 group "Power" model spacekit/machine_generatorLarge
+
+describe belt       "Carries goods one tile at a time in the direction it faces."
+describe splitter   "Takes turns sending what arrives out of its front, left and right."
+describe sorter     "Pick a good in its inspector: that one goes straight on, everything else leaves by the sides."
+describe dock       "Ships what it receives into the base's stock, which pays for building and research."
+describe excavator  "Scoops regolith from the plain it stands on."
+describe drill      "Cuts ice from the ice sheet it stands on."
+describe cutter     "Cuts crystals from a crystal bed."
+describe smelter    "Smelts regolith into metal, with power."
+describe workshop   "Presses metal into hull plates."
+describe melter     "Melts ice into water, with a little power."
+describe electrolyser "Splits water into oxygen, with power."
+describe greenhouse "Grows food from water, under lamps that need power."
+describe habitat    "Houses the crew: each one needs oxygen, water and food. Each one housed is counted."
+describe panel      "Makes power from sunlight. Pylons carry it."
+describe pylon      "Carries power to everything within 5 tiles."
+describe reactor    "Burns crystals for a lot of power, day or night."
+describe regolith   "Dusty ground, smelted into metal."
+describe ice        "Frozen water."
+describe crystal    "Rare and energetic: fuel for reactors."
+describe metal      "Pays for nearly everything."
+describe plate      "Hull plates, for bigger buildings."
+describe water      "For people, plants and oxygen."
+describe oxygen     "Air for the crew."
+describe food       "Grown in greenhouses."
+describe power      "Shared along pylons. Never travels on conveyors."
+describe lifeSupport "Air, water and food for a crew: the electrolyser, greenhouse and habitat."
+describe fabrication "The workshop and sorters."
+describe crystals   "Crystal cutting and the crystal reactor."
+
+unitRule scoop
+    appliesTo excavator
+    rate 40
+    map regolithField in 1
+    local regolith out 1
+end
+unitRule cutIce
+    appliesTo drill
+    rate 40
+    map iceField in 1
+    local ice out 1
+end
+unitRule cutCrystal
+    appliesTo cutter
+    rate 120
+    map crystalField in 1
+    local crystal out 1
+end
+unitRule smelt
+    appliesTo smelter
+    rate 60
+    local regolith in 2
+    network power in 4
+    local metal out 1
+end
+unitRule press
+    appliesTo workshop
+    rate 90
+    local metal in 3
+    local plate out 1
+end
+unitRule melt
+    appliesTo melter
+    rate 40
+    local ice in 1
+    network power in 2
+    local water out 1
+end
+unitRule split
+    appliesTo electrolyser
+    rate 60
+    local water in 2
+    network power in 4
+    local oxygen out 1
+end
+unitRule grow
+    appliesTo greenhouse
+    rate 120
+    local water in 1
+    network power in 3
+    local food out 2
+end
+unitRule house
+    appliesTo habitat
+    rate 240
+    local oxygen in 2
+    local water in 1
+    local food in 2
+    log crew 1
+end
+unitRule sunlight
+    appliesTo panel
+    rate 60
+    network power out 8
+end
+unitRule burn
+    appliesTo reactor
+    rate 120
+    local crystal in 1
+    network power out 60
+end
+
+patch regolithField at 0 0   size 6 6 amount 100000
+patch iceField      at 14 0  size 5 5 amount 100000
+patch crystalField  at 4 13  size 4 3 amount 100000
+
+stock metal 80
+
+cost belt         metal 1
+cost splitter     metal 4
+cost sorter       metal 6 plate 1
+cost dock         metal 10
+cost excavator    metal 8
+cost drill        metal 8
+cost cutter       metal 12 plate 4
+cost smelter      metal 10
+cost workshop     metal 15
+cost melter       metal 8
+cost electrolyser metal 12
+cost greenhouse   metal 12 plate 2
+cost habitat      metal 20 plate 10
+cost panel        metal 6
+cost pylon        metal 2
+cost reactor      plate 20 crystal 10
+
+research lifeSupport
+    name "Life support"
+    cost metal 60 water 20
+    time 300
+    unlocks electrolyser greenhouse habitat
+end
+research fabrication
+    name "Fabrication"
+    cost metal 80
+    time 300
+    unlocks workshop sorter
+end
+research crystals
+    name "Crystals"
+    requires fabrication
+    cost metal 80 plate 20
+    time 450
+    unlocks cutter reactor
+end
+
+# An excavator feeding a powered smelter, which ships metal to a dock.
+place excavator 5 2 east
+place belt 6 2 east count 2
+place smelter 8 2 east
+place belt 9 2 east count 2
+place dock 11 2 east
+place pylon 8 4 east
+place panel 7 5 east
+place panel 9 5 east
+
+puzzle touchdown
+    name "Touchdown"
+    about "The smelter runs on sunlight. Ship 40 metal to the dock."
+    goal deliver metal 40
+end
+puzzle thaw
+    name "Thaw"
+    about "Drill the ice sheet, melt the ice with power and ship 30 water."
+    goal deliver water 30
+end
+puzzle breathe
+    name "Breathe"
+    about "Research life support and ship 20 oxygen."
+    goal research lifeSupport
+    goal deliver oxygen 20
+end
+puzzle firstCrew
+    name "First crew"
+    about "Habitats need oxygen, water and food. House a crew of 5, then keep the base growing."
+    goal metric crew 5
+end
+
+puzzle dustStorm
+    name "Dust storm"
+    about "The storm hits in five minutes. Bank 30 oxygen before it does."
+    fresh
+    stock metal 160
+    researched lifeSupport
+    only belt splitter dock excavator drill smelter melter electrolyser panel pylon
+    goal deliver oxygen 30
+    limit 18000
+end
