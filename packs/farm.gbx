@@ -30,6 +30,7 @@ layer orchard  name "orchard"  sprites 78 39 tint 4f9f45 decor 80% nature/tree_d
 layer pasture  name "pasture"  sprites 52 64 40 tint 9ccc5c decor 60% nature/grass_large@0.6 nature/grass@0.6 nature/plant_bushSmall@0.5 nature/grass_large@0.6 nature/grass@0.6 nature/grass@0.6 pets/animal-chick@0.3 pets/animal-pig@0.4
 layer forest   name "forest"   sprites 15 27 3 tint 2f5f2f decor nature/tree_pineDefaultA nature/tree_pineRoundB nature/tree_tall
 layer pond     name "pond"     sprites 73    tint 2f7fd6
+layer wall     name "stone wall" sprites 73   tint 8a8a80 blocks decor nature/cliff_block_stone
 
 metric baskets name "Baskets packed"
 

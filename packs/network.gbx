@@ -30,6 +30,7 @@ resource compute  name "Compute"   sprite 829 tint 4ad9d9
 
 layer users   name "users"       sprites 827 828 tint 4a90d9 decor 45% people/character-female-a@0.5 people/character-male-b@0.5 people/character-female-c@0.5 people/character-male-e@0.5 people/character-worker@0.5
 layer storage name "storage"     sprites 892 893 tint 7f8c8d decor 30% space/container-tall@0.5 space/container@0.5
+layer cabling name "old cabling" sprites 743 tint 7f8c8d blocks decor space/structure-barrier
 layer heat    name "heat"        haze d9534a full 400
 
 metric served name "Responses served"
@@ -744,14 +745,15 @@ end
 puzzle multiplex
     chapter "Traffic control"
     name "Multiplexing"
-    about "A wall of old pillars with a single gap. Send JSON and errors through it on one link, sort them on the far side, serve 100 responses and log 40 errors."
+    about "A wall of old cabling with a single gap. Send JSON and errors through it on one link, sort them on the far side, serve 100 responses and log 40 errors."
     fresh
     patch users   at 0 0 size 2 12 amount 1
     patch storage at 8 5 size 1 1 amount 1
-    stock response 258
+    patch cabling at 3 -6 size 1 11 amount 1
+    patch cabling at 3 6 size 1 11 amount 1
+    stock response 170
+    place none
     researched microservices loadBalancing stack
-    place mount 3 4 north count 11
-    place mount 3 6 south count 11
     only belt gateway parser router database renderer logger firewall balancer internet rack switch
     goal metric served 100
     goal metric logged 40
@@ -1070,12 +1072,12 @@ puzzle walledGarden
     fresh
     patch users   at 1 2 size 2 2 amount 1
     patch storage at 12 3 size 1 1 amount 1
-    stock response 359
+    patch cabling at 0 0 size 8 1 amount 1
+    patch cabling at 0 7 size 8 1 amount 1
+    patch cabling at 0 1 size 1 6 amount 1
+    patch cabling at 7 1 size 1 6 amount 1
+    stock response 247
     researched microservices loadBalancing messaging stack
-    place mount 0 0 east count 8
-    place mount 0 7 east count 8
-    place mount 0 1 south count 6
-    place mount 7 1 south count 6
     place internet 4 5 east
     place switch 11 6 east
     place rack 11 7 east

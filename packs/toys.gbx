@@ -24,6 +24,7 @@ resource set     name "Brick set"  sprite 689  tint f2c94c model toy/item-box
 
 layer resin name "resin floor" sprites 892 tint e8e8f0 decor 30% bricks/bevel-hq-brick-1x1-round@0.25 bricks/bevel-hq-brick-1x2@0.3
 layer pool  name "paint pool"  sprites 892 tint e04848
+layer bricks name "brick wall" sprites 892 tint 3a7ad9 blocks decor bricks/bevel-hq-brick-2x4
 
 metric cars name "Cars built"
 

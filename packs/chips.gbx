@@ -26,6 +26,7 @@ resource power      name "Power"       sprite 129
 
 layer dunes       name "sand"          sprites 3 32 tint d8c48a decor 40% survival/rock-sand-a@0.5 survival/rock-sand-b@0.5 survival/rock-sand-c@0.5
 layer copperField name "copper ground" sprites 3 32 tint c8763c decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
+layer rock        name "rock"          sprites 3    tint 4a4744 blocks decor nature/cliff_block_rock
 
 metric boards name "Boards shipped"
 

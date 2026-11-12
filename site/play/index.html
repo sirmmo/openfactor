@@ -1955,6 +1955,23 @@
     for (let step = 1; step <= range; step++) ctx.fillRect(sx(cell.x + dx * step), sy(cell.y + dy * step), cam.cell, cam.cell);
   }
 
+  // Ground nothing can be built on: shaded and hatched, whatever the sprite sheet.
+  function drawWall(x, y) {
+    const px = sx(x), py = sy(y), c = cam.cell;
+    ctx.fillStyle = 'rgba(20, 18, 16, 0.45)';
+    ctx.fillRect(px, py, c, c);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(px, py, c, c);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = Math.max(1, c / 14);
+    ctx.beginPath();
+    for (let d = -c; d < c; d += c / 3) { ctx.moveTo(px + d, py + c); ctx.lineTo(px + d + c, py); }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function draw() {
     const tick = of.of_tick();
 
@@ -1984,6 +2001,7 @@
         if (definition && ART.groundAlpha) ctx.globalAlpha = ART.groundAlpha;
         drawSprite(sprite, sx(x), sy(y), cam.cell, false, false, definition ? definition.tint : null, GROUND_TINT_STRENGTH);
         ctx.globalAlpha = 1;
+        if (definition && definition.blocks) drawWall(x, y);
       }
     }
     if (ART.grid) {
@@ -2092,6 +2110,8 @@
     8: 'There’s no level there.',
     9: 'Nothing on the level below is close enough to hold that up. Build a pillar.',
     10: 'Something on the level above is resting on that.',
+    11: 'This puzzle doesn’t allow that building.',
+    12: 'Nothing can be built there.',
   };
 
   function updateHud() {

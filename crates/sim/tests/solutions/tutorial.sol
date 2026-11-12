@@ -12,6 +12,12 @@ puzzle roundTheBend
     belt 13..=9 6 W
 end
 
+puzzle rockFace
+    belt 3 4..=1 N
+    belt 3..=11 0 E
+    belt 12 0..=3 S
+end
+
 puzzle pocketMoney
     depot 2 10 E
     drill 2 9 S

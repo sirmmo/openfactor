@@ -51,6 +51,7 @@ layer stoneField    name "stone ground"    sprites 3 32 tint b9a888 decor 45% su
 layer tungstenField name "tungsten ground" sprites 3 32 tint 8d5fc4 decor 45% survival/rock-a@0.45 survival/rock-b@0.45
 layer waterField    name "water"           sprites 3    tint 2f7fd6
 layer oilField      name "oil seep"        sprites 3 32 tint 3a2f3a decor 35% survival/rock-flat@0.5
+layer rock          name "rock"            sprites 3    tint 4a4744 blocks decor nature/cliff_block_rock
 layer smog          name "smog"            haze 4d4636 full 500
 
 metric energy    name "Energy used"
@@ -816,6 +817,21 @@ puzzle crossroads
     goal deliver ironPlate 30
     goal deliver copperOre 30
     limit 7800
+end
+puzzle canyon
+    chapter "Crossings"
+    name "Canyon"
+    about "A band of rock three tiles wide runs north to south as far as you can afford to go. Tunnel under it and deliver 30 iron ore."
+    fresh
+    patch ironField at 0 0 size 1 1 amount 100000
+    patch rock at 5 -15 size 3 31 amount 1
+    stock ironPlate 40 gear 3
+    place drill 0 0 east
+    place depot 12 0 east
+    researched routing
+    only belt tunnel
+    goal deliver ironOre 30
+    limit 6000
 end
 puzzle rubble
     chapter "Crossings"

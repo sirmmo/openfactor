@@ -20,6 +20,7 @@ resource wire        name "Wire"         sprite 130 tint d07f43
 layer ironField   name "iron ground"   sprites 3 32 tint 6f8fb8 decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
 layer copperField name "copper ground" sprites 3 32 tint c8763c decor 45% survival/rock-a@0.45 survival/rock-b@0.45 survival/rock-c@0.4
 layer coalField   name "coal ground"   sprites 3 32 tint 15151a decor 45% survival/rock-a@0.45 survival/rock-c@0.4
+layer rock        name "rock"          sprites 3    tint 4a4744 blocks decor nature/cliff_block_rock
 
 unit splitter name "Splitter"     sprite 72  group "Logistics" routes split model conveyor-cross
 unit depot    name "Depot"        sprite 58  group "Logistics" stores shared model box-wide
@@ -153,6 +154,18 @@ puzzle roundTheBend
     place depot 8 6 east
     only belt drill
     goal deliver copperOre 20
+end
+puzzle rockFace
+    chapter "Groundwork"
+    name "Rock face"
+    about "A ridge of rock stands between the iron and the depot. Nothing can be built on rock, so go round it. Deliver 20 iron ore."
+    fresh
+    patch ironField at 2 4 size 1 1 amount 100000
+    patch rock at 7 1 size 1 8 amount 1
+    place drill 2 4 east
+    place depot 12 4 east
+    only belt
+    goal deliver ironOre 20
 end
 puzzle pocketMoney
     chapter "Groundwork"

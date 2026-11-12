@@ -120,7 +120,8 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
       const [name, scale] = token.split('@');
       entries.push({ name, scale: parseFloat(scale) || 1 });
     }
-    return { share, entries };
+    // Walls stand square and fill their tile, so a row of them reads as one wall.
+    return { share, entries, blocks: !!layer.blocks };
   });
   for (const { entries } of scenery) for (const { name } of entries) names.add(name);
   const loader = new GLTFLoader();
@@ -164,6 +165,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   const beltNames = new Set(pack.belts.flatMap((belt) => [belt.model, belt.corner].filter(Boolean)));
   const itemNames = new Set(pack.resources.map((resource) => resource.model).filter(Boolean));
   const decorNames = new Set(scenery.flatMap(({ entries }) => entries.map((entry) => entry.name)));
+  const wallNames = new Set(scenery.filter((s) => s.blocks).flatMap(({ entries }) => entries.map((entry) => entry.name)));
   const fits = new Map();
   for (const model of models.values()) {
     const base = baseName(model.name);
@@ -171,6 +173,7 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
     // Belt pieces are made to the kit's one-unit tile and keep their own origin, so corners line up.
     if (base.startsWith('conveyor') || beltNames.has(model.name)) fit = fitOf(model, true);
     else if (itemNames.has(model.name)) fit = fitInside(model, ITEM_FIT);
+    else if (wallNames.has(model.name)) fit = fitInside(model, 1);
     else if (decorNames.has(model.name)) fit = fitInside(model, DECOR_FIT);
     else fit = fitOf(model, false);
     fits.set(model.name, fit);
@@ -553,11 +556,15 @@ export async function createView3d({ pack, canvas, spriteSource, isBelt, DIRS, P
   function rebuildDecor(ground, buildings) {
     const lists = new Map([...decorBatches.keys()].map((key) => [key, []]));
     for (const [key, layer] of ground) {
-      const { share, entries } = scenery[layer];
+      const { share, entries, blocks } = scenery[layer];
       if (!entries.length) continue;
       const [x, y] = key.split(',').map(Number);
       if (buildings.has(x + ',' + y + ',0') || tileNoise(x, y, 6) >= share) continue;
       const { name, scale } = entries[Math.floor(tileNoise(x, y, 1) * entries.length)];
+      if (blocks) {
+        lists.get(decorKey(layer, name)).push({ x: x + 0.5, z: y + 0.5, yaw: Math.floor(tileNoise(x, y, 4) * 4) * Math.PI / 2, size: scale });
+        continue;
+      }
       lists.get(decorKey(layer, name)).push({
         x: x + 0.5 + (tileNoise(x, y, 2) - 0.5) * 0.2,
         z: y + 0.5 + (tileNoise(x, y, 3) - 0.5) * 0.2,

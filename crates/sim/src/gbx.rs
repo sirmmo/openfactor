@@ -300,6 +300,7 @@ impl Builder {
             tint: None,
             overlay: None,
             decor: Vec::new(),
+            blocks: false,
         };
         let tokens = line.strs();
         let mut rest = &tokens[2..];
@@ -315,6 +316,10 @@ impl Builder {
                 }
                 ["haze", color, "full", full, tail @ ..] => {
                     layer.overlay = Some(Overlay { color: line.color(color)?, full: line.positive(full)? });
+                    tail
+                }
+                ["blocks", tail @ ..] => {
+                    layer.blocks = true;
                     tail
                 }
                 ["sprites", tail @ ..] => {

@@ -150,6 +150,13 @@ puzzle crossroads
     belt 6 2..=9 S
 end
 
+puzzle canyon
+    belt 1..=3 0 E
+    tunnel 4 0 E
+    tunnel 8 0 E
+    belt 9..=11 0 E
+end
+
 puzzle rubble
     remove 16 0
     sorter 16 0 E

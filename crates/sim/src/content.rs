@@ -128,6 +128,9 @@ pub struct LayerDef {
     pub overlay: Option<Overlay>,
     /// 3D models scattered over the layer's tiles, like trees on a forest. Cosmetic.
     pub decor: Vec<String>,
+    /// Nothing can be built on the ground where it is above zero: walls and
+    /// cliffs. Levels above may still pass over it.
+    pub blocks: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

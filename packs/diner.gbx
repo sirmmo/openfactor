@@ -30,6 +30,7 @@ resource coin    name "Coin"         sprite 218  model toy/item-coin-gold
 resource gas     name "Gas"          sprite 896  tint 7fb4ff
 
 layer pantry name "pantry floor" sprites 892 tint b8a07a
+layer counter name "counter" sprites 892 tint 6b4f3a blocks decor furniture/kitchenCabinet
 
 metric served name "Dishes served"
 

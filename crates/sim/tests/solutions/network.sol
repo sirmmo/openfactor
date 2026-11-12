@@ -781,9 +781,9 @@ end
 puzzle walledGarden
     up 3 3 E
     up 3 3 E 1
-    belt 4..=8 3 E 1
-    down 9 3 E 1
     down 9 3 E
+    down 9 3 E 1
+    belt 4..=8 3 E 1
     parser 10 3 E
     logger 10 2 E
     router 11 3 E
@@ -792,9 +792,9 @@ puzzle walledGarden
     belt 11..=10 4 W
     up 9 4 W
     up 9 4 W 1
-    belt 8..=5 4 W 1
-    down 4 4 S 1
     down 4 4 S
+    down 4 4 S 1
+    belt 8..=5 4 W 1
     gateway 2 3 E
 end
 

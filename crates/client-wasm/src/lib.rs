@@ -211,6 +211,7 @@ fn reject_code(reason: Reject) -> i32 {
         Reject::Unsupported => 9,
         Reject::CarriesLoad => 10,
         Reject::NotInPuzzle => 11,
+        Reject::Blocked => 12,
         _ => 7,
     }
 }
@@ -402,11 +403,12 @@ fn pack_json(pack: &Pack) -> String {
         .map(|layer| {
             let haze = layer.overlay.map_or("null".to_string(), |o| o.color.to_string());
             format!(
-                r#"{{"name":{},"sprites":{:?},"tint":{},"haze":{},"decor":[{}]}}"#,
+                r#"{{"name":{},"sprites":{:?},"tint":{},"haze":{},"blocks":{},"decor":[{}]}}"#,
                 json_string(&layer.name),
                 layer.sprites,
                 json_tint(layer.tint),
                 haze,
+                layer.blocks,
                 layer.decor.iter().map(|d| json_string(d)).collect::<Vec<_>>().join(",")
             )
         })

@@ -1995,3 +1995,38 @@ fn a_unit_never_sends_back_out_an_input_another_of_its_recipes_makes() {
     let loaded = World::load(&pack, &world.save()).unwrap();
     assert_eq!(loaded.state_hash(), world.state_hash());
 }
+
+#[test]
+fn nothing_is_built_on_a_blocking_layer() {
+    let pack = Pack::parse(
+        r#"
+        levels 2
+        span 3
+        resource ore
+        layer rock blocks sprites 3
+        patch rock at 2 0 size 1 3 amount 1
+        "#,
+    )
+    .unwrap();
+    assert!(pack.content.layers()[0].blocks);
+    let (mut world, _) = World::start(&pack, Start::Free);
+    let belt = Building::Belt(BeltId(0));
+    let refused = |reason| vec![Rejected { index: 0, reason }];
+    assert_eq!(world.step(&[place(2, 1, Dir::East, belt)]), refused(Reject::Blocked));
+    // A level above may pass over it, held up from beside it.
+    assert_eq!(world.step(&[place(1, 1, Dir::East, belt)]), vec![]);
+    assert_eq!(world.step(&[Command::Place { pos: Pos::at(2, 1, 1), dir: Dir::East, building: belt }]), vec![]);
+    // Beside it is fine, and the wall survives a save.
+    assert_eq!(world.step(&[place(3, 1, Dir::East, belt)]), vec![]);
+    let mut loaded = World::load(&pack, &world.save()).unwrap();
+    assert_eq!(loaded.step(&[place(2, 2, Dir::East, belt)]), refused(Reject::Blocked));
+}
+
+#[test]
+fn a_wall_changes_the_pack() {
+    // Saves from a pack whose layer doesn't block don't load where it does.
+    let plain = Pack::parse("layer rock sprites 3").unwrap();
+    let walled = Pack::parse("layer rock blocks sprites 3").unwrap();
+    let save = World::start(&plain, Start::Free).0.save();
+    assert!(matches!(World::load(&walled, &save), Err(LoadError::OtherPack)));
+}

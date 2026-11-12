@@ -96,6 +96,8 @@ pub enum Reject {
     NeedsNewWorld,
     /// The running puzzle doesn't allow building it.
     NotInPuzzle,
+    /// The ground there can't be built on. Upper levels may pass over it.
+    Blocked,
 }
 
 /// A command that had no effect. Rejection is deterministic like everything else.
@@ -699,6 +701,12 @@ impl World {
         }
         if self.tiles.contains_key(&pos) {
             return Err(Reject::Occupied);
+        }
+        let layers = &self.shared.layers;
+        if pos.z == 0 && self.content.layers.iter().enumerate().any(|(index, layer)| {
+            layer.blocks && layer_at(layers, LayerId(index as u16), pos) > 0
+        }) {
+            return Err(Reject::Blocked);
         }
         // The opening, built on the first tick, may use anything.
         if let Some(run) = self.puzzle.as_ref().filter(|_| self.tick > 0) {
@@ -1680,6 +1688,10 @@ impl World {
         h.write(self.content.layers.len() as u64);
         for layer in &self.content.layers {
             h.write_str(&layer.id);
+            // Only when set, so packs without walls keep their saves.
+            if layer.blocks {
+                h.write_str("blocks");
+            }
         }
         h.write(self.content.units.len() as u64);
         for unit in &self.content.units {
