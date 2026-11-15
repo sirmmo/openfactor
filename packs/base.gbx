@@ -1543,3 +1543,92 @@ puzzle robotics
     goal research robotics
     limit 21000
 end
+
+# --- Contracts. An OpenTactics holding (see site/play/holding.js) runs one of
+# these in a factory of its own, chosen by the units built on that tile, and
+# reports how much of it was delivered. They are untimed: OpenTactics' days set
+# how long the factory may run. Their solutions are in base.sol too.
+
+puzzle contractPlates
+    chapter "Contracts"
+    name "Plate contract"
+    about "The army wants plain iron plate, and lots of it. The opening line is yours: build beside it and deliver 3,000 iron plates."
+    fresh
+    stock ironPlate 150 gear 30
+    goal deliver ironPlate 3000
+end
+puzzle contractSteel
+    chapter "Contracts"
+    name "Shipyard contract"
+    about "Hulls need steel and plate. Arc furnaces make steel from plates and coal, on steam power. Deliver 200 steel and 600 iron plates."
+    fresh
+    stock ironPlate 150 gear 40 brick 60 wire 52 steel 16
+    researched copperWorking masonry electricity metallurgy
+    goal deliver steel 200
+    goal deliver ironPlate 600
+end
+puzzle contractGround
+    chapter "Contracts"
+    name "Motor pool contract"
+    about "Tanks and trucks run on gears and motors. A motor takes steel, two gears and four wire at once. Deliver 600 gears and 60 motors."
+    fresh
+    patch ironField at 7 5 size 1 1 amount 100000
+    patch ironField at 8 4 size 1 1 amount 100000
+    patch ironField at 8 6 size 1 1 amount 100000
+    patch ironField at 9 7 size 1 1 amount 100000
+    patch ironField at 10 8 size 1 1 amount 100000
+    patch ironField at 11 7 size 1 1 amount 100000
+    patch ironField at 5 9 size 3 3 amount 100000
+    patch copperField at 10 2 size 1 1 amount 100000
+    patch copperField at 11 3 size 1 1 amount 100000
+    patch coalField at 9 4 size 1 1 amount 100000
+    patch coalField at 14 8 size 1 1 amount 100000
+    patch coalField at 14 10 size 1 1 amount 100000
+    patch coalField at 14 12 size 1 1 amount 100000
+    patch waterField at 12 9 size 1 1 amount 1000
+    patch ironField at -10 0 size 6 5 amount 100000
+    patch coalField at -10 7 size 6 4 amount 100000
+    patch copperField at -10 13 size 5 4 amount 100000
+    patch stoneField at -18 3 size 5 5 amount 100000
+    patch waterField at -3 16 size 4 3 amount 1000
+    stock ironPlate 220 gear 115 brick 80 wire 70 steel 60 circuit 24
+    place none
+    researched copperWorking masonry electricity metallurgy electronics automation motors
+    goal deliver gear 600
+    goal deliver motor 60
+end
+puzzle contractAir
+    chapter "Contracts"
+    name "Avionics contract"
+    about "Aircraft fly on circuits and controllers. A controller takes two circuits, plastic and carbide. Deliver 300 circuits and 40 controllers."
+    fresh
+    patch tungstenField at 8 5 size 1 1 amount 100000
+    patch coalField at 9 4 size 1 1 amount 100000
+    patch oilField at 9 3 size 1 1 amount 100000
+    patch waterField at 11 3 size 1 1 amount 1000
+    patch ironField at 8 6 size 1 1 amount 100000
+    patch ironField at 9 7 size 1 1 amount 100000
+    patch copperField at 9 8 size 1 1 amount 100000
+    patch copperField at 10 9 size 1 1 amount 100000
+    patch copperField at 11 8 size 1 1 amount 100000
+    patch copperField at 5 12 size 1 1 amount 100000
+    patch copperField at 6 11 size 1 1 amount 100000
+    patch copperField at 6 13 size 1 1 amount 100000
+    patch ironField at 7 13 size 1 1 amount 100000
+    patch ironField at 8 14 size 1 1 amount 100000
+    patch ironField at 9 13 size 1 1 amount 100000
+    patch coalField at 15 8 size 1 1 amount 100000
+    patch coalField at 15 10 size 1 1 amount 100000
+    patch coalField at 15 12 size 1 1 amount 100000
+    patch waterField at 13 9 size 1 1 amount 1000
+    patch ironField at -10 0 size 6 5 amount 100000
+    patch coalField at -10 7 size 6 4 amount 100000
+    patch copperField at -10 13 size 5 4 amount 100000
+    patch stoneField at -18 3 size 5 5 amount 100000
+    patch waterField at -3 16 size 4 3 amount 1000
+    stock ironPlate 230 gear 135 brick 110 wire 85 steel 110 circuit 40
+    place none
+    researched copperWorking masonry electricity metallurgy electronics automation poweredMining tungsten petroleum motors robotics
+    goal deliver circuit 300
+    goal deliver controller 40
+end

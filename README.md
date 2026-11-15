@@ -33,6 +33,22 @@ saves, co-op sync and integrations all depend on this, so don't break it.
   AI agent in the browser can look at and build the factory under the same rules
   as a player.
 
+## OpenTactics holdings
+
+OpenTactics can hand a factory, airport or port to a friend, who runs it here.
+The play page reads `#holding=…` (deflate-raw JSON in base64url, or
+`#holdingjson=…`), keeps a factory per OpenTactics game and tile in the browser,
+and gives it a contract: one of the base pack's `Contracts` puzzles, picked by
+what the tile builds (ground: gears and motors; air: circuits and controllers;
+naval: steel and plates; otherwise plates). The factory may run for
+`day × pace` minutes (pace 10 by default); then time waits for the next day.
+**Report to OpenTactics** makes the `#report=…` link back, with
+`income_pct = 50 + 150 × value delivered / contract value` (at most 200) and
+`discount_pct = 25 × value delivered / contract value`, rounded down. The
+contract puzzles are tested like any other; the links and the pace live in
+[`site/play/holding.js`](site/play/holding.js), outside the simulation. The
+format is OpenTactics' `HOLDINGS.md`, version 1.
+
 ## Milestones
 
 1. Headless sim with replay tests (done).

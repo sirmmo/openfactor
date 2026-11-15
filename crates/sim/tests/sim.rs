@@ -1827,6 +1827,44 @@ fn every_pack_parses_with_titles_and_puzzles() {
     }
 }
 
+/// OpenTactics holdings run these (site/play/holding.js names them): each must
+/// stay an untimed delivery order on a map of its own, open to every building,
+/// because the holding's pace is the only clock and its report counts deliveries.
+#[test]
+fn holding_contracts_are_untimed_deliveries_of_the_right_items() {
+    let base = Pack::parse(BASE_PACK).unwrap();
+    let contracts = [
+        ("contractPlates", &["ironPlate"][..]),
+        ("contractSteel", &["steel", "ironPlate"][..]),
+        ("contractGround", &["gear", "motor"][..]),
+        ("contractAir", &["circuit", "controller"][..]),
+    ];
+    for (id, items) in contracts {
+        let (index, puzzle) = base.content.puzzles().iter().enumerate().find(|(_, p)| p.id == id).unwrap_or_else(|| panic!("no {id}"));
+        assert!(puzzle.fresh.is_some() && puzzle.limit.is_none() && puzzle.only.is_empty(), "{id}");
+        let wanted: Vec<ItemId> = items.iter().map(|item| base.content.resource_id(item).unwrap()).collect();
+        let delivered: Vec<ItemId> = puzzle
+            .goals
+            .iter()
+            .map(|goal| match *goal {
+                Goal::Deliver(item, amount) => {
+                    assert!(amount > 0, "{id}");
+                    item
+                }
+                other => panic!("{id}: {other:?} is not a delivery"),
+            })
+            .collect();
+        assert_eq!(delivered, wanted, "{id}");
+        // A holding saves and reloads its factory, contract and all.
+        let (mut world, starter) = World::start(&base, Start::Puzzle(index as u16));
+        assert_eq!(world.step(&starter), vec![], "{id}");
+        run(&mut world, &[], 600);
+        let loaded = World::load(&base, &world.save()).unwrap();
+        assert_eq!(loaded.puzzle(), world.puzzle(), "{id}");
+        assert_eq!(loaded.state_hash(), world.state_hash(), "{id}");
+    }
+}
+
 #[test]
 fn a_puzzle_is_solved_by_reaching_its_goals() {
     let pack = Pack::parse(PUZZLES).unwrap();

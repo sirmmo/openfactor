@@ -192,6 +192,10 @@
   #p-actions button { min-height: 32px; padding: 4px 10px; }
   #p-show { position: fixed; left: 12px; top: calc(60px + env(safe-area-inset-top, 0px)); }
   .chip.sandbox { color: #7bd389; }
+  #h-chip { min-height: 0; font: 12px var(--mono); }
+  #h-chip.waiting { border-color: var(--accent); color: var(--accent); }
+  #h-link { text-transform: none; font-size: 12px; }
+  #h-open { text-align: center; }
   @media (max-width: 560px) {
     .ng-body { flex-direction: column; }
     .ng-packs { width: auto; }
@@ -210,6 +214,7 @@
 
 <div class="bar" id="hud">
   <a class="chip" href="../">&larr; Docs</a>
+  <button class="chip" id="h-chip" hidden></button>
   <div class="chip"><span>tick</span> <b id="tick">0</b></div>
   <button id="stats-toggle" aria-expanded="false">Production<kbd>P</kbd></button>
   <button id="research-toggle" aria-expanded="false">Research<kbd>T</kbd></button>
@@ -291,6 +296,15 @@
   <div id="p-actions"></div>
 </aside>
 <button id="p-show" hidden>Puzzle</button>
+
+<aside class="panel" id="report" aria-label="Report to OpenTactics" hidden>
+  <header><span>Report to OpenTactics</span><button class="close" id="h-close" aria-label="Close">&times;</button></header>
+  <p class="about" id="h-summary"></p>
+  <ul class="facts" id="h-facts"></ul>
+  <p class="note">Send this link to the commander who owns the holding. Opening it in their OpenTactics game sets what the factory pays.</p>
+  <div class="join-row"><input id="h-link" readonly aria-label="Report link"><button id="h-copy">Copy</button></div>
+  <div class="game-actions"><a class="chip" id="h-open" target="_blank" rel="noopener">Open OpenTactics</a></div>
+</aside>
 
 <aside class="panel" id="stats" hidden>
   <header><span>Production</span><button class="close" id="s-close" aria-label="Close">&times;</button></header>
@@ -417,6 +431,29 @@
     return;
   }
 
+  // An OpenTactics holding (see holding.js): a factory with a contract, which
+  // may only run for as long as the war has. Read before choosing the rules.
+  const H = await import('./holding.js?v=1');
+  let holding = null, holdingError = '';
+  try { holding = await H.readHolding(location.hash); } catch (error) { holdingError = error.message; }
+  // At a holding's limit time stands still, but edits still go in: each batch takes the one tick it needs.
+  let tickLimit = null, edited = false;
+  {
+    const step = of.of_step;
+    of.of_step = (ticks) => {
+      if (tickLimit !== null) {
+        ticks = Math.min(ticks, Math.max(0, tickLimit - of.of_tick()));
+        if (ticks === 0 && edited) ticks = 1;
+      }
+      if (ticks > 0) edited = false;
+      return step(ticks);
+    };
+    for (const name of ['of_place', 'of_remove', 'of_configure', 'of_research', 'of_begin']) {
+      const edit = of[name];
+      of[name] = (...args) => { edited = true; return edit(...args); };
+    }
+  }
+
   // Which rules to run. A different pack means a fresh page, so everything
   // built from the pack below is built once: the choice, and a save or a game
   // to join with it, are handed over in session storage.
@@ -425,6 +462,8 @@
   const SAVE_KEY = 'openfactor.autosave.v1', BOOT_KEY = 'openfactor.boot';
   let boot = null;
   try { boot = JSON.parse(sessionStorage.getItem(BOOT_KEY)); sessionStorage.removeItem(BOOT_KEY); } catch { boot = null; }
+  // A holding always plays the base rules, in a factory of its own.
+  if (holding) boot = null;
   let ownSave = null;
   try { ownSave = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { ownSave = null; }
   // Starts `start` (-1 free play, -2 sandbox, or a puzzle) with pack `id`, or with `text` for 'custom'.
@@ -437,7 +476,7 @@
     const index = CATALOG.findIndex((p) => p.id === id);
     return index < 0 ? 1 : of.of_new(index, start);
   }
-  const wanted = boot || (ownSave && ownSave.pack ? { pack: ownSave.pack, text: ownSave.packText } : null);
+  const wanted = holding ? { pack: 'base' } : boot || (ownSave && ownSave.pack ? { pack: ownSave.pack, text: ownSave.packText } : null);
   let bootError = '';
   if (wanted && wanted.pack !== 'base' && selectPack(wanted.pack, wanted.text, wanted.start ?? -1) !== 0) {
     bootError = readText(of.of_error(), of.of_error_len());
@@ -619,7 +658,7 @@
   function showCard(t) {
     const card = $('card');
     const buildTool = t && (t.unit || t.belt);
-    if (!buildTool || cardClosed || selected || !$('stats').hidden || !$('game').hidden) { card.hidden = true; return; }
+    if (!buildTool || cardClosed || selected || !$('stats').hidden || !$('game').hidden || !$('report').hidden) { card.hidden = true; return; }
     card.hidden = false;
     if (cardTool === t) return;
     cardTool = t;
@@ -839,6 +878,7 @@
     renderChoices();
     $('inspector').hidden = false;
     $('stats').hidden = true;
+    $('report').hidden = true;
     $('stats-toggle').setAttribute('aria-expanded', false);
     refreshInspector();
   }
@@ -1126,7 +1166,7 @@
     const stats = $('stats');
     stats.hidden = !stats.hidden;
     $('stats-toggle').setAttribute('aria-expanded', !stats.hidden);
-    if (!stats.hidden) { $('inspector').hidden = true; selected = null; closeGame(); refreshStats(); }
+    if (!stats.hidden) { $('inspector').hidden = true; selected = null; closeGame(); $('report').hidden = true; refreshStats(); }
     showCard(tool);
   }
   $('stats-toggle').addEventListener('click', toggleStats);
@@ -1206,7 +1246,9 @@
   function autosave() {
     if (of.of_tick() === 0 || isGuest() || leaving || rejoining) return;
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(saveRecord()));
+      // A holding keeps its own save, beside the player's own factory.
+      if (holding) localStorage.setItem(H.saveKey(holding), JSON.stringify({ holding, record: saveRecord() }));
+      else localStorage.setItem(SAVE_KEY, JSON.stringify(saveRecord()));
       lastSaved = Date.now();
       lastSaveFailed = false;
     } catch {
@@ -1259,6 +1301,7 @@
     gameButton.setAttribute('aria-expanded', true);
     $('inspector').hidden = true; selected = null;
     $('stats').hidden = true; $('stats-toggle').setAttribute('aria-expanded', false);
+    $('report').hidden = true;
     showCard(tool);
     refreshGame();
   }
@@ -1302,9 +1345,14 @@
       return;
     }
     disarmReset();
-    of.of_reset();
-    afterWorldChange();
-    try { localStorage.removeItem(SAVE_KEY); } catch { /* nothing saved anyway */ }
+    if (holding) {
+      startContract();
+      try { localStorage.removeItem(H.saveKey(holding)); } catch { /* nothing saved anyway */ }
+    } else {
+      of.of_reset();
+      afterWorldChange();
+      try { localStorage.removeItem(SAVE_KEY); } catch { /* nothing saved anyway */ }
+    }
     lastSaved = null;
     closeGame();
     showCard(tool);
@@ -1422,6 +1470,7 @@
     }
   }
   function openNewGame() {
+    if (holding) return leaveHolding();
     chosenPack = packId === 'custom' && !customInfo ? 'base' : packId;
     $('ng-note').textContent = isGuest() ? 'The host chooses the game while you’re in theirs.'
       : 'Starting replaces the factory saved in this browser. Save it to a file first to keep it.';
@@ -1449,7 +1498,7 @@
     renderNewGame();
   });
   function startGame(id, start) {
-    if (isGuest()) return;
+    if (isGuest() || holding) return;
     const text = id === 'custom' ? customText : null;
     try { localStorage.removeItem(SAVE_KEY); } catch { /* nothing saved */ }
     if (!samePack(id, text)) {
@@ -1538,6 +1587,11 @@
       b.addEventListener('click', action);
       actions.append(b);
     };
+    if (holding) {
+      if (puzzleState.solved !== null) result.textContent = 'Contract fulfilled in ' + clock(elapsed) + '. The factory carries on.';
+      button('Report to OpenTactics', openReport);
+      return;
+    }
     if (puzzleState.solved !== null) {
       const previous = bestOf(packId, def.id);
       const record = !previous || elapsed < previous;
@@ -1553,6 +1607,104 @@
     }
     button('Other puzzles', openNewGame);
   }
+  // The holding: its banner, its contract, its clock and its report.
+  let waitingSaid = false, leaveArmed = 0;
+  function contractIndex() {
+    return pack.puzzles.findIndex((p) => p.id === H.contractFor(holding.builds));
+  }
+  function startContract() {
+    selectPack('base', null, contractIndex());
+    afterWorldChange();
+    lastSaved = null;
+    waitingSaid = false;
+  }
+  // Carries on from this browser's save for the holding's game and tile, or starts its contract.
+  function startHolding() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(H.saveKey(holding))); } catch { saved = null; }
+    if (saved && saved.record && loadRecord(saved.record) === 0) {
+      holding = H.merge(saved.holding, holding);
+      lastSaved = Date.parse(saved.record.savedAt) || null;
+      say('Welcome back to ' + holding.name + '. It’s day ' + holding.day + ' in OpenTactics.', 6000);
+    } else {
+      startContract();
+      const def = pack.puzzles[contractIndex()];
+      say(holding.army + ' needs a factory at ' + holding.name + (def ? ': ' + def.name + '.' : '.'), 7000);
+    }
+    tickLimit = H.allowance(holding);
+    $('h-chip').hidden = false;
+    $('g-new').innerHTML = 'Leave the holding for your own factory<kbd>N</kbd>';
+    refreshHolding();
+  }
+  function refreshHolding() {
+    if (!holding) return;
+    const left = Math.max(0, tickLimit - of.of_tick());
+    const chip = $('h-chip');
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = holding.color;
+    chip.title = 'An OpenTactics holding of ' + holding.army + '. Show its contract.';
+    chip.replaceChildren(swatch, holding.name + ' · day ' + holding.day + ' · '
+      + (left ? clock(left) + ' left' : 'Waiting for day ' + (holding.day + 1) + ' in OpenTactics'));
+    chip.classList.toggle('waiting', !left);
+    if (!left && !waitingSaid) {
+      say('Waiting for day ' + (holding.day + 1) + ' in OpenTactics. You can still build, and report how it went.', 8000);
+    }
+    waitingSaid = !left;
+  }
+  // Back to the player's own factory, after a second press: the holding is saved and its link opens it again.
+  function leaveHolding() {
+    if (!leaveArmed) {
+      say('This factory is an OpenTactics holding. Press again to leave it for your own; its link brings it back.', 4000);
+      leaveArmed = setTimeout(() => { leaveArmed = 0; }, 4000);
+      return;
+    }
+    autosave();
+    leaving = true;
+    history.replaceState(null, '', location.pathname + location.search);
+    location.reload();
+  }
+  async function openReport() {
+    const state = readPuzzle();
+    const def = state && pack.puzzles[state.puzzle];
+    if (!holding || !def) return say('This factory has no contract to report on.');
+    const value = H.report(holding, def.goals, state.progress, pack.resources, of.of_tick());
+    const url = await H.reportLink(holding, value);
+    $('h-summary').textContent = value.summary + '.';
+    const fact = (text) => { const li = document.createElement('li'); li.textContent = text; return li; };
+    $('h-facts').replaceChildren(
+      fact('Income: ' + value.income_pct + '% of the factory’s usual income'),
+      fact('Discount: ' + value.discount_pct + '% off units built there'),
+      fact('For day ' + holding.day + ' of ' + (holding.map || 'the war') + ', for ' + holding.army),
+    );
+    $('h-link').value = url;
+    $('h-open').href = url;
+    $('inspector').hidden = true; selected = null;
+    $('stats').hidden = true; $('stats-toggle').setAttribute('aria-expanded', false);
+    closeGame();
+    $('report').hidden = false;
+    showCard(tool);
+    // Hand it over at once: the share sheet on phones, the clipboard elsewhere.
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+      try { await navigator.share({ title: 'OpenFactor report: ' + holding.name, url }); return; } catch { /* copy it instead */ }
+    }
+    try { await navigator.clipboard.writeText(url); say('Report link copied. Send it to the commander.', 4000); } catch { /* copy by hand */ }
+  }
+  $('h-chip').addEventListener('click', () => { puzzleHidden = false; refreshPuzzle(); });
+  $('h-close').addEventListener('click', () => { $('report').hidden = true; showCard(tool); });
+  $('h-copy').addEventListener('click', async () => {
+    $('h-link').select();
+    try { await navigator.clipboard.writeText($('h-link').value); say('Report link copied.'); }
+    catch { say('Press Ctrl+C (or ⌘C) to copy the selected link.', 4000); }
+  });
+  // A holding link opened in this tab while it is already open.
+  addEventListener('hashchange', () => {
+    if (!/^#holding(json)?=/.test(location.hash)) return;
+    autosave();
+    leaving = true;
+    location.reload();
+  });
+
   function beginNext(index) {
     of.of_begin(index);
     say(pack.puzzles[index].name + '. The factory carries on.', 4000);
@@ -2133,6 +2285,7 @@
     refreshResearch();
     refreshGame();
     refreshPuzzle();
+    refreshHolding();
   }
 
   let previous = performance.now(), accumulated = 0, nextHud = 0, heardBuildings = -1;
@@ -2156,7 +2309,8 @@
     if (together) together.pointer(pan ? null : hover, now);
     requestAnimationFrame(frame);
   }
-  if (bootError) say('Those rules couldn’t start (' + bootError + '), so here is the factory instead.', 9000);
+  if (holding) startHolding();
+  else if (bootError) say('Those rules couldn’t start (' + bootError + '), so here is the factory instead.', 9000);
   else if (boot && boot.record) {
     const code = loadRecord(boot.record);
     say(code === 0 ? 'Loaded: tick ' + of.of_tick().toLocaleString('en') + '.' : LOAD_TEXT[code], 5000);
@@ -2166,13 +2320,14 @@
   } else if (!resume()) {
     say('Deliver items to a depot to pay for buildings and research.', 7000);
     // A first visit chooses what to play, unless it came to join someone.
-    if (!ownSave && !new URLSearchParams(location.search).get('join')) openNewGame();
+    if (!ownSave && !holdingError && !new URLSearchParams(location.search).get('join')) openNewGame();
   }
+  if (holdingError) say(holdingError, 9000);
   refreshPuzzle();
 
   // Playing together.
   const BEFORE_JOIN_KEY = 'openfactor.autosave.beforejoin';
-  together = (await import('./together.js?v=2')).createSession({
+  together = (await import('./together.js?v=3')).createSession({
     of,
     say,
     replaced: afterWorldChange,

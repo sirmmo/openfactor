@@ -112,9 +112,11 @@ export function createSession(game) {
     if (session.role === 'guest') return drain();
     const from = of.of_tick();
     const refused = real.of_step(ticks);
-    if (session.role === 'host' && ticks > 0 && session.peers.size) {
-      const message = { t: 'b', f: from, n: ticks, c: applied() };
-      if (Math.floor((from + ticks) / HASH_EVERY) > Math.floor(from / HASH_EVERY)) message.h = tickHash();
+    // What actually ran: a holding's pace may hold time back.
+    const ran = of.of_tick() - from;
+    if (session.role === 'host' && ran > 0 && session.peers.size) {
+      const message = { t: 'b', f: from, n: ran, c: applied() };
+      if (Math.floor((from + ran) / HASH_EVERY) > Math.floor(from / HASH_EVERY)) message.h = tickHash();
       broadcast(message);
     }
     return refused;
