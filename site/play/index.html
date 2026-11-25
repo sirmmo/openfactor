@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Play OpenFactor</title>
+<script src="wavedash.js"></script>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 <style>
   @font-face { font-family: 'Kenney Future Narrow'; src: url(assets/fonts/kenney-future-narrow.ttf); font-display: swap; }
@@ -428,6 +429,7 @@
     of = { ...instance.exports };
   } catch (error) {
     say('The game could not load (' + error.message + '). Try reloading the page.', 0);
+    window.WavedashHook?.ready();
     return;
   }
 
@@ -2439,6 +2441,7 @@
   import('./webmcp.js?v=2').then((m) => m.registerTools(agentTools)).catch((error) => console.warn('WebMCP unavailable:', error));
   if (new URLSearchParams(location.search).get('view') === '3d') toggle3d();
   requestAnimationFrame(frame);
+  window.WavedashHook?.ready(); // on Wavedash: loaded, show the factory
 })();
 </script>
 </body>

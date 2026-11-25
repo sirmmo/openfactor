@@ -1,0 +1,8 @@
+# OpenFactor on Wavedash. tools/wavedash.sh fills _wavedash/ and runs `wavedash build push` here.
+# game_id: the project id from the Wavedash Developer Portal, or from
+# `wavedash project create --title "OpenFactor" --team-id <TEAM_ID>`.
+# WAVEDASH_GAME_ID overrides it (the CLI reads it); tools/wavedash.sh also takes WAVEDASH_GAME_ID_OPENFACTOR
+# (in CI, the repository variable of that name), so the id need not be committed.
+game_id = "j974bwecnknws1ke5f4ntezjhs8jxh0n"
+upload_dir = "_wavedash"
+entrypoint = "index.html"

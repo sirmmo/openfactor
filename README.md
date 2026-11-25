@@ -94,3 +94,27 @@ Art is [Tiny Factory](https://kenney.nl/assets/tiny-factory),
 model folder in `site/play/assets/models` has its licence. The 3D view uses
 [three.js](https://threejs.org) (MIT) and playing together uses [PeerJS](https://peerjs.com) (MIT),
 both vendored in `site/play/vendor`.
+
+## Publishing on Wavedash
+
+OpenFactor is published on [Wavedash](https://wavedash.com) ([docs](https://docs.wavedash.com)) from
+`wavedash.toml`, at the root.
+
+1. **Create the game** in the Wavedash Developer Portal, or with the CLI (`curl -fsSL
+   https://wavedash.com/cli/install.sh | sh`, `wavedash auth login`, then `wavedash project create
+   --title "OpenFactor" --team-id <TEAM_ID>`).
+2. **Set its id**: `game_id` in `wavedash.toml`, or, to keep it out of the repository,
+   `WAVEDASH_GAME_ID_OPENFACTOR` (or `WAVEDASH_GAME_ID`) in the environment, and the repository
+   variable `WAVEDASH_GAME_ID_OPENFACTOR` (Settings › Secrets and variables › Actions › Variables).
+3. **Upload a build**: `sh tools/wavedash.sh` builds the WebAssembly client and copies the play page
+   into `_wavedash/` the way the Pages workflow does (not the docs or the API reference) and, with
+   the CLI on `PATH` and `WAVEDASH_TOKEN` set, runs `wavedash build push`. Without the CLI (or with
+   `WAVEDASH_DRY_RUN=1`) it only says what it would push. On GitHub: Actions › Wavedash › Run
+   workflow, with the secret `WAVEDASH_TOKEN`.
+4. **Publish it**: `wavedash publish <BUILD_ID>` (the id `build push` printed), or in the Developer
+   Portal.
+
+On Wavedash the game stays behind Wavedash's loading screen until it calls `Wavedash.init()`:
+`site/play/index.html` does it through `site/play/wavedash.js` once the client and the rules have
+loaded and the first frame is asked for, or when loading fails, to show the error. Elsewhere (GitHub
+Pages, a local server) there is no `Wavedash` object and the calls do nothing.
